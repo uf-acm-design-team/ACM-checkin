@@ -23,8 +23,8 @@ const particlesOptions = {
         quantity: 1,
       },
       repulse: {
-        distance: 200,
-        duration: 0.4,
+        distance: 150,
+        duration: 0.3,
       },
     },
   },
@@ -36,7 +36,7 @@ const particlesOptions = {
       color: "#ffffff",
       distance: 150,
       enable: true,
-      opacity: 0.7,
+      opacity: 0.5,
       width: 1,
     },
     move: {

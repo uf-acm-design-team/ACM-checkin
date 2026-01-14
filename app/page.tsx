@@ -91,7 +91,7 @@ export default function Home() {
               }`}
             />
             {emailError && (
-              <p className="text-red-300 text-sm mt-2">{emailError}</p>
+              <p className="text-red-600 text-sm mt-2">{emailError}</p>
             )}
           </div>
           <div>

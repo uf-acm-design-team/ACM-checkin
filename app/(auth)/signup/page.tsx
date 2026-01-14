@@ -117,7 +117,7 @@ export default function SignUp() {
       if (verifyError) {
         setOtpError(verifyError.message);
       } else {
-        // Success - user is verified and logged in
+        // success
         setShowOTPModal(false);
         router.push("/dashboard");
       }
@@ -173,7 +173,7 @@ export default function SignUp() {
               }`}
             />
             {emailError && (
-              <p className="text-red-300 text-sm mt-2">{emailError}</p>
+              <p className="text-red-600 text-sm mt-2">{emailError}</p>
             )}
           </div>
           <div>
