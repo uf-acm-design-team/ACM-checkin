@@ -6,11 +6,16 @@ import { createClient } from "../../utils/supabase/client";
 import OTPModal from "../../components/OTPModal";
 
 const UFL_EMAIL_REGEX = /^[^\s@]+@ufl\.edu$/;
+const NAME_REGEX = /^[a-zA-Z\s\-']+$/;
 
 export default function SignUp() {
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [firstNameError, setFirstNameError] = useState("");
+  const [lastNameError, setLastNameError] = useState("");
   const [emailError, setEmailError] = useState("");
   const [passwordError, setPasswordError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -20,6 +25,25 @@ export default function SignUp() {
   const [otpLoading, setOtpLoading] = useState(false);
   const router = useRouter();
   const supabase = createClient();
+
+  const validateName = (
+    value: string,
+    fieldName: string,
+    setError: (error: string) => void
+  ) => {
+    if (!value.trim()) {
+      setError(`${fieldName} is required`);
+      return false;
+    }
+    if (!NAME_REGEX.test(value)) {
+      setError(
+        `${fieldName} can only contain letters, spaces, hyphens, and apostrophes`
+      );
+      return false;
+    }
+    setError("");
+    return true;
+  };
 
   const validateEmail = (value: string) => {
     if (value && !UFL_EMAIL_REGEX.test(value)) {
@@ -70,29 +94,54 @@ export default function SignUp() {
     e.preventDefault();
     setError("");
 
+    const isFirstNameValid = validateName(
+      firstName,
+      "First name",
+      setFirstNameError
+    );
+    const isLastNameValid = validateName(
+      lastName,
+      "Last name",
+      setLastNameError
+    );
     const isEmailValid = validateEmail(email);
     const isPasswordValid = validatePassword(password, confirmPassword);
 
-    if (!isEmailValid || !isPasswordValid) {
+    if (
+      !isFirstNameValid ||
+      !isLastNameValid ||
+      !isEmailValid ||
+      !isPasswordValid
+    ) {
       return;
     }
 
     setLoading(true);
 
     try {
-      // sign up with otp
-      const { error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          emailRedirectTo: `${window.location.origin}/dashboard`,
-        },
-      });
+      // calls edge function for validation (server)
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/validate-signup`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY}`,
+          },
+          body: JSON.stringify({
+            email,
+            password,
+            firstName,
+            lastName,
+          }),
+        }
+      );
 
-      if (error) {
-        setError(error.message);
+      const data = await response.json();
+
+      if (!response.ok || data.error) {
+        setError(data.error || "Failed to create account");
       } else {
-        // Show OTP modal
         setShowOTPModal(true);
       }
     } catch (err) {
@@ -159,6 +208,40 @@ export default function SignUp() {
         )}
 
         <form onSubmit={handleSignUp} className="space-y-4">
+          <div>
+            <input
+              type="text"
+              placeholder="First Name"
+              value={firstName}
+              onChange={(e) => setFirstName(e.target.value)}
+              required
+              className={`w-full bg-white/20 placeholder-white/70 text-white font-semibold py-3 px-4 rounded-lg focus:outline-none focus:ring-2 transition-all duration-200 backdrop-blur-sm border ${
+                firstNameError
+                  ? "border-red-500 focus:ring-red-500"
+                  : "border-white/30 focus:ring-white/50"
+              }`}
+            />
+            {firstNameError && (
+              <p className="text-red-300 text-sm mt-2">{firstNameError}</p>
+            )}
+          </div>
+          <div>
+            <input
+              type="text"
+              placeholder="Last Name"
+              value={lastName}
+              onChange={(e) => setLastName(e.target.value)}
+              required
+              className={`w-full bg-white/20 placeholder-white/70 text-white font-semibold py-3 px-4 rounded-lg focus:outline-none focus:ring-2 transition-all duration-200 backdrop-blur-sm border ${
+                lastNameError
+                  ? "border-red-500 focus:ring-red-500"
+                  : "border-white/30 focus:ring-white/50"
+              }`}
+            />
+            {lastNameError && (
+              <p className="text-red-300 text-sm mt-2">{lastNameError}</p>
+            )}
+          </div>
           <div>
             <input
               type="email"

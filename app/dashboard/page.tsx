@@ -81,14 +81,16 @@ export default function Dashboard() {
           </h2>
           <p className="text-white/80">
             You&apos;re logged in as{" "}
-            <span className="font-semibold">{user?.email}</span>
+            <span className="font-semibold">
+              {user?.user_metadata?.full_name}
+            </span>
           </p>
         </div>
 
         <div className="space-y-6">
           <div className="bg-white/10 rounded-lg p-6 border border-white/20">
             <h3 className="text-xl font-semibold text-white mb-4">
-              Available Organizations
+              Your Organizations
             </h3>
             {orgsLoading ? (
               <p className="text-white/70">Loading organizations...</p>
@@ -110,30 +112,14 @@ export default function Dashboard() {
               <p className="text-white/70">No organizations found.</p>
             )}
           </div>
-
-          <div className="bg-white/10 rounded-lg p-6 border border-white/20">
-            <h3 className="text-xl font-semibold text-white mb-3">
-              Check-In History
-            </h3>
-            <p className="text-white/70">
-              Your check-in history will appear here.
-            </p>
-          </div>
-
-          <div className="bg-white/10 rounded-lg p-6 border border-white/20">
-            <h3 className="text-xl font-semibold text-white mb-3">
-              Upcoming Events
-            </h3>
-            <p className="text-white/70">ACM events will be displayed here.</p>
-          </div>
-
-          <button
-            onClick={handleSignOut}
-            className="w-full bg-white/20 hover:bg-white/30 text-white font-semibold py-3 px-4 rounded-lg transition-all duration-200 backdrop-blur-sm border border-white/30"
-          >
-            Sign Out
-          </button>
         </div>
+
+        <button
+          onClick={handleSignOut}
+          className="w-full bg-white/20 hover:bg-white/30 text-white font-semibold py-3 px-4 rounded-lg transition-all duration-200 backdrop-blur-sm border border-white/30"
+        >
+          Sign Out
+        </button>
       </div>
     </div>
   );
