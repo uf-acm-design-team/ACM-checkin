@@ -140,10 +140,13 @@ serve(async (req) => {
       });
     }
 
-    // send OTP email for verification
-    const { error: otpError } = await supabaseAdmin.auth.admin.generateLink({
-      type: "signup",
+    // Send OTP email for verification
+    // Use signInWithOtp to trigger the email OTP flow
+    const { error: otpError } = await supabaseAdmin.auth.signInWithOtp({
       email,
+      options: {
+        shouldCreateUser: false, // User already created above
+      },
     });
 
     if (otpError) {
