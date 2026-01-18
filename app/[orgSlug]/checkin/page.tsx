@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { createClient } from "../../../utils/supabase/client";
+import { createClient } from "../../utils/supabase/client";
 
 interface Organization {
   id: string;
@@ -10,10 +10,16 @@ interface Organization {
   slug: string;
 }
 
-export default function page({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = React.use(params);
+export default function page({
+  params,
+}: {
+  params: Promise<{ orgSlug: string }>;
+}) {
+  const { orgSlug } = React.use(params);
   const [user, setUser] = useState<any>(null);
   const [organization, setOrganization] = useState<Organization | null>(null);
+  const [meeting, setMeeting] = useState<any>(null);
+  const [attendance, setAttendance] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
@@ -27,6 +33,9 @@ export default function page({ params }: { params: Promise<{ id: string }> }) {
       setUser(user);
       if (!user) {
         console.log("not a user");
+        // To do: allow user to choose 2 options:
+        //1 check in with just an email
+        //2 log in/sign up
         // router.push("/");
       }
     };
@@ -37,11 +46,11 @@ export default function page({ params }: { params: Promise<{ id: string }> }) {
   useEffect(() => {
     const fetchOrganization = async () => {
       try {
-        console.log(id);
+        console.log(orgSlug); // prints passed in slug
         const { data, error } = await supabase
           .from("organizations")
           .select("id, name, slug")
-          .eq("slug", id)
+          .eq("slug", orgSlug)
           .single();
 
         if (error) {
@@ -59,7 +68,60 @@ export default function page({ params }: { params: Promise<{ id: string }> }) {
     };
 
     fetchOrganization();
-  }, [id, supabase]);
+  }, [orgSlug, supabase]);
+
+  useEffect(() => {
+    const checkMeeting = async () => {
+      if (!organization) return;
+
+      try {
+        const { data, error } = await supabase
+          .from("meetings")
+          .select("id, org_id, title, status")
+          .eq("org_id", organization.id)
+          .order("start_time", { ascending: false })
+          .limit(1)
+          .single(); // remove in the future?
+
+        if (error) {
+          console.error("Error fetching meeting:", error);
+        } else {
+          // const now = new Date();
+          // const startTime = new Date(data.start_time);
+          // const endTime = new Date(data.end_time);
+
+          if (!data.status) {
+            setError("No active meeting for this club at the moment.");
+          } else {
+            setMeeting(data);
+          }
+        }
+      } catch (err) {
+        console.error("Unexpected error fetching meeting:", err);
+      }
+    };
+
+    checkMeeting();
+  }, [organization, supabase]);
+
+  useEffect(() => {
+    const getAttendance = async () => {
+      if (!meeting || !user) return;
+
+      try {
+        const { data, error } = await supabase
+          .from("attendance")
+          .select("*")
+          .eq("meeting_id", meeting.id)
+          .eq("user_id", user.id)
+          .single();
+      } catch (error) {
+        console.error("Error fetching attendance:", error);
+      }
+    };
+
+    getAttendance();
+  }, [meeting, user, supabase]);
 
   if (loading) {
     return (
@@ -92,7 +154,9 @@ export default function page({ params }: { params: Promise<{ id: string }> }) {
         <p className="text-white/90 text-lg">Powered by ACM</p>
       </div>
       <div className="bg-white/10 backdrop-blur-md rounded-2xl shadow-2xl p-8 w-full max-w-2xl border border-white/20">
-        <p className="text-white text-center">Check-in functionality coming soon...</p>
+        <p className="text-white text-center">
+          Current Event: {meeting ? meeting.title : "No active meeting"}
+        </p>
       </div>
     </div>
   );
