@@ -12,11 +12,13 @@ export default function SignUp() {
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
+  const [gradYear, setGradYear] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [firstNameError, setFirstNameError] = useState("");
   const [lastNameError, setLastNameError] = useState("");
   const [emailError, setEmailError] = useState("");
+  const [gradYearError, setGradYearError] = useState("");
   const [passwordError, setPasswordError] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -68,6 +70,25 @@ export default function SignUp() {
     return true;
   };
 
+  const validateGradYear = (value: string) => {
+    if (!value.trim()) {
+      setGradYearError("Graduation year is required");
+      return false;
+    }
+    const year = parseInt(value);
+    if (isNaN(year) || value.length !== 4) {
+      setGradYearError("Please enter a valid 4-digit year");
+      return false;
+    }
+    const currentYear = new Date().getFullYear();
+    if (year < currentYear || year > currentYear + 10) {
+      setGradYearError(`Year must be between ${currentYear} and ${currentYear + 10}`);
+      return false;
+    }
+    setGradYearError("");
+    return true;
+  };
+
   const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     setEmail(value);
@@ -105,12 +126,14 @@ export default function SignUp() {
       setLastNameError
     );
     const isEmailValid = validateEmail(email);
+    const isGradYearValid = validateGradYear(gradYear);
     const isPasswordValid = validatePassword(password, confirmPassword);
 
     if (
       !isFirstNameValid ||
       !isLastNameValid ||
       !isEmailValid ||
+      !isGradYearValid ||
       !isPasswordValid
     ) {
       return;
@@ -133,6 +156,7 @@ export default function SignUp() {
             password,
             firstName,
             lastName,
+            gradYear,
           }),
         }
       );
@@ -166,9 +190,24 @@ export default function SignUp() {
       if (verifyError) {
         setOtpError(verifyError.message);
       } else {
-        // success
-        setShowOTPModal(false);
-        router.push("/dashboard");
+        // Insert user data into Supabase
+        const { data: userData, error: insertError } = await supabase
+          .from("users")
+          .insert([
+            {
+              email: email,
+              first_name: firstName,
+              last_name: lastName,
+              grad_year: parseInt(gradYear),
+            },
+          ]);
+
+        if (insertError) {
+          setOtpError("Failed to save user data: " + insertError.message);
+        } else {
+          setShowOTPModal(false);
+          router.push("/dashboard");
+        }
       }
     } catch (err) {
       setOtpError("An unexpected error occurred");
@@ -257,6 +296,23 @@ export default function SignUp() {
             />
             {emailError && (
               <p className="text-red-600 text-sm mt-2">{emailError}</p>
+            )}
+          </div>
+          <div>
+            <input
+              type="text"
+              placeholder="Grad Year (e.g., 2026)"
+              value={gradYear}
+              onChange={(e) => setGradYear(e.target.value)}
+              required
+              className={`w-full bg-white/20 placeholder-white/70 text-white font-semibold py-3 px-4 rounded-lg focus:outline-none focus:ring-2 transition-all duration-200 backdrop-blur-sm border ${
+                gradYearError
+                  ? "border-red-500 focus:ring-red-500"
+                  : "border-white/30 focus:ring-white/50"
+              }`}
+            />
+            {gradYearError && (
+              <p className="text-red-300 text-sm mt-2">{gradYearError}</p>
             )}
           </div>
           <div>
