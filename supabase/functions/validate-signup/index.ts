@@ -7,6 +7,7 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+$/;
 const UFL_EMAIL_REGEX = /^[^\s@]+@ufl\.edu$/;
 const NAME_REGEX = /^[a-zA-Z\s\-']+$/;
 
@@ -28,10 +29,10 @@ serve(async (req) => {
       await req.json();
 
     // Validate email format
-    if (!email || !UFL_EMAIL_REGEX.test(email)) {
+    if (!email || !EMAIL_REGEX.test(email)) {
       return new Response(
         JSON.stringify({
-          error: "Invalid email. Must be a valid @ufl.edu email address.",
+          error: "Invalid email. Must be a valid @ufkl.edu email address.",
         }),
         {
           status: 400,

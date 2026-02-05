@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "../../utils/supabase/client";
 import OTPModal from "../../components/OTPModal";
 
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+$/;
 const UFL_EMAIL_REGEX = /^[^\s@]+@ufl\.edu$/;
 const NAME_REGEX = /^[a-zA-Z\s\-']+$/;
 
@@ -48,8 +49,8 @@ export default function SignUp() {
   };
 
   const validateEmail = (value: string) => {
-    if (value && !UFL_EMAIL_REGEX.test(value)) {
-      setEmailError("Email must end with @ufl.edu");
+    if (value && !EMAIL_REGEX.test(value)) {
+      setEmailError("Please enter a valid email address");
       return false;
     } else {
       setEmailError("");
@@ -181,7 +182,7 @@ export default function SignUp() {
 
     try {
       // otp verification
-      const { error: verifyError } = await supabase.auth.verifyOtp({
+      const { data: verifyData, error: verifyError } = await supabase.auth.verifyOtp({
         email,
         token: code,
         type: "signup",
@@ -189,26 +190,33 @@ export default function SignUp() {
 
       if (verifyError) {
         setOtpError(verifyError.message);
-      } else {
-        // Insert user data into Supabase
-        const { data: userData, error: insertError } = await supabase
-          .from("users")
-          .insert([
-            {
-              email: email,
-              first_name: firstName,
-              last_name: lastName,
-              grad_year: parseInt(gradYear),
-            },
-          ]);
-
-        if (insertError) {
-          setOtpError("Failed to save user data: " + insertError.message);
-        } else {
-          setShowOTPModal(false);
-          router.push("/dashboard");
-        }
+        return;
       }
+      if (!verifyData.user) {
+        setOtpError("user not found");
+        return;
+      }
+      
+      // Insert user data into Supabase
+      const { data: userData, error: insertError } = await supabase
+        .from("attendee")
+        .insert([
+          {
+            user_id: verifyData.user.id,
+            email: email,
+            first_name: firstName,
+            last_name: lastName,
+            grad_year: parseInt(gradYear),
+          },
+        ]);
+
+      if (insertError) {
+        setOtpError("Failed to save user data: " + insertError.message);
+      } else {
+        setShowOTPModal(false);
+        router.push("/dashboard");
+      }
+      
     } catch (err) {
       setOtpError("An unexpected error occurred");
     } finally {
