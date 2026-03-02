@@ -15,6 +15,7 @@ export default function Dashboard() {
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [organizations, setOrganizations] = useState<Organization[]>([]);
+  const [attendanceByOrg, setAttendanceByOrg] = useState<Record<string, number>>({});
   const [orgsLoading, setOrgsLoading] = useState(true);
   const router = useRouter();
   const supabase = createClient();
@@ -35,6 +36,7 @@ export default function Dashboard() {
   useEffect(() => {
     if (loading) return;
     if (!user) {
+      setAttendanceByOrg({});
       setOrgsLoading(false);
       return;
     }
@@ -54,6 +56,38 @@ export default function Dashboard() {
             .filter(Boolean)
             .sort((a: any, b: any) => a.name.localeCompare(b.name));
           setOrganizations(orgs);
+
+          const { data: attendee, error: attendeeError } = await supabase
+            .from("attendee")
+            .select("id")
+            .eq("user_id", user.id)
+            .maybeSingle();
+
+          if (attendeeError) {
+            console.error("Error fetching attendee:", attendeeError);
+          }
+
+          if (attendee?.id) {
+            const { data: attendanceRows, error: attendanceError } = await supabase
+              .from("attendance")
+              .select("org_id")
+              .eq("attendee_id", attendee.id);
+
+            if (attendanceError) {
+              console.error("Error fetching attendance:", attendanceError);
+            } else {
+              const counts = (attendanceRows || []).reduce(
+                (acc: Record<string, number>, row: { org_id: string }) => {
+                  acc[row.org_id] = (acc[row.org_id] || 0) + 1;
+                  return acc;
+                },
+                {}
+              );
+              setAttendanceByOrg(counts);
+            }
+          } else {
+            setAttendanceByOrg({});
+          }
         }
       } catch (err) {
         console.error("Unexpected error fetching organizations:", err);
@@ -110,13 +144,45 @@ export default function Dashboard() {
                 {organizations.map((org) => (
                   <div
                     key={org.id}
-                    onClick={() => router.push(`/org/${org.slug}/checkin`)}
+                    onClick={() => router.push(`/org/${org.slug}`)}
                     className="bg-white/10 rounded-lg p-4 border border-white/20 hover:bg-white/20 transition-all cursor-pointer"
                   >
-                    <h4 className="text-lg font-semibold text-white">
-                      {org.name}
-                    </h4>
-                    <p className="text-white/60 text-sm">@{org.slug}</p>
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <h4 className="text-lg font-semibold text-white">
+                          {org.name}
+                        </h4>
+                        <p className="text-white/60 text-sm">@{org.slug}</p>
+                      </div>
+                      <div className="flex flex-col items-end gap-2">
+                        <p className="text-white/70 text-sm whitespace-nowrap text-right">
+                          Attended {attendanceByOrg[org.id] || 0}{" "}
+                          {(attendanceByOrg[org.id] || 0) === 1
+                            ? "meeting"
+                            : "meetings"}
+                        </p>
+                        <div className="flex gap-2 justify-end">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              router.push(`/org/${org.slug}/checkin`);
+                            }}
+                            className="bg-white text-black font-semibold py-2 px-4 rounded-lg hover:bg-white/90 transition-all cursor-pointer"
+                          >
+                            Check In
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              router.push(`/org/${org.slug}/stats`);
+                            }}
+                            className="bg-white/15 hover:bg-white/25 text-white font-semibold py-2 px-4 rounded-lg transition-all border border-white/20 cursor-pointer"
+                          >
+                            Stats
+                          </button>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 ))}
               </div>
