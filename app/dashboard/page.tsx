@@ -137,7 +137,7 @@ export default function Dashboard() {
             <h3 className="text-xl font-semibold text-white mb-4">
               Your Organizations
             </h3>
-            {/* {orgsLoading ? (
+            {orgsLoading ? (
               <p className="text-white/70">Loading organizations...</p>
             ) : organizations.length > 0 ? (
               <div className="space-y-3">
@@ -188,7 +188,7 @@ export default function Dashboard() {
               </div>
             ) : (
               <p className="text-white/70">No organizations found.</p>
-            )} */}
+            )}
           </div>
         </div>
 
