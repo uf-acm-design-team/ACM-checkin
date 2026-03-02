@@ -50,7 +50,7 @@ export default function SignUp() {
 
   const validateEmail = (value: string) => {
     if (value && !EMAIL_REGEX.test(value)) {
-      setEmailError("Please enter a valid email address");
+      setEmailError("Email must end with @ufl.edu");
       return false;
     } else {
       setEmailError("");

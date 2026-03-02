@@ -32,7 +32,7 @@ serve(async (req) => {
     if (!email || !EMAIL_REGEX.test(email)) {
       return new Response(
         JSON.stringify({
-          error: "Invalid email. Must be a valid @ufkl.edu email address.",
+          error: "Invalid email. Must be a valid @ufl.edu email address.",
         }),
         {
           status: 400,

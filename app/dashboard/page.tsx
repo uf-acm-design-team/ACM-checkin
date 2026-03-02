@@ -26,23 +26,34 @@ export default function Dashboard() {
       } = await supabase.auth.getUser();
       setUser(user);
       setLoading(false);
+      console.log("found user");
     };
 
     getUser();
   }, [supabase.auth]);
 
   useEffect(() => {
-    const fetchOrganizations = async () => {
+    if (loading) return;
+    if (!user) {
+      setOrgsLoading(false);
+      return;
+    }
+
+    const fetchMemberships = async () => {
       try {
         const { data, error } = await supabase
-          .from("organizations")
-          .select("id, name, slug, created_at")
-          .order("name", { ascending: true });
+          .from("memberships")
+          .select("organizations:org_id(id, name, slug, created_at)")
+          .eq("user_id", user.id);
 
         if (error) {
-          console.error("Error fetching organizations:", error);
+          console.error("Error fetching memberships:", error);
         } else {
-          setOrganizations(data || []);
+          const orgs = (data || [])
+            .map((m: any) => m.organizations)
+            .filter(Boolean)
+            .sort((a: any, b: any) => a.name.localeCompare(b.name));
+          setOrganizations(orgs);
         }
       } catch (err) {
         console.error("Unexpected error fetching organizations:", err);
@@ -51,8 +62,8 @@ export default function Dashboard() {
       }
     };
 
-    fetchOrganizations();
-  }, [supabase]);
+    fetchMemberships();
+  }, [user, loading, supabase]);
 
   const handleSignOut = async () => {
     await supabase.auth.signOut();
@@ -62,7 +73,7 @@ export default function Dashboard() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <div className="text-white text-xl">Loading... 6 7</div>
+        <div className="text-white text-xl">Loading...</div>
       </div>
     );
   }
@@ -80,7 +91,7 @@ export default function Dashboard() {
             Welcome to your Dashboard!
           </h2>
           <p className="text-white/80">
-            You&apos;re logged in as{" "}
+            You're logged in as{" "}
             <span className="font-semibold">
               {user?.user_metadata?.full_name}
             </span>
@@ -99,6 +110,7 @@ export default function Dashboard() {
                 {organizations.map((org) => (
                   <div
                     key={org.id}
+                    onClick={() => router.push(`/org/${org.slug}/checkin`)}
                     className="bg-white/10 rounded-lg p-4 border border-white/20 hover:bg-white/20 transition-all cursor-pointer"
                   >
                     <h4 className="text-lg font-semibold text-white">
