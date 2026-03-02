@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { createClient } from "../../../utils/supabase/client";
+import { createClient } from "../../utils/supabase/client";
 
 interface Organization {
   id: string;
@@ -32,9 +32,9 @@ interface Attendee {
 export default function AdminPage({
   params,
 }: {
-  params: Promise<{ id: string }>;
+  params: Promise<{ orgSlug: string }>;
 }) {
-  const { id } = React.use(params);
+  const { orgSlug } = React.use(params);
   const [user, setUser] = useState<any>(null);
   const [organization, setOrganization] = useState<Organization | null>(null);
   const [loading, setLoading] = useState(true);
@@ -77,7 +77,7 @@ export default function AdminPage({
         const { data, error } = await supabase
           .from("organizations")
           .select("id, name, slug")
-          .eq("slug", id)
+          .eq("slug", orgSlug)
           .single();
 
         if (error) {
@@ -93,7 +93,7 @@ export default function AdminPage({
     };
 
     fetchOrganization();
-  }, [id, supabase]);
+  }, [orgSlug, supabase]);
 
   useEffect(() => {
     if (!organization || activeTab !== "meetings") return;

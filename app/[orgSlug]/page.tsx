@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { createClient } from "../../utils/supabase/client";
+import { createClient } from "../utils/supabase/client";
 
 interface Organization {
   id: string;
@@ -13,9 +13,9 @@ interface Organization {
 export default function OrgPage({
   params,
 }: {
-  params: Promise<{ id: string }>;
+  params: Promise<{ orgSlug: string }>;
 }) {
-  const { id } = React.use(params);
+  const { orgSlug } = React.use(params);
   const [organization, setOrganization] = useState<Organization | null>(null);
   const [attendanceCount, setAttendanceCount] = useState<number>(0);
   const [loading, setLoading] = useState(true);
@@ -38,7 +38,7 @@ export default function OrgPage({
       const { data: org, error: orgError } = await supabase
         .from("organizations")
         .select("id, name, slug")
-        .eq("slug", id)
+        .eq("slug", orgSlug)
         .single();
 
       if (orgError || !org) {
@@ -68,7 +68,7 @@ export default function OrgPage({
     };
 
     init();
-  }, [id, supabase, router]);
+  }, [orgSlug, supabase, router]);
 
   if (loading) {
     return (
@@ -110,13 +110,13 @@ export default function OrgPage({
 
         <div className="space-y-3">
           <button
-            onClick={() => router.push(`/org/${id}/checkin`)}
+            onClick={() => router.push(`/${orgSlug}/checkin`)}
             className="w-full bg-white text-black font-bold py-4 px-6 rounded-xl transition-all duration-200 hover:bg-white/90 text-lg"
           >
             Check In
           </button>
           <button
-            onClick={() => router.push(`/org/${id}/stats`)}
+            onClick={() => router.push(`${orgSlug}/stats`)}
             className="w-full bg-white/15 hover:bg-white/25 text-white font-semibold py-3 px-6 rounded-xl transition-all duration-200 border border-white/20"
           >
             Stats

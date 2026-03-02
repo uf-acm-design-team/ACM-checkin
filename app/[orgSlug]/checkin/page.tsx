@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { createClient } from "../../../utils/supabase/client";
+import { createClient } from "../../utils/supabase/client";
 
 interface Organization {
   id: string;
@@ -21,9 +21,9 @@ type Step = "email" | "profile";
 export default function CheckinPage({
   params,
 }: {
-  params: Promise<{ id: string }>;
+  params: Promise<{ orgSlug: string }>;
 }) {
-  const { id } = React.use(params);
+  const { orgSlug } = React.use(params);
   const [user, setUser] = useState<any>(null);
   const [userAttendee, setUserAttendee] = useState<any>(null);
   const [organization, setOrganization] = useState<Organization | null>(null);
@@ -57,7 +57,7 @@ export default function CheckinPage({
       const { data: org, error: orgError } = await supabase
         .from("organizations")
         .select("id, name, slug")
-        .eq("slug", id)
+        .eq("slug", orgSlug)
         .single();
 
       if (orgError || !org) {
@@ -90,7 +90,7 @@ export default function CheckinPage({
     };
 
     init();
-  }, [id, supabase]);
+  }, [orgSlug, supabase]);
 
   const performCheckIn = async (
     attendeeId: string,
