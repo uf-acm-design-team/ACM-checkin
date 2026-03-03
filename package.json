@@ -3,7 +3,12 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "setup": "node scripts/setup-dev.mjs",
     "dev": "next dev",
+    "supabase:start": "supabase start",
+    "supabase:stop": "supabase stop",
+    "supabase:functions": "supabase functions serve --env-file supabase/functions/.env",
+    "dev:functions": "npm run supabase:functions",
     "build": "next build",
     "start": "next start",
     "lint": "eslint"
@@ -18,6 +23,7 @@
     "react-dom": "19.2.3"
   },
   "devDependencies": {
+    "supabase": "2.69.0",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
