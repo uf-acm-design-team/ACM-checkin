@@ -1,5 +1,15 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
+## Local Development
+
+**One-command setup:**
+
+```bash
+npm run setup
+```
+
+This checks Docker, installs deps, starts Supabase, runs migrations, creates `.env.local` and `supabase/functions/.env`, starts Edge Functions, and opens Supabase Studio. Then run `npm run dev` in a new terminal.
+
 ## Getting Started
 
 First, run the development server:
