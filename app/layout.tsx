@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { ClerkProvider } from "@clerk/nextjs";
 import "./globals.css";
 import ParticlesLayout from "./components/ParticlesLayout";
 
@@ -24,13 +25,15 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
-        {/* in layout to avoid rerendering during state changes*/}
-        <ParticlesLayout>{children}</ParticlesLayout>
-      </body>
-    </html>
+    <ClerkProvider>
+      <html lang="en">
+        <body
+          className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        >
+          {/* in layout to avoid rerendering during state changes*/}
+          <ParticlesLayout>{children}</ParticlesLayout>
+        </body>
+      </html>
+    </ClerkProvider>
   );
 }

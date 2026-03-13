@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import { useUser } from "@clerk/nextjs";
 import { createClient } from "../../utils/supabase/client";
 
 interface Organization {
@@ -24,7 +25,7 @@ export default function CheckinPage({
   params: Promise<{ orgSlug: string }>;
 }) {
   const { orgSlug } = React.use(params);
-  const [user, setUser] = useState<any>(null);
+  const { user, isLoaded } = useUser();
   const [userAttendee, setUserAttendee] = useState<any>(null);
   const [organization, setOrganization] = useState<Organization | null>(null);
   const [activeMeeting, setActiveMeeting] = useState<ActiveMeeting | null>(
@@ -48,12 +49,9 @@ export default function CheckinPage({
   const supabase = createClient();
 
   useEffect(() => {
-    const init = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      setUser(user);
+    if (!isLoaded) return;
 
+    const init = async () => {
       const { data: org, error: orgError } = await supabase
         .from("organizations")
         .select("id, name, slug")
@@ -61,6 +59,7 @@ export default function CheckinPage({
         .single();
 
       if (orgError || !org) {
+        console.error("Org query failed:", orgError);
         setError("Club does not exist");
         setLoading(false);
         return;
@@ -79,7 +78,7 @@ export default function CheckinPage({
 
       if (user) {
         const { data: attendee } = await supabase
-          .from("attendee")
+          .from("attendees")
           .select("id, first_name, last_name, email")
           .eq("user_id", user.id)
           .maybeSingle();
@@ -90,7 +89,7 @@ export default function CheckinPage({
     };
 
     init();
-  }, [orgSlug, supabase]);
+  }, [orgSlug, isLoaded, user, supabase]);
 
   const performCheckIn = async (
     attendeeId: string,
@@ -165,7 +164,7 @@ export default function CheckinPage({
 
     try {
       const { data: attendee } = await supabase
-        .from("attendee")
+        .from("attendees")
         .select("id")
         .eq("email", email)
         .maybeSingle();
@@ -189,7 +188,7 @@ export default function CheckinPage({
 
     try {
       const { data: newAttendee, error: createError } = await supabase
-        .from("attendee")
+        .from("attendees")
         .insert({ email, first_name: firstName, last_name: lastName, grad_year: gradYear })
         .select("id")
         .single();
@@ -210,7 +209,7 @@ export default function CheckinPage({
   const inputClass =
     "w-full bg-white/10 border border-white/20 rounded-lg px-4 py-2 text-white placeholder-white/40 focus:outline-none focus:border-white/50";
 
-  if (loading) {
+  if (!isLoaded || loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-white text-xl">Loading...</div>
