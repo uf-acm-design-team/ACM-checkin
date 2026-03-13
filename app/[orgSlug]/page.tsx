@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useUser } from "@clerk/nextjs";
 import { createClient } from "../utils/supabase/client";
 
 interface Organization {
@@ -16,6 +17,7 @@ export default function OrgPage({
   params: Promise<{ orgSlug: string }>;
 }) {
   const { orgSlug } = React.use(params);
+  const { user, isLoaded } = useUser();
   const [organization, setOrganization] = useState<Organization | null>(null);
   const [attendanceCount, setAttendanceCount] = useState<number>(0);
   const [loading, setLoading] = useState(true);
@@ -25,11 +27,9 @@ export default function OrgPage({
   const supabase = createClient();
 
   useEffect(() => {
-    const init = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+    if (!isLoaded) return;
 
+    const init = async () => {
       if (!user) {
         router.push("/");
         return;
@@ -50,7 +50,7 @@ export default function OrgPage({
       setOrganization(org);
 
       const { data: attendee } = await supabase
-        .from("attendee")
+        .from("attendees")
         .select("id")
         .eq("user_id", user.id)
         .maybeSingle();
@@ -68,9 +68,9 @@ export default function OrgPage({
     };
 
     init();
-  }, [orgSlug, supabase, router]);
+  }, [orgSlug, isLoaded, user, supabase, router]);
 
-  if (loading) {
+  if (!isLoaded || loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-white text-xl">Loading...</div>

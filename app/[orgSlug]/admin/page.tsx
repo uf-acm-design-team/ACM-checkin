@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useUser } from "@clerk/nextjs";
 import { createClient } from "../../utils/supabase/client";
 
 interface Organization {
@@ -35,7 +36,7 @@ export default function AdminPage({
   params: Promise<{ orgSlug: string }>;
 }) {
   const { orgSlug } = React.use(params);
-  const [user, setUser] = useState<any>(null);
+  const { user, isLoaded } = useUser();
   const [organization, setOrganization] = useState<Organization | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -59,17 +60,11 @@ export default function AdminPage({
   const supabase = createClient();
 
   useEffect(() => {
-    const getUser = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      setUser(user);
-      if (!user) {
-        router.push("/");
-      }
-    };
-    getUser();
-  }, [supabase.auth, router]);
+    if (!isLoaded) return;
+    if (!user) {
+      router.push("/");
+    }
+  }, [isLoaded, user, router]);
 
   useEffect(() => {
     const fetchOrganization = async () => {
@@ -207,7 +202,7 @@ export default function AdminPage({
     }
   };
 
-  if (loading) {
+  if (!isLoaded || loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-white text-xl">Loading...</div>

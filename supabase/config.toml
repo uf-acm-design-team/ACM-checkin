@@ -350,11 +350,7 @@ authorization_url_path = "/oauth/consent"
 # Allow dynamic client registration
 allow_dynamic_registration = false
 
-# validate-signup is called before user exists, so it cannot use JWT auth.
-# With new sb_publishable_ keys (non-JWT), verify_jwt must be false.
-# The function validates @ufl.edu emails and has its own checks.
-[functions.validate-signup]
-verify_jwt = false
+# validate-signup edge function removed — signup is now handled by Clerk
 
 [edge_runtime]
 enabled = true
