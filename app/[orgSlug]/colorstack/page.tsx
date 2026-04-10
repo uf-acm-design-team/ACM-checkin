@@ -7,23 +7,22 @@ const UFL_EMAIL_REGEX = /^[^\s@]+@ufl\.edu$/;
 
 export default function ColorStackSignIn() {
 
-    const [emailError, setEmailError] = useState("");
-    const [email, setEmail] = useState("");
-    const supabase = createClient();
-    const [colorStackError, setColorStackError] = useState("");
-    const [meetingError, setMeetingError] = useState("");
-    const [alreadyCheckedIn, setAlreadyCheckedIn] = useState("");
+    const [checkinMessage, setCheckinMessage] = useState("");
     const [success, setSuccess] = useState("");
-    const [registered, setRegistered] = useState("");
+    const [email, setEmail] = useState("");
+    const [firstName, setFirstName] = useState("");
+    const [lastName, setLastName] = useState("");
+    const [gradYear, setGradYear] = useState("");
+    const supabase = createClient();
     const [loading, setLoading] = useState(false);
-    const [insertError, setInsertError] = useState("");
+    const [signUp, setSignUp] = useState(false);
 
     const validateEmail = (value: string) => {
         if (value && !UFL_EMAIL_REGEX.test(value)) {
-            setEmailError("Email must end with @ufl.edu");
+            setCheckinMessage("Email must end with @ufl.edu");
             return false;
         } else {
-            setEmailError("");
+            setCheckinMessage("");
             return true;
         }
     };
@@ -41,11 +40,16 @@ export default function ColorStackSignIn() {
             .eq("slug", "colorstack")
             .single();
         if(orgError != null){
-            setColorStackError("ColorStack not initialized in backend!");
+            setCheckinMessage("Error while checking in. Please try again.");
             setLoading(false);
             return;
         }
-        setColorStackError("");
+        if(orgId == null){
+            setCheckinMessage("ColorStack not initialized in backend!");
+            setLoading(false);
+            return;
+        }
+        setCheckinMessage("");
         const { data: activeMeeting, error: activeMeetingError } = await supabase
             .from("meetings")
             .select("id, org_id")
@@ -53,23 +57,32 @@ export default function ColorStackSignIn() {
             .eq("status", true)
             .limit(1)
             .maybeSingle();
-        if(activeMeetingError != null || activeMeeting == null){
-            setMeetingError("There is currently no active meeting!");
+        if(activeMeetingError != null){
+            setCheckinMessage("Error while checking in. Please try again.");
             setLoading(false);
             return;
         }
-        setMeetingError("");
+        if(activeMeeting == null){
+            setCheckinMessage("There is currently no active meeting!");
+            setLoading(false);
+            return;
+        }
+        setCheckinMessage("");
         const { data: attendeeExistence, error: attendeeExistenceError } = await supabase
             .from("attendee")
             .select("id")
             .eq("email", email)
             .maybeSingle();
-        if(attendeeExistence == null || attendeeExistenceError != null){
-            setRegistered("You must register on the main page before checking in.");
+        if(attendeeExistenceError != null){
+            setCheckinMessage("Error while checking in. Please try again.");
             setLoading(false);
             return;
         }
-        setRegistered("");
+        if(attendeeExistence == null){
+            setSignUp(true);
+            setLoading(false);
+            return;
+        }
         const { data: checkedIn, error: checkedInError } = await supabase
             .from("attendance")
             .select("id")
@@ -77,20 +90,45 @@ export default function ColorStackSignIn() {
             .eq("attendee_id", attendeeExistence.id)
             .maybeSingle();
         if(checkedIn != null){
-            setAlreadyCheckedIn("You are already checked in!");
+            setCheckinMessage("You are already checked in!");
         } else {
-            setAlreadyCheckedIn("");
+            setCheckinMessage("");
             const { data: inserted, error: insertionError } = await supabase
                 .from("attendance")
                 .insert({ org_id: orgId.id, meeting_id: activeMeeting.id, attendee_id: attendeeExistence.id, source: "guest"});
             if(insertionError != null){
-                setInsertError("Error in checking in. Please try again.");
+                setCheckinMessage("Error while checking in. Please try again.");
             } else {
-                setInsertError("");
+                setCheckinMessage("");
                 setSuccess("Successfully checked in!");
             }
         }
         setLoading(false);
+    };
+
+    const handleSignUp = async () => {
+        setSuccess("");
+        setCheckinMessage("");
+        setLoading(true);
+
+        if (!firstName || !lastName || !gradYear) {
+            setCheckinMessage("Please enter your first name, last name, and graduation year.");
+            setLoading(false);
+            return;
+        }
+
+        const {data: attendeeInsertion, error: attendeeInsertionError} = await supabase
+            .from("attendee")
+            .insert({email: email, first_name: firstName, last_name: lastName, grad_year: gradYear});
+
+        if(attendeeInsertionError != null){
+            setCheckinMessage("Error while signing up. Please try again.");
+            setLoading(false);
+            return;
+        }
+
+        setSignUp(false);
+        await handleCheckIn();
     };
 
     const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -117,21 +155,49 @@ export default function ColorStackSignIn() {
                     className="w-full border-2 border-[#18548f] bg-transparent text-[#18548f] placeholder-[#18548f] font-medium py-4 px-4 rounded-xl mb-6 focus:outline-none"
                 />
 
-                {emailError && <p className="text-red-500 mb-4">{emailError}</p>}
-                {colorStackError && <p className="text-red-500 mb-4">{colorStackError}</p>}
-                {alreadyCheckedIn && <p className="text-red-500 mb-4">{alreadyCheckedIn}</p>}
-                {meetingError && <p className="text-red-500 mb-4">{meetingError}</p>}
-                {registered && <p className="text-red-500 mb-4">{registered}</p>}
-                {insertError && <p className="text-red-500 mb-4">{insertError}</p>}
+                {checkinMessage && <p className="text-red-500 mb-4">{checkinMessage}</p>}
                 {success && <p className="text-green-500 mb-4">{success}</p>}
 
-                <button
-                    onClick={handleCheckIn}
-                    disabled={loading}
-                    className="w-full bg-[#f26f22] cursor-pointer text-white font-bold py-3 px-4 rounded-xl"
-                >
-                    {loading ? "CHECKING IN..." : "CHECK IN"}
-                </button>
+                {signUp ? (
+                    <>
+                        <input
+                            type="text"
+                            placeholder="First Name"
+                            value={firstName}
+                            onChange={(e) => setFirstName(e.target.value)}
+                            className="w-full border-2 border-[#18548f] bg-transparent text-[#18548f] placeholder-[#18548f] font-medium py-4 px-4 rounded-xl mb-4 focus:outline-none"
+                        />
+                        <input
+                            type="text"
+                            placeholder="Last Name"
+                            value={lastName}
+                            onChange={(e) => setLastName(e.target.value)}
+                            className="w-full border-2 border-[#18548f] bg-transparent text-[#18548f] placeholder-[#18548f] font-medium py-4 px-4 rounded-xl mb-4 focus:outline-none"
+                        />
+                        <input
+                            type="text"
+                            placeholder="Graduation Year"
+                            value={gradYear}
+                            onChange={(e) => setGradYear(e.target.value)}
+                            className="w-full border-2 border-[#18548f] bg-transparent text-[#18548f] placeholder-[#18548f] font-medium py-4 px-4 rounded-xl mb-6 focus:outline-none"
+                        />
+                        <button
+                            onClick={() => handleSignUp()}
+                            disabled={loading}
+                            className="w-full bg-[#18548f] cursor-pointer text-white font-bold py-3 px-4 rounded-xl"
+                        >
+                            {loading ? "SIGNING UP..." : "SIGN UP"}
+                        </button>
+                    </>
+                ) : (
+                    <button
+                        onClick={handleCheckIn}
+                        disabled={loading}
+                        className="w-full bg-[#f26f22] cursor-pointer text-white font-bold py-3 px-4 rounded-xl"
+                    >
+                        {loading ? "CHECKING IN..." : "CHECK IN"}
+                    </button>
+                )}
             </div>
         </div>
     );
