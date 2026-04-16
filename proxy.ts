@@ -41,7 +41,7 @@ export async function proxy(request: NextRequest) {
   );
 
   // public routes
-  const publicRoutes = ["/", "/signup"];
+  const publicRoutes = ["/", "/signup", "/aed-checkin"];
   const isPublicRoute = publicRoutes.some((route) => {
     if (route === "/") {
       return request.nextUrl.pathname === "/";

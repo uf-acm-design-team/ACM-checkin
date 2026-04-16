@@ -1,23 +1,18 @@
 import Image from "next/image";
+import crestImage from "./AED Crest.png";
 
 export function Header() {
   return (
-    <header className="bg-brand-primary px-5 py-4">
-      <div className="flex items-center gap-3">
-        <div className="relative h-12 w-12 overflow-hidden rounded-full border border-white/25 bg-white/10">
-          <Image
-            src="/aed-crest-placeholder.svg"
-            alt="AED crest"
-            fill
-            sizes="48px"
-            className="object-cover"
-            priority
-          />
-        </div>
-
-        <p className="text-xl font-semibold tracking-[0.01em] text-white">
-          AED Check In
-        </p>
+    <header className="sticky top-0 z-20 bg-[var(--brand-primary)] px-6 pt-10 pb-6 flex flex-col items-center justify-center rounded-b-3xl shadow-sm">
+      <div className="relative h-24 w-24 flex items-center justify-center">
+        <Image
+          src={crestImage}
+          alt="AED crest"
+          width={96}
+          height={96}
+          className="object-contain drop-shadow-md"
+          priority
+        />
       </div>
     </header>
   );
