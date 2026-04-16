@@ -72,7 +72,7 @@ export default function ACMCheckIn() {
 
       if (user) {
         const { data: attendee } = await supabase
-          .from("attendees")
+          .from("attendee")
           .select("id, first_name, last_name, email")
           .eq("user_id", user.id)
           .maybeSingle();
@@ -147,7 +147,7 @@ export default function ACMCheckIn() {
 
     try {
       const { data: attendee } = await supabase
-        .from("attendees")
+        .from("attendee")
         .select("id")
         .eq("email", email)
         .maybeSingle();
@@ -171,7 +171,7 @@ export default function ACMCheckIn() {
 
     try {
       const { data: newAttendee, error: createError } = await supabase
-        .from("attendees")
+        .from("attendee")
         .insert({ email, first_name: firstName, last_name: lastName, grad_year: gradYear })
         .select("id")
         .single();
