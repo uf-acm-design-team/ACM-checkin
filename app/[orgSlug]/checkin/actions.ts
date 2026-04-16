@@ -6,7 +6,7 @@ const ORG_MEMBERSHIP_THRESHOLDS: Record<string, number> = {
   // Add org slugs and their required attendance count here
   "ACM": 3,
 };
-const DEFAULT_THRESHOLD = 3;
+const DEFAULT_THRESHOLD = 0;
 
 export async function resolveAndUpdateMembershipStatus(
   userId: string,
