@@ -80,7 +80,7 @@ export default function ParticlesLayout({
 }) {
   const [init, setInit] = useState(false);
   const pathname = usePathname();
-  const theme = pathname?.startsWith("/aed-checkin") ? "aed" : "main";
+  const theme = pathname?.startsWith("/aed") ? "aed" : "main";
   const themeConfig = themes[theme];
 
   useEffect(() => {
