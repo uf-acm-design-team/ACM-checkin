@@ -27,6 +27,12 @@
   }
 }
 
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
 body {
   background: var(--background);
   color: var(--foreground);
@@ -37,16 +43,30 @@ body {
   box-sizing: border-box;
 }
 
+/*
+ * Outer page wrapper — completely covers the particles gradient
+ * background so no coloured gap leaks at the top/bottom.
+ */
 .aed-shell-page {
+  position: relative;
+  z-index: 1;            /* sit above the particles canvas */
+  width: 100%;
   min-height: 100vh;
   background: var(--brand-background);
   color: var(--text-main);
 }
 
+/*
+ * Centred mobile-width column — the "phone frame" on desktop.
+ * Height grows with content; no overflow clipping.
+ */
 .aed-shell-container {
   min-height: 100vh;
-  max-width: 28rem;
+  max-width: 28rem;        /* max-w-md */
   margin-inline: auto;
+  display: flex;
+  flex-direction: column;
+  position: relative;
   background: var(--brand-background);
-  box-shadow: 0 20px 45px rgba(0, 0, 0, 0.35);
+  box-shadow: 0 25px 50px rgba(0, 0, 0, 0.35);
 }
