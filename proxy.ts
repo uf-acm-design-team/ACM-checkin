@@ -47,7 +47,7 @@ export async function proxy(request: NextRequest) {
       return request.nextUrl.pathname === "/";
     }
     return request.nextUrl.pathname.startsWith(route);
-  });
+  }) || request.nextUrl.pathname.endsWith("/checkin");
 
   console.log("[Proxy] Is public route:", isPublicRoute);
 
