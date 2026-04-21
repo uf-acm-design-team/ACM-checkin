@@ -1,5 +1,6 @@
 'use client'
 
+import Link from "next/link";
 import { createClient } from "@/app/utils/supabase/client";
 import React, { useState } from "react";
 
@@ -190,13 +191,21 @@ export default function ColorStackSignIn() {
                         </button>
                     </>
                 ) : (
-                    <button
-                        onClick={handleCheckIn}
-                        disabled={loading}
-                        className="w-full bg-[#f26f22] cursor-pointer text-white font-bold py-3 px-4 rounded-xl"
-                    >
-                        {loading ? "CHECKING IN..." : "CHECK IN"}
-                    </button>
+                    <>
+                        <button
+                            onClick={handleCheckIn}
+                            disabled={loading}
+                            className="w-full bg-[#f26f22] cursor-pointer text-white font-bold py-3 px-4 rounded-xl"
+                        >
+                            {loading ? "CHECKING IN..." : "CHECK IN"}
+                        </button>
+                        <Link
+                            href="/org/colorstack/stats"
+                            className="mt-4 inline-flex w-full items-center justify-center rounded-xl border border-[#18548f] bg-white/10 px-4 py-3 text-[#18548f] font-semibold transition hover:bg-white/20"
+                        >
+                            View Member Stats
+                        </Link>
+                    </>
                 )}
             </div>
         </div>
