@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useUser, UserButton } from "@clerk/nextjs";
 import { createClient } from "../utils/supabase/client";
 
 interface Organization {
@@ -12,7 +13,7 @@ interface Organization {
 }
 
 export default function Dashboard() {
-  const [user, setUser] = useState<any>(null);
+  const { user, isLoaded } = useUser();
   const [loading, setLoading] = useState(true);
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [attendanceByOrg, setAttendanceByOrg] = useState<Record<string, number>>({});
@@ -21,21 +22,16 @@ export default function Dashboard() {
   const supabase = createClient();
 
   useEffect(() => {
-    const getUser = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      setUser(user);
+    if (!isLoaded) return;
+    if (!user) {
       setLoading(false);
-      console.log("found user");
-    };
-
-    getUser();
-  }, [supabase.auth]);
+      return;
+    }
+    setLoading(false);
+  }, [isLoaded, user]);
 
   useEffect(() => {
-    if (loading) return;
-    if (!user) {
+    if (loading || !user) {
       setAttendanceByOrg({});
       setOrgsLoading(false);
       return;
@@ -58,7 +54,7 @@ export default function Dashboard() {
           setOrganizations(orgs);
 
           const { data: attendee, error: attendeeError } = await supabase
-            .from("attendee")
+            .from("attendees")
             .select("id")
             .eq("user_id", user.id)
             .maybeSingle();
@@ -99,12 +95,7 @@ export default function Dashboard() {
     fetchMemberships();
   }, [user, loading, supabase]);
 
-  const handleSignOut = async () => {
-    await supabase.auth.signOut();
-    router.push("/");
-  };
-
-  if (loading) {
+  if (!isLoaded || loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-white text-xl">Loading...</div>
@@ -120,16 +111,25 @@ export default function Dashboard() {
       </div>
 
       <div className="bg-white/10 backdrop-blur-md rounded-2xl shadow-2xl p-8 w-full max-w-2xl border border-white/20">
-        <div className="text-center mb-8">
-          <h2 className="text-3xl font-bold text-white mb-2">
-            Welcome to your Dashboard!
-          </h2>
-          <p className="text-white/80">
-            You're logged in as{" "}
-            <span className="font-semibold">
-              {user?.user_metadata?.full_name}
-            </span>
-          </p>
+        <div className="flex items-center justify-between mb-8">
+          <div>
+            <h2 className="text-3xl font-bold text-white mb-2">
+              Welcome to your Dashboard!
+            </h2>
+            <p className="text-white/80">
+              You&apos;re logged in as{" "}
+              <span className="font-semibold">
+                {user?.fullName || user?.primaryEmailAddress?.emailAddress}
+              </span>
+            </p>
+          </div>
+          <UserButton
+            appearance={{
+              elements: {
+                avatarBox: "w-10 h-10",
+              },
+            }}
+          />
         </div>
 
         <div className="space-y-6">
@@ -191,13 +191,6 @@ export default function Dashboard() {
             )}
           </div>
         </div>
-
-        <button
-          onClick={handleSignOut}
-          className="w-full bg-white/20 hover:bg-white/30 text-white font-semibold py-3 px-4 rounded-lg transition-all duration-200 backdrop-blur-sm border border-white/30"
-        >
-          Sign Out
-        </button>
       </div>
     </div>
   );
