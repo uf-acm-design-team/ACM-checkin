@@ -11,14 +11,12 @@ VALUES
   ('colorstack', 'ColorStack')
 ON CONFLICT (slug) DO UPDATE SET name = EXCLUDED.name;
 
--- Helper CTE to resolve org ids by slug
+-- 2) Meetings (one active now + one past per org)
 WITH orgs AS (
   SELECT id, slug
   FROM public.organizations
   WHERE slug IN ('aed', 'acm', 'colorstack')
 )
-
--- 2) Meetings (one active now + one past per org)
 INSERT INTO public.meetings (org_id, title, start_time, end_time, status, questions)
 SELECT
   o.id,
@@ -53,16 +51,14 @@ SELECT
 FROM orgs o;
 
 -- 3) Attendees (global people)
--- IMPORTANT: You should enforce UNIQUE(lower(trim(email))) in schema eventually.
-INSERT INTO public.attendee (email, first_name, last_name, grad_year, admin)
+INSERT INTO public.attendees (email, first_name, last_name, grad_year, admin)
 VALUES
   ('alice@ufl.edu', 'Alice', 'Nguyen', '2027', false),
   ('bryce@ufl.edu', 'Bryce', 'Miller', '2026', true),
   ('carlos@ufl.edu', 'Carlos', 'Santos', '2025', false)
-ON CONFLICT DO NOTHING;  -- if you later add a unique constraint, change this to ON CONFLICT(email) DO UPDATE ...
+ON CONFLICT DO NOTHING;
 
--- 4) Attendance rows (each attendee checks into one org’s currently-active meeting)
--- Resolve active meeting per org and attendee ids by email.
+-- 4) Attendance rows (each attendee checks into one org's currently-active meeting)
 WITH
   org_ids AS (
     SELECT slug, id
@@ -78,7 +74,7 @@ WITH
   ),
   a AS (
     SELECT id AS attendee_id, lower(trim(email)) AS email_n
-    FROM public.attendee
+    FROM public.attendees
     WHERE lower(trim(email)) IN ('alice@ufl.edu','bryce@ufl.edu','carlos@ufl.edu')
   )
 INSERT INTO public.attendance (org_id, meeting_id, attendee_id, source, answers)
@@ -87,7 +83,7 @@ SELECT
   am.meeting_id,
   a.attendee_id,
   'seed' AS source,
-  ARRAY['seed answer 1','seed answer 2']::text[]
+  '["seed answer 1", "seed answer 2"]'::jsonb
 FROM (VALUES
   ('aed','alice@ufl.edu'),
   ('acm','bryce@ufl.edu'),
