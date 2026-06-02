@@ -50,4 +50,6 @@ next-env.d.ts
 
 #Ignore vscode AI rules
 .github/instructions/codacy.instructions.md
-supabase/.temp/
+
+# clerk configuration (can include secrets)
+/.clerk/
