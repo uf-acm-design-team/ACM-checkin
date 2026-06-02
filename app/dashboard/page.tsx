@@ -45,7 +45,7 @@ export default function Dashboard() {
           .eq("user_id", user.id);
 
         if (error) {
-          console.error("Error fetching memberships:", error);
+          console.error("Error fetching memberships:", JSON.stringify(error, null, 2));
         } else {
           const orgs = (data || [])
             .map((m: any) => m.organizations)
