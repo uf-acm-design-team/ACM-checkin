@@ -82,8 +82,12 @@ ParticlesBackground.displayName = "ParticlesBackground";
 
 export default function ParticlesLayout({
   children,
+  fromColor = "#FA4616",
+  toColor = "#0021A5",
 }: {
   children: React.ReactNode;
+  fromColor?: string;
+  toColor?: string;
 }) {
   const [init, setInit] = useState(false);
 
@@ -96,7 +100,10 @@ export default function ParticlesLayout({
   }, []);
 
   return (
-    <div className="relative min-h-screen w-full bg-gradient-to-br from-[#FA4616] via-[#F58025] to-[#0021A5] overflow-hidden">
+    <div
+      className="relative min-h-screen w-full overflow-hidden"
+      style={{ background: `linear-gradient(to bottom right, ${fromColor}, ${toColor})` }}
+    >
       {init && <ParticlesBackground />}
       <div className="relative z-10">{children}</div>
     </div>

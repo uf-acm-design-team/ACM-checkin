@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
-import { createClient } from "../utils/supabase/client";
+import { createClient } from "../../utils/supabase/client";
 
 export default function OnboardingPage() {
   const { user, isLoaded } = useUser();

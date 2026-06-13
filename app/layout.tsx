@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { ClerkProvider } from "@clerk/nextjs";
 import "./globals.css";
-import ParticlesLayout from "./components/ParticlesLayout";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -30,8 +29,7 @@ export default function RootLayout({
         <body
           className={`${geistSans.variable} ${geistMono.variable} antialiased`}
         >
-          {/* in layout to avoid rerendering during state changes*/}
-          <ParticlesLayout>{children}</ParticlesLayout>
+          {children}
         </body>
       </html>
     </ClerkProvider>

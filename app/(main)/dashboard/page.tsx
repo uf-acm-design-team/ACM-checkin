@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useUser, UserButton } from "@clerk/nextjs";
-import { createClient } from "../utils/supabase/client";
+import { createClient } from "../../utils/supabase/client";
 
 interface Organization {
   id: string;

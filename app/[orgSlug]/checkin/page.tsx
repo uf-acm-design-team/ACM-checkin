@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from "react";
 import { useUser } from "@clerk/nextjs";
 import { createClient } from "../../utils/supabase/client";
+import orgsData from "../orgs.json";
 
 interface Organization {
   id: string;
@@ -26,6 +27,10 @@ export default function CheckinPage({
 }) {
   const { orgSlug } = React.use(params);
   const { user, isLoaded } = useUser();
+
+  const orgConfig = orgsData.slugs[orgSlug.toLowerCase() as keyof typeof orgsData.slugs];
+  const primaryColor = orgConfig?.primary_color ?? "#ffffff";
+  const secondaryColor = orgConfig?.secondary_color ?? "#ffffff";
   const [userAttendee, setUserAttendee] = useState<any>(null);
   const [organization, setOrganization] = useState<Organization | null>(null);
   const [activeMeeting, setActiveMeeting] = useState<ActiveMeeting | null>(
@@ -55,7 +60,7 @@ export default function CheckinPage({
       const { data: org, error: orgError } = await supabase
         .from("organizations")
         .select("id, name, slug")
-        .eq("slug", orgSlug)
+        .eq("slug", orgSlug.toLowerCase())
         .single();
 
       if (orgError || !org) {
@@ -292,11 +297,8 @@ export default function CheckinPage({
             <button
               onClick={handleAuthenticatedCheckIn}
               disabled={!activeMeeting || checkingIn || !userAttendee}
-              className={`w-full font-semibold py-3 px-4 rounded-lg transition-all duration-200 border ${
-                activeMeeting && userAttendee
-                  ? "bg-white/20 hover:bg-white/30 text-white border-white/30"
-                  : "bg-white/5 text-white/30 border-white/10 cursor-not-allowed"
-              }`}
+              className="w-full font-semibold py-3 px-4 rounded-lg transition-all duration-200 border disabled:opacity-40 disabled:cursor-not-allowed"
+              style={{ backgroundColor: primaryColor, borderColor: primaryColor, color: secondaryColor }}
             >
               {checkingIn
                 ? "Checking in..."
@@ -327,11 +329,8 @@ export default function CheckinPage({
                 <button
                   type="submit"
                   disabled={!activeMeeting || checkingIn}
-                  className={`w-full font-semibold py-3 px-4 rounded-lg transition-all duration-200 border ${
-                    activeMeeting
-                      ? "bg-white/20 hover:bg-white/30 text-white border-white/30"
-                      : "bg-white/5 text-white/30 border-white/10 cursor-not-allowed"
-                  }`}
+                  className="w-full font-semibold py-3 px-4 rounded-lg transition-all duration-200 border disabled:opacity-40 disabled:cursor-not-allowed"
+                  style={{ backgroundColor: primaryColor, borderColor: primaryColor, color: secondaryColor }}
                 >
                   {checkingIn
                     ? "Looking up..."
@@ -383,7 +382,8 @@ export default function CheckinPage({
                 <button
                   type="submit"
                   disabled={checkingIn}
-                  className="w-full bg-white/20 hover:bg-white/30 text-white font-semibold py-3 px-4 rounded-lg transition-all duration-200 border border-white/30 disabled:opacity-50"
+                  className="w-full font-semibold py-3 px-4 rounded-lg transition-all duration-200 border disabled:opacity-40"
+                  style={{ backgroundColor: primaryColor, borderColor: primaryColor, color: secondaryColor }}
                 >
                   {checkingIn ? "Saving..." : "Check In"}
                 </button>
