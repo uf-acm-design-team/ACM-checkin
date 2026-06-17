@@ -114,6 +114,13 @@ file_size_limit = "50MiB"
 # allowed_mime_types = ["image/png", "image/jpeg"]
 # objects_path = "./images"
 
+# Public bucket for per-organization logo assets (referenced by org branding).
+[storage.buckets.org-logos]
+public = true
+file_size_limit = "5MiB"
+allowed_mime_types = ["image/png", "image/jpeg", "image/svg+xml", "image/webp"]
+objects_path = "./org-logos"
+
 # Allow connections via S3 compatible clients
 [storage.s3_protocol]
 enabled = true
