@@ -157,7 +157,7 @@ export default function CheckinPage({
       const geoResult = await verifyGeoLock(
         activeMeeting.latitude, 
         activeMeeting.longitude, 
-        activeMeeting.radius_meters || 100
+        activeMeeting.radius_meters || 200
       );
 
       if (!geoResult.allowed) {
