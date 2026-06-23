@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from "react";
 import { useUser } from "@clerk/nextjs";
 import { createClient } from "../../utils/supabase/client";
+import { verifyGeoLock } from "./geolock";
 
 interface Organization {
   id: string;
@@ -15,6 +16,10 @@ interface ActiveMeeting {
   title: string;
   start_time: string;
   end_time: string;
+  is_geo_locked: boolean;
+  latitude?: number;
+  longitude?: number;
+  radius_meters?: number;
 }
 
 type Step = "email" | "profile";
@@ -67,12 +72,12 @@ export default function CheckinPage({
       setOrganization(org);
 
       const { data: meetings } = await supabase
-        .from("meetings")
-        .select("id, title, start_time, end_time")
-        .eq("org_id", org.id)
-        .eq("status", true)
-        .order("start_time", { ascending: true })
-        .limit(1);
+      .from("meetings")
+      .select("id, title, start_time, end_time, is_geo_locked, latitude, longitude, radius_meters")
+      .eq("org_id", org.id)
+      .eq("status", true)
+      .order("start_time", { ascending: true })
+      .limit(1);
 
       setActiveMeeting(meetings?.[0] || null);
 
@@ -144,21 +149,56 @@ export default function CheckinPage({
     }
   };
 
+  const checkLocation = async (): Promise<boolean> => {
+    if (activeMeeting?.is_geo_locked && activeMeeting.latitude && activeMeeting.longitude) {
+      setCheckingIn(true);
+      setCheckInError(null);
+      
+      const geoResult = await verifyGeoLock(
+        activeMeeting.latitude, 
+        activeMeeting.longitude, 
+        activeMeeting.radius_meters || 100
+      );
+
+      if (!geoResult.allowed) {
+        setCheckInError(geoResult.error || "Failed geolocation check.");
+        setCheckingIn(false);
+        return false; // Stop!
+      }
+    }
+    return true; // Pass!
+  };
+
   const handleAuthenticatedCheckIn = async () => {
-    if (!user || !userAttendee || !organization) return;
+    if (!user || !userAttendee || !organization || !activeMeeting) return;
+    
+    const isLocationValid = await checkLocation();
+    if (!isLocationValid) return; 
 
-    const { data: membership } = await supabase
-      .from("memberships")
-      .select("user_id")
-      .eq("user_id", user.id)
-      .eq("org_id", organization.id)
-      .maybeSingle();
+    setCheckInError(null);
+    setCheckingIn(true);
 
-    await performCheckIn(userAttendee.id, !membership, user.id);
+    try {
+      const { data: membership } = await supabase
+        .from("memberships")
+        .select("user_id")
+        .eq("user_id", user.id)
+        .eq("org_id", organization.id)
+        .maybeSingle();
+
+      await performCheckIn(userAttendee.id, !membership, user.id);
+    } catch (err) {
+      setCheckInError("Check-in failed. Please try again.");
+      setCheckingIn(false);
+    }
   };
 
   const handleEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    const isLocationValid = await checkLocation();
+    if (!isLocationValid) return;
+
     setCheckInError(null);
     setCheckingIn(true);
 
@@ -183,6 +223,9 @@ export default function CheckinPage({
 
   const handleProfileSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    const isLocationValid = await checkLocation();
+    if (!isLocationValid) return;
     setCheckInError(null);
     setCheckingIn(true);
 
