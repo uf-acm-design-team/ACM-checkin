@@ -63,78 +63,6 @@ export default function CheckinPage({
   const getClerkFirstName = () => user?.firstName || "";
   const getClerkLastName = () => user?.lastName || "";
 
-  function normalizeEmail(e?: string) {
-    return (e || "").trim().toLowerCase();
-  }
-
-  async function ensureUserAttendee() {
-    if (!user) return;
-    // If we already loaded an attendee, nothing to do
-    if (userAttendee) return;
-
-    const clerkEmail =
-      // Clerk exposes a few shapes; try common fields
-      // @ts-ignore
-      user?.primaryEmailAddress?.emailAddress ||
-      // @ts-ignore
-      user?.emailAddresses?.[0]?.emailAddress ||
-      // some SDKs expose `email` fields
-      // @ts-ignore
-      user?.email || "";
-
-    const email = normalizeEmail(clerkEmail);
-
-    if (!email) return;
-
-    try {
-      const { data: existing } = await supabase
-        .from("attendees")
-        .select("id, first_name, last_name, email")
-        .eq("user_id", user.id)
-        .maybeSingle();
-
-      if (existing) {
-        setUserAttendee(existing);
-        return;
-      }
-
-      // Try finding by email if not linked yet
-      const { data: byEmail } = await supabase
-        .from("attendees")
-        .select("id, first_name, last_name, email")
-        .eq("email", email)
-        .maybeSingle();
-
-      if (byEmail) {
-        // Link the existing attendee to the Clerk user
-        await supabase
-          .from("attendees")
-          .update({ user_id: user.id })
-          .eq("id", byEmail.id);
-        setUserAttendee(byEmail);
-        return;
-      }
-
-      // Create a new attendee record for the signed-in user
-      const { data: newAttendee } = await supabase
-        .from("attendees")
-        .insert({
-          user_id: user.id,
-          email,
-          first_name: // @ts-ignore
-            user?.firstName || "",
-          last_name: // @ts-ignore
-            user?.lastName || "",
-        })
-        .select("id, first_name, last_name, email")
-        .single();
-
-      if (newAttendee) setUserAttendee(newAttendee);
-    } catch (err) {
-      console.error("ensureUserAttendee error", err);
-    }
-  }
-
   useEffect(() => {
     if (!isLoaded) return;
 
@@ -169,7 +97,33 @@ export default function CheckinPage({
           .select("id, first_name, last_name, email")
           .eq("user_id", user.id)
           .maybeSingle();
-        setUserAttendee(attendee);
+
+        if (attendee) {
+          setUserAttendee(attendee);
+        } else {
+          const userEmail = getClerkEmail();
+
+          if (userEmail) {
+            const { data: attendeeByEmail, error: emailError } = await supabase
+              .from("attendees")
+              .select("id, first_name, last_name, email")
+              .eq("email", userEmail)
+              .maybeSingle();
+
+            if (!emailError && attendeeByEmail) {
+              const { data: linkedAttendee, error: linkError } = await supabase
+                .from("attendees")
+                .update({ user_id: user.id })
+                .eq("id", attendeeByEmail.id)
+                .select("id, first_name, last_name, email")
+                .single();
+
+              if (!linkError && linkedAttendee) {
+                setUserAttendee(linkedAttendee);
+              }
+            }
+          }
+        }
       }
 
       setLoading(false);
@@ -237,7 +191,83 @@ export default function CheckinPage({
   };
 
   const handleAuthenticatedCheckIn = async () => {
-    if (!user || !userAttendee || !organization) return;
+    if (!user || !organization || !activeMeeting) return;
+
+    setCheckInError(null);
+    setCheckingIn(true);
+
+    try {
+      let attendee = userAttendee;
+
+      if (!attendee) {
+        const userEmail = getClerkEmail();
+
+        const { data: existingByUserId } = await supabase
+          .from("attendees")
+          .select("id, first_name, last_name, email")
+          .eq("user_id", user.id)
+          .maybeSingle();
+
+        if (existingByUserId) {
+          attendee = existingByUserId;
+        } else if (userEmail) {
+          const { data: existingByEmail, error: emailError } = await supabase
+            .from("attendees")
+            .select("id, first_name, last_name, email")
+            .eq("email", userEmail)
+            .maybeSingle();
+
+          if (emailError) {
+            throw emailError;
+          }
+
+          if (existingByEmail) {
+            const {
+              data: updatedAttendee,
+              error: updateError,
+            } = await supabase
+              .from("attendees")
+              .update({ user_id: user.id })
+              .eq("id", existingByEmail.id)
+              .select("id, first_name, last_name, email")
+              .single();
+
+            if (updateError) {
+              throw updateError;
+            }
+
+            attendee = updatedAttendee;
+          }
+        }
+
+        if (!attendee) {
+          const userEmail = getClerkEmail();
+
+          if (!userEmail) {
+            throw new Error("Unable to create attendee profile because your Clerk account has no email.");
+          }
+
+          const { data: newAttendee, error: createError } = await supabase
+            .from("attendees")
+            .insert({
+              user_id: user.id,
+              email: userEmail,
+              first_name: getClerkFirstName(),
+              last_name: getClerkLastName(),
+              grad_year: "",
+            })
+            .select("id, first_name, last_name, email")
+            .single();
+
+          if (createError || !newAttendee) {
+            throw createError || new Error("Failed to create attendee profile.");
+          }
+
+          attendee = newAttendee;
+        }
+
+        setUserAttendee(attendee);
+      }
 
       const { data: membership } = await supabase
         .from("memberships")
@@ -259,13 +289,10 @@ export default function CheckinPage({
     setCheckingIn(true);
 
     try {
-      const normalized = normalizeEmail(email);
-      setEmail(normalized);
-
       const { data: attendee } = await supabase
         .from("attendees")
         .select("id")
-        .eq("email", normalized)
+        .eq("email", email)
         .maybeSingle();
 
       if (attendee) {
@@ -286,29 +313,16 @@ export default function CheckinPage({
     setCheckingIn(true);
 
     try {
-      const normalized = normalizeEmail(email);
-
-      const insertPayload: any = {
-        email: normalized,
-        first_name: firstName,
-        last_name: lastName,
-        grad_year: gradYear,
-      };
-
-      if (user?.id) insertPayload.user_id = user.id;
-
       const { data: newAttendee, error: createError } = await supabase
         .from("attendees")
-        .insert(insertPayload)
-        .select("id, first_name, last_name, email")
+        .insert({ email, first_name: firstName, last_name: lastName, grad_year: gradYear })
+        .select("id")
         .single();
 
       if (createError || !newAttendee) {
         setCheckInError("Failed to create profile. Please try again.");
         return;
       }
-
-      if (user?.id) setUserAttendee(newAttendee);
 
       await performCheckIn(newAttendee.id, false);
     } catch (err) {
