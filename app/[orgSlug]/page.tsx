@@ -1,9 +1,11 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
 import { createClient } from "../utils/supabase/client";
+import { useBranding } from "@/app/components/BrandingProvider";
 
 interface Organization {
   id: string;
@@ -25,6 +27,7 @@ export default function OrgPage({
 
   const router = useRouter();
   const supabase = createClient();
+  const { logo } = useBranding();
 
   useEffect(() => {
     if (!isLoaded) return;
@@ -95,6 +98,15 @@ export default function OrgPage({
   return (
     <div className="flex flex-col items-center justify-center min-h-screen p-4">
       <div className="text-center mb-8">
+        <Image
+          src={logo.crest}
+          alt={`${organization.name} logo`}
+          width={96}
+          height={96}
+          className="mx-auto mb-4 h-24 w-24 object-contain drop-shadow-md"
+          priority
+          unoptimized
+        />
         <h1 className="text-5xl font-bold text-white mb-2">
           {organization.name}
         </h1>
