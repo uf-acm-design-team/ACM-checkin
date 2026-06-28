@@ -6,6 +6,6 @@ alter table "public"."meetings" add column "latitude" double precision;
 
 alter table "public"."meetings" add column "longitude" double precision;
 
-alter table "public"."meetings" add column "radius_meters" integer default 100;
+alter table "public"."meetings" add column "radius_meters" integer default 200;
 
 
