@@ -364,6 +364,7 @@ function startFunctionsInBackground() {
     cwd: ROOT,
     stdio: "ignore",
     detached: true,
+    shell: true,
   });
   child.unref();
   ok("Serving on port 54321/functions/v1");
