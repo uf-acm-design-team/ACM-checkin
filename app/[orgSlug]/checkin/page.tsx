@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from "react";
 import { useUser } from "@clerk/nextjs";
 import { createClient } from "../../utils/supabase/client";
+import { resolveAndUpdateMembershipStatus } from "./actions";
 
 interface Organization {
   id: string;
@@ -93,7 +94,6 @@ export default function CheckinPage({
 
   const performCheckIn = async (
     attendeeId: string,
-    isNewMember: boolean,
     userId?: string
   ) => {
     if (!organization || !activeMeeting) return;
@@ -127,13 +127,17 @@ export default function CheckinPage({
         return;
       }
 
-      if (userId && isNewMember) {
-        await supabase.from("memberships").insert({
-          user_id: userId,
-          org_id: organization.id,
-          role: "member",
-          status: "active",
-        });
+      // Recompute membership status from attendance count vs the org's
+      // threshold (pending until met, active once reached). Upserts the row and
+      // preserves any existing role — so progress climbs 1/3 → 2/3 → member
+      // instead of jumping to "active" on the first check-in.
+      if (userId) {
+        await resolveAndUpdateMembershipStatus(
+          userId,
+          attendeeId,
+          organization.id,
+          orgSlug
+        );
       }
 
       setCheckInSuccess(true);
@@ -146,15 +150,7 @@ export default function CheckinPage({
 
   const handleAuthenticatedCheckIn = async () => {
     if (!user || !userAttendee || !organization) return;
-
-    const { data: membership } = await supabase
-      .from("memberships")
-      .select("user_id")
-      .eq("user_id", user.id)
-      .eq("org_id", organization.id)
-      .maybeSingle();
-
-    await performCheckIn(userAttendee.id, !membership, user.id);
+    await performCheckIn(userAttendee.id, user.id);
   };
 
   const handleEmailSubmit = async (e: React.FormEvent) => {
@@ -170,7 +166,7 @@ export default function CheckinPage({
         .maybeSingle();
 
       if (attendee) {
-        await performCheckIn(attendee.id, false);
+        await performCheckIn(attendee.id);
       } else {
         setStep("profile");
         setCheckingIn(false);
@@ -198,7 +194,7 @@ export default function CheckinPage({
         return;
       }
 
-      await performCheckIn(newAttendee.id, false);
+      await performCheckIn(newAttendee.id);
     } catch (err) {
       setCheckInError("An error occurred. Please try again.");
     } finally {

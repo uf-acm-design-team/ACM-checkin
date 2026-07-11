@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { Calendar, Info } from "lucide-react";
 
-import type { Meeting } from "./mock-meetings";
+import type { StatsMeeting } from "@/lib/stats-terms";
+import { MeetingDetailsModal } from "./meeting-details-modal";
 
 const DATE_FORMAT = new Intl.DateTimeFormat("en-US", {
   weekday: "short",
@@ -12,9 +13,8 @@ const DATE_FORMAT = new Intl.DateTimeFormat("en-US", {
   year: "numeric",
 });
 
-export function MeetingListItem({ meeting }: { meeting: Meeting }) {
-  const [showInfo, setShowInfo] = useState(false);
-  const hasInfo = Boolean(meeting.description?.trim());
+export function MeetingListItem({ meeting }: { meeting: StatsMeeting }) {
+  const [showModal, setShowModal] = useState(false);
 
   return (
     <li className="flex flex-col gap-3 rounded-2xl border border-white/15 bg-white/5 px-4 py-3 shadow-sm">
@@ -30,22 +30,19 @@ export function MeetingListItem({ meeting }: { meeting: Meeting }) {
             {DATE_FORMAT.format(new Date(meeting.start_time))}
           </p>
         </div>
-        {hasInfo && (
+        {meeting.hasDetails && (
           <button
             type="button"
-            onClick={() => setShowInfo((prev) => !prev)}
-            aria-expanded={showInfo}
+            onClick={() => setShowModal(true)}
             className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-white/25 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-white/10"
           >
             <Info className="h-3.5 w-3.5" />
-            Meeting info
+            Details
           </button>
         )}
       </div>
-      {hasInfo && showInfo && (
-        <p className="rounded-lg bg-white/5 px-3 py-2 text-xs leading-relaxed text-white/70">
-          {meeting.description}
-        </p>
+      {showModal && (
+        <MeetingDetailsModal meetingId={meeting.id} onClose={() => setShowModal(false)} />
       )}
     </li>
   );
