@@ -1,12 +1,12 @@
 import { describe, it, expect } from "vitest";
-import { membershipThreshold, resolveMembership, DEFAULT_THRESHOLD } from "./membership";
+import { membershipThreshold, resolveMembership } from "./membership";
 
 describe("membershipThreshold", () => {
   it("returns per-org threshold", () => expect(membershipThreshold("ACM")).toBe(3));
   it("matches the lowercase slug stored in the DB", () =>
     expect(membershipThreshold("acm")).toBe(3));
-  it("falls back to default for unknown org", () =>
-    expect(membershipThreshold("nope")).toBe(DEFAULT_THRESHOLD));
+  it("returns null (no gate) for an unconfigured org", () =>
+    expect(membershipThreshold("nope")).toBeNull());
 });
 
 describe("resolveMembership", () => {
@@ -21,5 +21,16 @@ describe("resolveMembership", () => {
   it("non-member shows remaining", () => {
     expect(resolveMembership(null, null, 1, "ACM"))
       .toEqual({ threshold: 3, isMember: false, remaining: 2 });
+  });
+
+  describe("org without a configured threshold (null)", () => {
+    it("a bare attendance count never grants membership", () => {
+      expect(resolveMembership(null, null, 99, "nope"))
+        .toEqual({ threshold: null, isMember: false, remaining: 0 });
+    });
+    it("an explicit active status still grants membership", () => {
+      expect(resolveMembership(null, "active", 0, "nope"))
+        .toEqual({ threshold: null, isMember: true, remaining: 0 });
+    });
   });
 });

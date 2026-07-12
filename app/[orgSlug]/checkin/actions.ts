@@ -18,7 +18,11 @@ export async function resolveAndUpdateMembershipStatus(
     .eq("attendee_id", attendeeId)
     .eq("org_id", orgId);
 
-  const status = (count ?? 0) >= threshold ? "active" : "pending";
+  // No configured threshold (null) means the org has no attendance-based
+  // membership gate, so check-ins never auto-promote to "active" — matches
+  // resolveMembership, which won't count a bare attendance total as membership.
+  const status =
+    threshold !== null && (count ?? 0) >= threshold ? "active" : "pending";
 
   // Preserve an existing role (e.g. officer/owner) — only default to "member"
   // when creating the membership row for the first time.

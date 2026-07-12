@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 
 import { useBranding } from "@/app/components/BrandingProvider";
 import { getMeetingsPage } from "@/lib/stats-data";
@@ -32,9 +32,17 @@ export function StatsView({
   const [items, setItems] = useState<StatsMeeting[]>(initialPage.items);
   const [pending, startTransition] = useTransition();
 
+  // Every fetch bumps this; a response only updates state if it's still the
+  // latest request. Without this, rapidly switching tab/view races the async
+  // getMeetingsPage calls and whichever RESOLVES last wins — which can be a
+  // stale request, leaving the list out of sync with the active tab/view.
+  const requestId = useRef(0);
+
   function refetch(nextScope: Scope, nextView: MeetingView) {
+    const id = ++requestId.current;
     startTransition(async () => {
       const res = await getMeetingsPage(stats.orgId, nextScope, nextView, 1);
+      if (id !== requestId.current) return; // superseded by a newer request
       setPage(res);
       setItems(res.items);
     });
@@ -49,8 +57,11 @@ export function StatsView({
     refetch(scope, next);
   }
   function onLoadMore() {
+    const id = ++requestId.current;
+    const nextPage = page.page + 1;
     startTransition(async () => {
-      const res = await getMeetingsPage(stats.orgId, scope, view, page.page + 1);
+      const res = await getMeetingsPage(stats.orgId, scope, view, nextPage);
+      if (id !== requestId.current) return; // scope/view changed mid-load
       setPage(res);
       setItems((prev) => [...prev, ...res.items]);
     });
@@ -63,7 +74,9 @@ export function StatsView({
 
   const countLabel = stats.isMember
     ? `${attended} of ${total} meetings attended (${pct}%)`
-    : `${stats.attendedAllTime} of ${stats.threshold} meetings — ${stats.remaining} more to become a member`;
+    : stats.threshold !== null
+      ? `${stats.attendedAllTime} of ${stats.threshold} meetings — ${stats.remaining} more to become a member`
+      : `${stats.attendedAllTime} meetings attended`;
 
   const emptyMessage =
     view === "attended"

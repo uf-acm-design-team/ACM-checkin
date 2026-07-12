@@ -150,63 +150,51 @@ export async function getMeetingsPage(
     endIso = b.endIso < now.iso ? b.endIso : now.iso;
   }
 
-  // Attended meeting ids within the window.
-  const attendedIds = new Set<string>();
+  // Resolve the attendee server-side so the DB can compute the attended/missed
+  // filter and the per-meeting attended flag itself. This deliberately avoids
+  // shipping the user's attended-meeting id list into the request URL (the old
+  // id=in.(...) / not.in.(...) approach), which could blow past the URL length
+  // limit for members with long attendance histories. See the RPC migration
+  // 20260712000000_get_member_meetings_page.sql.
+  let attendeeId: string | null = null;
   if (userId) {
     const { data: attendee } = await supabase
       .from("attendees").select("id").eq("user_id", userId).maybeSingle();
-    const attendeeId = attendee?.id ?? null;
-    if (attendeeId) {
-      const { data: att } = await supabase
-        .from("attendance")
-        .select("meeting_id, meetings!inner(start_time)")
-        .eq("org_id", orgId)
-        .eq("attendee_id", attendeeId)
-        .gte("meetings.start_time", startIso)
-        .lte("meetings.start_time", endIso);
-      for (const a of att ?? []) attendedIds.add((a as { meeting_id: string }).meeting_id);
-    }
+    attendeeId = attendee?.id ?? null;
   }
 
-  const attendedArr = Array.from(attendedIds);
-  const { from, to } = pageRange(page, pageSize);
+  const { from } = pageRange(page, pageSize);
 
-  let query = supabase
-    .from("meetings")
-    .select("id, title, start_time, description, questions", { count: "exact" })
-    .eq("org_id", orgId)
-    .gte("start_time", startIso)
-    .lte("start_time", endIso)
-    .order("start_time", { ascending: false });
-
-  if (view === "attended") {
-    if (attendedArr.length === 0) {
-      return { items: [], total: 0, page, pageSize, hasMore: false };
-    }
-    query = query.in("id", attendedArr);
-  } else if (view === "missed" && attendedArr.length > 0) {
-    query = query.not("id", "in", `(${attendedArr.join(",")})`);
-  }
-
-  const { data, count } = await query.range(from, to);
-  const total = count ?? 0;
-
-  const items: StatsMeeting[] = (data ?? []).map((m) => {
-    const row = m as unknown as {
-      id: string; title: string; start_time: string;
-      description: string | null; questions: string[] | null;
-    };
-    return {
-      id: row.id,
-      title: row.title,
-      start_time: row.start_time,
-      attended: attendedIds.has(row.id),
-      description: row.description ?? undefined,
-      hasDetails:
-        Boolean(row.description?.trim()) ||
-        (Array.isArray(row.questions) && row.questions.length > 0),
-    };
+  const { data } = await supabase.rpc("get_member_meetings_page", {
+    p_org_id: orgId,
+    p_attendee_id: attendeeId,
+    p_start: startIso,
+    p_end: endIso,
+    p_view: view,
+    p_limit: pageSize,
+    p_offset: from,
   });
+
+  const rows = (data ?? []) as {
+    id: string; title: string; start_time: string;
+    description: string | null; questions: string[] | null;
+    attended: boolean; total_count: number | string;
+  }[];
+
+  // total_count is a window count identical on every row (bigint may arrive as
+  // a string); 0 when the filtered set is empty.
+  const total = rows.length > 0 ? Number(rows[0].total_count) : 0;
+
+  const items: StatsMeeting[] = rows.map((row) => ({
+    id: row.id,
+    title: row.title,
+    start_time: row.start_time,
+    attended: row.attended,
+    description: row.description ?? undefined,
+    hasDetails:
+      Boolean(row.description?.trim()) ||
+      (Array.isArray(row.questions) && row.questions.length > 0),
+  }));
 
   return { items, total, page, pageSize, hasMore: hasMore(page, pageSize, total) };
 }

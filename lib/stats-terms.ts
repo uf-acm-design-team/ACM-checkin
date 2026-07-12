@@ -42,7 +42,7 @@ export type MemberStats = {
   role: string | null;
   status: string | null;
   isMember: boolean;
-  threshold: number;
+  threshold: number | null; // null = org has no attendance-based membership gate
   remaining: number;
   attendedAllTime: number;
   totalAllTime: number;
