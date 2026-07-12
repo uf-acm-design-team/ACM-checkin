@@ -3,13 +3,44 @@
 
 BEGIN;
 
--- 1) Organizations
-INSERT INTO public.organizations (slug, name)
+-- 1) Organizations (with branding templates)
+INSERT INTO public.organizations (slug, name, branding)
 VALUES
-  ('aed', 'AED'),
-  ('acm', 'ACM'),
-  ('colorstack', 'ColorStack')
-ON CONFLICT (slug) DO UPDATE SET name = EXCLUDED.name;
+  ('aed', 'AED', '{
+    "colors": {
+      "primary": "#b65d5f",
+      "background": "#1f1919",
+      "backgroundSecondary": "#2a2020",
+      "accent": "#e13b35",
+      "text": "#ffffff"
+    },
+    "particleColor": "#b65d5f"
+  }'::jsonb),
+  ('acm', 'ACM', '{
+    "colors": {
+      "primary": "#FA4616",
+      "background": "#0021A5",
+      "backgroundSecondary": "#001B87",
+      "accent": "#FA4616",
+      "text": "#ffffff"
+    },
+    "particleColor": "#ffffff",
+    "logo": { "crest": "/acm-logo.png", "wordmark": "/acm-logo.png" }
+  }'::jsonb),
+  ('colorstack', 'ColorStack', '{
+    "colors": {
+      "primary": "#6D28D9",
+      "background": "#1E1B2E",
+      "backgroundSecondary": "#2A2540",
+      "accent": "#8B5CF6",
+      "text": "#ffffff"
+    },
+    "particleColor": "#8B5CF6",
+    "logo": { "crest": "/colorStackLogo.png", "wordmark": "/colorStackLogo.png" }
+  }'::jsonb)
+ON CONFLICT (slug) DO UPDATE
+  SET name = EXCLUDED.name,
+      branding = EXCLUDED.branding;
 
 -- 2) Meetings (one active now + one past per org)
 WITH orgs AS (

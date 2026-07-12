@@ -3,11 +3,25 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+  /* Default ACM theme — fallback for non-org pages and missing branding.
+     Mirrors DEFAULT_BRANDING in lib/branding.ts. Overridden per-org at :root
+     by OrgTheme's injected <style>. */
+  --brand-primary: #fa4616;
+  --brand-background: #0021a5;
+  --brand-background-secondary: #001b87;
+  --brand-action: #fa4616;
+  --text-main: #ffffff;
+  --particle-color: #ffffff;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-brand-primary: var(--brand-primary);
+  --color-brand-background: var(--brand-background);
+  --color-brand-background-secondary: var(--brand-background-secondary);
+  --color-brand-action: var(--brand-action);
+  --color-text-main: var(--text-main);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
