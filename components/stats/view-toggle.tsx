@@ -5,11 +5,12 @@ import { Check, ChevronDown } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
-export type MeetingView = "attended" | "club";
+export type MeetingView = "attended" | "missed" | "all";
 
 const OPTIONS: { value: MeetingView; label: string }[] = [
-  { value: "attended", label: "Meetings Attended" },
-  { value: "club", label: "Club Meetings" },
+  { value: "attended", label: "Attended" },
+  { value: "missed", label: "Missed" },
+  { value: "all", label: "All Meetings" },
 ];
 
 export function ViewToggle({

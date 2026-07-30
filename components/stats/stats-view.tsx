@@ -1,44 +1,89 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState, useTransition } from "react";
 
 import { useBranding } from "@/app/components/BrandingProvider";
+import { getMeetingsPage } from "@/lib/stats-data";
+import {
+  percentage,
+  type MemberStats,
+  type Page,
+  type Scope,
+  type StatsMeeting,
+} from "@/lib/stats-terms";
 import { MembershipBadge } from "./membership-badge";
+import { MeetingsList } from "./meetings-list";
 import { TermTabs } from "./term-tabs";
 import { ViewToggle, type MeetingView } from "./view-toggle";
-import type { Meeting } from "./mock-meetings";
-
-const MEMBERSHIP_THRESHOLD = 5;
 
 export function StatsView({
-  attendedMeetings,
-  clubMeetings,
+  stats,
+  initialScope,
+  initialPage,
 }: {
-  attendedMeetings: Meeting[];
-  clubMeetings: Meeting[];
+  stats: MemberStats;
+  initialScope: Scope;
+  initialPage: Page<StatsMeeting>;
 }) {
-  const [view, setView] = useState<MeetingView>("attended");
   const { name } = useBranding();
+  const [scope, setScope] = useState<Scope>(initialScope);
+  const [view, setView] = useState<MeetingView>("attended");
+  const [page, setPage] = useState<Page<StatsMeeting>>(initialPage);
+  const [items, setItems] = useState<StatsMeeting[]>(initialPage.items);
+  const [pending, startTransition] = useTransition();
 
-  const attendedCount = attendedMeetings.length;
-  const isMember = attendedCount >= MEMBERSHIP_THRESHOLD;
-  const remaining = Math.max(MEMBERSHIP_THRESHOLD - attendedCount, 0);
+  // Every fetch bumps this; a response only updates state if it's still the
+  // latest request. Without this, rapidly switching tab/view races the async
+  // getMeetingsPage calls and whichever RESOLVES last wins — which can be a
+  // stale request, leaving the list out of sync with the active tab/view.
+  const requestId = useRef(0);
 
-  const isAttendedView = view === "attended";
-  const meetings = isAttendedView ? attendedMeetings : clubMeetings;
-  const heading = isAttendedView ? "Meetings Attended" : "Club Meetings";
+  function refetch(nextScope: Scope, nextView: MeetingView) {
+    const id = ++requestId.current;
+    startTransition(async () => {
+      const res = await getMeetingsPage(stats.orgId, nextScope, nextView, 1);
+      if (id !== requestId.current) return; // superseded by a newer request
+      setPage(res);
+      setItems(res.items);
+    });
+  }
 
-  const countLabel = isAttendedView
-    ? isMember
-      ? `${attendedCount} meetings attended across all semesters`
-      : `${attendedCount} of ${MEMBERSHIP_THRESHOLD} meetings attended — ${remaining} more to become a member`
-    : `${clubMeetings.length} club ${
-        clubMeetings.length === 1 ? "meeting" : "meetings"
-      } across all semesters`;
+  function onSelectScope(next: Scope) {
+    setScope(next);
+    refetch(next, view);
+  }
+  function onChangeView(next: MeetingView) {
+    setView(next);
+    refetch(scope, next);
+  }
+  function onLoadMore() {
+    const id = ++requestId.current;
+    const nextPage = page.page + 1;
+    startTransition(async () => {
+      const res = await getMeetingsPage(stats.orgId, scope, view, nextPage);
+      if (id !== requestId.current) return; // scope/view changed mid-load
+      setPage(res);
+      setItems((prev) => [...prev, ...res.items]);
+    });
+  }
 
-  const emptyMessage = isAttendedView
-    ? `No meetings attended yet. Check in at the next ${name} event!`
-    : "No club meetings yet. Check back soon!";
+  const activeTerm = scope === "all" ? null : stats.terms.find((t) => t.key === scope);
+  const attended = scope === "all" ? stats.attendedAllTime : activeTerm?.attended ?? 0;
+  const total = scope === "all" ? stats.totalAllTime : activeTerm?.total ?? 0;
+  const pct = percentage(attended, total);
+
+  const countLabel = stats.isMember
+    ? `${attended} of ${total} meetings attended (${pct}%)`
+    : stats.threshold !== null
+      ? `${stats.attendedAllTime} of ${stats.threshold} meetings — ${stats.remaining} more to become a member`
+      : `${stats.attendedAllTime} meetings attended`;
+
+  const emptyMessage =
+    view === "attended"
+      ? `No meetings attended yet. Check in at the next ${name} event!`
+      : view === "missed"
+        ? "No missed meetings here."
+        : "No club meetings yet. Check back soon!";
 
   return (
     <section className="flex flex-1 flex-col gap-6 px-6 py-8 md:px-10 md:py-12">
@@ -47,14 +92,28 @@ export function StatsView({
           <p className="text-xs font-semibold uppercase tracking-widest text-brand-primary">
             Your Activity
           </p>
-          <MembershipBadge isMember={isMember} orgName={name} />
-          <ViewToggle value={view} onChange={setView} />
+          <MembershipBadge isMember={stats.isMember} orgName={name} role={stats.role} />
+          <ViewToggle value={view} onChange={onChangeView} />
         </div>
-        <h1 className="text-2xl font-bold text-white md:text-3xl">{heading}</h1>
+        <h1 className="text-2xl font-bold text-white md:text-3xl">Your Attendance</h1>
         <p className="text-sm text-white/60">{countLabel}</p>
       </header>
 
-      <TermTabs meetings={meetings} emptyMessage={emptyMessage} />
+      <TermTabs terms={stats.terms} activeScope={scope} onSelect={onSelectScope} />
+
+      <div className={`max-h-[60vh] overflow-y-auto pr-1 ${pending ? "opacity-60" : ""}`}>
+        <MeetingsList meetings={items} emptyMessage={emptyMessage} />
+        {page.hasMore && (
+          <button
+            type="button"
+            onClick={onLoadMore}
+            disabled={pending}
+            className="mt-4 w-full rounded-full border border-white/25 bg-white/5 py-2 text-sm font-medium text-white transition-colors hover:bg-white/10 disabled:opacity-50"
+          >
+            {pending ? "Loading…" : "Load more"}
+          </button>
+        )}
+      </div>
     </section>
   );
 }

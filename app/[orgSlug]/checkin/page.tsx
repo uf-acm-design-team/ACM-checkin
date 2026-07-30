@@ -4,7 +4,7 @@ import React, { useEffect, useState } from "react";
 import { useUser } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
 import { createClient } from "../../utils/supabase/client";
-import { verifyGeoLock } from "./geolock";
+import { resolveAndUpdateMembershipStatus } from "./actions";
 
 interface Organization {
   id: string;
@@ -35,7 +35,7 @@ export default function CheckinPage({
   const [userAttendee, setUserAttendee] = useState<any>(null);
   const [organization, setOrganization] = useState<Organization | null>(null);
   const [activeMeeting, setActiveMeeting] = useState<ActiveMeeting | null>(
-    null
+    null,
   );
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -87,12 +87,14 @@ export default function CheckinPage({
       setOrganization(org);
 
       const { data: meetings } = await supabase
-      .from("meetings")
-      .select("id, title, start_time, end_time, is_geo_locked, latitude, longitude, radius_meters")
-      .eq("org_id", org.id)
-      .eq("status", true)
-      .order("start_time", { ascending: true })
-      .limit(1);
+        .from("meetings")
+        .select(
+          "id, title, start_time, end_time, is_geo_locked, latitude, longitude, radius_meters",
+        )
+        .eq("org_id", org.id)
+        .eq("status", true)
+        .order("start_time", { ascending: true })
+        .limit(1);
 
       setActiveMeeting(meetings?.[0] || null);
 
@@ -137,11 +139,7 @@ export default function CheckinPage({
     init();
   }, [orgSlug, isLoaded, user, supabase]);
 
-  const performCheckIn = async (
-    attendeeId: string,
-    isNewMember: boolean,
-    userId?: string
-  ) => {
+  const performCheckIn = async (attendeeId: string, userId?: string) => {
     if (!organization || !activeMeeting) return;
     setCheckingIn(true);
     setCheckInError(null);
@@ -173,37 +171,44 @@ export default function CheckinPage({
         return;
       }
 
-      if (userId && isNewMember) {
-        const { error: membershipError } = await supabase.from("memberships").insert({
-          user_id: userId,
-          org_id: organization.id,
-          role: "member",
-          status: "active",
-        });
-
-        if (membershipError) {
-          setCheckInError(membershipError.message);
-          return;
-        }
+      // Recompute membership status from attendance count vs the org's
+      // threshold (pending until met, active once reached). Upserts the row and
+      // preserves any existing role — so progress climbs 1/3 → 2/3 → member
+      // instead of jumping to "active" on the first check-in.
+      if (userId) {
+        await resolveAndUpdateMembershipStatus(
+          userId,
+          attendeeId,
+          organization.id,
+          orgSlug,
+        );
       }
 
       setCheckInSuccess(true);
     } catch (err) {
-      setCheckInError(err instanceof Error ? err.message : "Check-in failed. Please try again.");
+      setCheckInError(
+        err instanceof Error
+          ? err.message
+          : "Check-in failed. Please try again.",
+      );
     } finally {
       setCheckingIn(false);
     }
   };
 
   const checkLocation = async (): Promise<boolean> => {
-    if (activeMeeting?.is_geo_locked && activeMeeting.latitude && activeMeeting.longitude) {
+    if (
+      activeMeeting?.is_geo_locked &&
+      activeMeeting.latitude &&
+      activeMeeting.longitude
+    ) {
       setCheckingIn(true);
       setCheckInError(null);
-      
+
       const geoResult = await verifyGeoLock(
-        activeMeeting.latitude, 
-        activeMeeting.longitude, 
-        activeMeeting.radius_meters || 200
+        activeMeeting.latitude,
+        activeMeeting.longitude,
+        activeMeeting.radius_meters || 200,
       );
 
       if (!geoResult.allowed) {
@@ -216,96 +221,8 @@ export default function CheckinPage({
   };
 
   const handleAuthenticatedCheckIn = async () => {
-    if (!user || !organization || !activeMeeting) return;
-
-    setCheckInError(null);
-    setCheckingIn(true);
-
-    try {
-      let attendee = userAttendee;
-
-      if (!attendee) {
-        const userEmail = getClerkEmail();
-
-        const { data: existingByUserId } = await supabase
-          .from("attendees")
-          .select("id, first_name, last_name, email")
-          .eq("user_id", user.id)
-          .maybeSingle();
-
-        if (existingByUserId) {
-          attendee = existingByUserId;
-        } else if (userEmail) {
-          const { data: existingByEmail, error: emailError } = await supabase
-            .from("attendees")
-            .select("id, first_name, last_name, email")
-            .eq("email", userEmail)
-            .maybeSingle();
-
-          if (emailError) {
-            throw emailError;
-          }
-
-          if (existingByEmail) {
-            const {
-              data: updatedAttendee,
-              error: updateError,
-            } = await supabase
-              .from("attendees")
-              .update({ user_id: user.id })
-              .eq("id", existingByEmail.id)
-              .select("id, first_name, last_name, email")
-              .single();
-
-            if (updateError) {
-              throw updateError;
-            }
-
-            attendee = updatedAttendee;
-          }
-        }
-
-        if (!attendee) {
-          const userEmail = getClerkEmail();
-
-          if (!userEmail) {
-            throw new Error("Unable to create attendee profile because your Clerk account has no email.");
-          }
-
-          const { data: newAttendee, error: createError } = await supabase
-            .from("attendees")
-            .insert({
-              user_id: user.id,
-              email: userEmail,
-              first_name: getClerkFirstName(),
-              last_name: getClerkLastName(),
-              grad_year: "",
-            })
-            .select("id, first_name, last_name, email")
-            .single();
-
-          if (createError || !newAttendee) {
-            throw createError || new Error("Failed to create attendee profile.");
-          }
-
-          attendee = newAttendee;
-        }
-
-        setUserAttendee(attendee);
-      }
-
-      const { data: membership } = await supabase
-        .from("memberships")
-        .select("user_id")
-        .eq("user_id", user.id)
-        .eq("org_id", organization.id)
-        .maybeSingle();
-
-      await performCheckIn(attendee.id, !membership, user.id);
-    } catch (err) {
-      setCheckInError(err instanceof Error ? err.message : "Check-in failed. Please try again.");
-      setCheckingIn(false);
-    }
+    if (!user || !userAttendee || !organization) return;
+    await performCheckIn(userAttendee.id, user.id);
   };
 
   const handleEmailSubmit = async (e: React.FormEvent) => {
@@ -325,7 +242,7 @@ export default function CheckinPage({
         .maybeSingle();
 
       if (attendee) {
-        await performCheckIn(attendee.id, false);
+        await performCheckIn(attendee.id);
       } else {
         setStep("profile");
         setCheckingIn(false);
@@ -347,7 +264,12 @@ export default function CheckinPage({
     try {
       const { data: newAttendee, error: createError } = await supabase
         .from("attendees")
-        .insert({ email, first_name: firstName, last_name: lastName, grad_year: gradYear })
+        .insert({
+          email,
+          first_name: firstName,
+          last_name: lastName,
+          grad_year: gradYear,
+        })
         .select("id")
         .single();
 
@@ -356,7 +278,7 @@ export default function CheckinPage({
         return;
       }
 
-      await performCheckIn(newAttendee.id, false);
+      await performCheckIn(newAttendee.id);
     } catch (err) {
       setCheckInError("An error occurred. Please try again.");
     } finally {
@@ -422,7 +344,9 @@ export default function CheckinPage({
 
         {!activeMeeting ? (
           <div className="text-center">
-            <p className="text-white/60 mb-4">There is no active meeting right now.</p>
+            <p className="text-white/60 mb-4">
+              There is no active meeting right now.
+            </p>
             {user && (
               <button
                 type="button"
@@ -454,7 +378,8 @@ export default function CheckinPage({
               </p>
             ) : (
               <p className="text-white/60 mb-4 text-sm">
-                No attendee profile found yet. We&apos;ll create one and check you in.
+                No attendee profile found yet. We&apos;ll create one and check
+                you in.
               </p>
             )}
             {checkInError && (
@@ -472,8 +397,8 @@ export default function CheckinPage({
               {checkingIn
                 ? "Checking in..."
                 : activeMeeting
-                ? "Check In"
-                : "No Active Meeting"}
+                  ? "Check In"
+                  : "No Active Meeting"}
             </button>
           </div>
         ) : (
@@ -507,8 +432,8 @@ export default function CheckinPage({
                   {checkingIn
                     ? "Looking up..."
                     : activeMeeting
-                    ? "Continue"
-                    : "No Active Meeting"}
+                      ? "Continue"
+                      : "No Active Meeting"}
                 </button>
               </form>
             )}

@@ -1,11 +1,11 @@
 import { MeetingListItem } from "./meeting-list-item";
-import type { Meeting } from "./mock-meetings";
+import type { StatsMeeting } from "@/lib/stats-terms";
 
 export function MeetingsList({
   meetings,
-  emptyMessage = "No meetings attended yet. Check in at the next event!",
+  emptyMessage = "No meetings yet.",
 }: {
-  meetings: Meeting[];
+  meetings: StatsMeeting[];
   emptyMessage?: string;
 }) {
   if (meetings.length === 0) {

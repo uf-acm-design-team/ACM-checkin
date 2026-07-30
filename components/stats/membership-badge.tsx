@@ -3,10 +3,19 @@ import { cn } from "@/lib/utils";
 export function MembershipBadge({
   isMember,
   orgName,
+  role,
 }: {
   isMember: boolean;
   orgName: string;
+  role?: string | null;
 }) {
+  const label =
+    role && role !== "member"
+      ? role.charAt(0).toUpperCase() + role.slice(1)
+      : isMember
+        ? `${orgName} member`
+        : "Potential member";
+
   return (
     <span
       className={cn(
@@ -25,7 +34,7 @@ export function MembershipBadge({
             : "bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.7)]"
         )}
       />
-      {isMember ? `${orgName} member` : "Potential member"}
+      {label}
     </span>
   );
 }

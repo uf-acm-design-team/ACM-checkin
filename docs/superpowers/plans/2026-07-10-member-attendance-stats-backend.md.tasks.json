@@ -1,0 +1,72 @@
+{
+  "planPath": "docs/superpowers/plans/2026-07-10-member-attendance-stats-backend.md",
+  "tasks": [
+    {
+      "id": 6,
+      "subject": "Task 0: Add meetings.description column",
+      "status": "pending",
+      "description": "**Goal:** A nullable `description text` column on `meetings` so officers can write summaries.\n\n**Files:** Create `supabase/migrations/20260710000000_add_meetings_description.sql`\n\n**Acceptance Criteria:** nullable `description text` added to `public.meetings`; idempotent via `IF NOT EXISTS`.\n\n**Verify:** `supabase migration up`\n\n```json:metadata\n{\"files\": [\"supabase/migrations/20260710000000_add_meetings_description.sql\"], \"verifyCommand\": \"supabase migration up\", \"acceptanceCriteria\": [\"nullable description text column added to public.meetings\", \"migration idempotent via IF NOT EXISTS\"]}\n```"
+    },
+    {
+      "id": 7,
+      "subject": "Task 1: Pure term/aggregation/pagination helpers",
+      "status": "pending",
+      "description": "**Goal:** Timezone-safe term logic, per-term aggregation, and pagination math as pure unit-tested functions.\n\n**Files:** Create `lib/stats-terms.ts`, `lib/stats-terms.test.ts`\n\n**Acceptance Criteria:** getTerm EST-safe; termBounds per season; academicYearTerms current-AY keys; buildTermSummaries per-term+all-time; pageRange/hasMore/percentage edge cases.\n\n**Verify:** `npx vitest run lib/stats-terms.test.ts`\n\n```json:metadata\n{\"files\": [\"lib/stats-terms.ts\", \"lib/stats-terms.test.ts\"], \"verifyCommand\": \"npx vitest run lib/stats-terms.test.ts\", \"acceptanceCriteria\": [\"getTerm EST-safe month classification\", \"termBounds correct per season\", \"academicYearTerms returns current AY keys\", \"buildTermSummaries per-term + all-time totals\", \"pageRange/hasMore/percentage edge cases\"]}\n```"
+    },
+    {
+      "id": 8,
+      "subject": "Task 2: Membership threshold helper + refactor check-in",
+      "status": "pending",
+      "description": "**Goal:** Single source of truth for membership threshold + isMember logic, shared by check-in and stats.\n\n**Files:** Create `lib/membership.ts`, `lib/membership.test.ts`; Modify `app/[orgSlug]/checkin/actions.ts`\n\n**Acceptance Criteria:** membershipThreshold per-org+default; resolveMembership isMember/remaining; actions.ts imports shared config.\n\n**Verify:** `npx vitest run lib/membership.test.ts && npx tsc --noEmit`\n\n```json:metadata\n{\"files\": [\"lib/membership.ts\", \"lib/membership.test.ts\", \"app/[orgSlug]/checkin/actions.ts\"], \"verifyCommand\": \"npx vitest run lib/membership.test.ts && npx tsc --noEmit\", \"acceptanceCriteria\": [\"membershipThreshold per-org + default\", \"resolveMembership isMember/remaining logic\", \"checkin/actions.ts imports shared config, no duplicate map\"]}\n```"
+    },
+    {
+      "id": 9,
+      "subject": "Task 3: Clerk-JWT Supabase server client",
+      "status": "pending",
+      "description": "**Goal:** Server-only Supabase client forwarding the Clerk token (RLS-ready), named distinctly from @supabase/ssr.\n\n**Files:** Create `app/utils/supabase/server.ts`\n\n**Acceptance Criteria:** createClerkSupabaseClient with accessToken->Clerk getToken; no @supabase/ssr import.\n\n**Verify:** `npx tsc --noEmit`\n\n```json:metadata\n{\"files\": [\"app/utils/supabase/server.ts\"], \"verifyCommand\": \"npx tsc --noEmit\", \"acceptanceCriteria\": [\"createClerkSupabaseClient with accessToken->Clerk getToken\", \"no @supabase/ssr import\"]}\n```"
+    },
+    {
+      "id": 10,
+      "subject": "Task 4: Data layer server actions (stats-data.ts)",
+      "status": "pending",
+      "blockedBy": [7, 8, 9],
+      "description": "**Goal:** getMemberStats + getMeetingsPage server actions; identity from auth() server-side, orchestrating Supabase over Task 1 helpers.\n\n**Files:** Create `lib/stats-data.ts`\n\n**Acceptance Criteria:** getMemberStats returns MemberStats/throws ORG_NOT_FOUND; getMeetingsPage window capped at now + view filtering + pagination; no userId arg.\n\n**Verify:** `npx tsc --noEmit`\n\n```json:metadata\n{\"files\": [\"lib/stats-data.ts\"], \"verifyCommand\": \"npx tsc --noEmit\", \"acceptanceCriteria\": [\"getMemberStats returns MemberStats, throws ORG_NOT_FOUND\", \"getMeetingsPage window capped at now + view filtering + pagination\", \"identity derived from auth() internally, no userId arg\"]}\n```"
+    },
+    {
+      "id": 11,
+      "subject": "Task 5: Presentational component updates",
+      "status": "pending",
+      "blockedBy": [7],
+      "description": "**Goal:** Repoint leaf components to StatsMeeting, 3-way view toggle, role/status badge.\n\n**Files:** Modify `components/stats/view-toggle.tsx`, `meeting-list-item.tsx`, `meetings-list.tsx`, `membership-badge.tsx`\n\n**Acceptance Criteria:** ViewToggle attended|missed|all; list components consume StatsMeeting; MembershipBadge reflects role.\n\n**Verify:** `npx tsc --noEmit`\n\n```json:metadata\n{\"files\": [\"components/stats/view-toggle.tsx\", \"components/stats/meeting-list-item.tsx\", \"components/stats/meetings-list.tsx\", \"components/stats/membership-badge.tsx\"], \"verifyCommand\": \"npx tsc --noEmit\", \"acceptanceCriteria\": [\"ViewToggle attended|missed|all\", \"list components consume StatsMeeting\", \"MembershipBadge reflects role\"]}\n```"
+    },
+    {
+      "id": 12,
+      "subject": "Task 6: Controlled term tab bar",
+      "status": "pending",
+      "blockedBy": [7],
+      "description": "**Goal:** Convert TermTabs to a controlled tab bar from server TermSummary[] + an All-semesters tab; tabs only.\n\n**Files:** Modify `components/stats/term-tabs.tsx`\n\n**Acceptance Criteria:** props terms/activeScope/onSelect; term tabs + All-semesters with counts; no mock-meetings import, no MeetingsList here.\n\n**Verify:** `npx tsc --noEmit`\n\n```json:metadata\n{\"files\": [\"components/stats/term-tabs.tsx\"], \"verifyCommand\": \"npx tsc --noEmit\", \"acceptanceCriteria\": [\"controlled props terms/activeScope/onSelect\", \"term tabs + All semesters tab with counts\", \"no mock-meetings import, no MeetingsList here\"]}\n```"
+    },
+    {
+      "id": 13,
+      "subject": "Task 7: Server-driven StatsView + real page + delete mock",
+      "status": "pending",
+      "blockedBy": [10, 11, 12],
+      "description": "**Goal:** Wire real data end-to-end; page fetches getMemberStats + initial page; StatsView refetches via getMeetingsPage; delete mock.\n\n**Files:** Modify `app/[orgSlug]/stats/page.tsx`, `components/stats/stats-view.tsx`; Delete `components/stats/mock-meetings.ts`\n\n**Acceptance Criteria:** page auth redirect + org-not-found + initial data; header percentage/count/status/progress; tab/view refetch + Load more append; mock deleted, no importers.\n\n**Verify:** `npx tsc --noEmit && npm run build`\n\n```json:metadata\n{\"files\": [\"app/[orgSlug]/stats/page.tsx\", \"components/stats/stats-view.tsx\", \"components/stats/mock-meetings.ts\"], \"verifyCommand\": \"npx tsc --noEmit && npm run build\", \"acceptanceCriteria\": [\"page auth redirect + org-not-found + initial data\", \"header percentage/count/status/progress\", \"tab/view refetch + Load more append\", \"mock-meetings deleted, no importers\"]}\n```"
+    },
+    {
+      "id": 14,
+      "subject": "Task 8 (Stretch): Cache org meeting totals",
+      "status": "pending",
+      "blockedBy": [10],
+      "description": "**Goal:** Cache the org-meetings aggregation, tag-invalidated on meeting changes.\n\n**Files:** Modify `lib/stats-data.ts`\n\n**Acceptance Criteria:** org-meetings fetch wrapped in unstable_cache tagged org-meetings:${orgId}; TTL + revalidateTag documented.\n\n**Verify:** `npx tsc --noEmit && npm run build`\n\n```json:metadata\n{\"files\": [\"lib/stats-data.ts\"], \"verifyCommand\": \"npx tsc --noEmit && npm run build\", \"acceptanceCriteria\": [\"org-meetings fetch wrapped in unstable_cache tagged org-meetings:${orgId}\", \"TTL + revalidateTag invalidation documented\"]}\n```"
+    },
+    {
+      "id": 15,
+      "subject": "Task 9 (Stretch): Meeting details modal with questions + responses",
+      "status": "pending",
+      "blockedBy": [10, 13],
+      "description": "**Goal:** Modal showing meeting details + questions; for attended meetings, the user's responses.\n\n**Files:** Create `components/stats/meeting-details-modal.tsx`; Modify `lib/stats-data.ts`, `components/stats/meeting-list-item.tsx`, `lib/stats-terms.ts`\n\n**Acceptance Criteria:** getMeetingDetails attendee-scoped answers; modal lists questions + responses / did-not-attend; answers parsed defensively.\n\n**Verify:** `npx tsc --noEmit && npm run build`\n\n```json:metadata\n{\"files\": [\"components/stats/meeting-details-modal.tsx\", \"lib/stats-data.ts\", \"components/stats/meeting-list-item.tsx\", \"lib/stats-terms.ts\"], \"verifyCommand\": \"npx tsc --noEmit && npm run build\", \"acceptanceCriteria\": [\"getMeetingDetails with attendee-scoped answers\", \"modal lists questions + responses / did-not-attend\", \"answers parsed defensively for array or object shape\"]}\n```"
+    }
+  ],
+  "lastUpdated": "2026-07-10T00:00:00Z"
+}
