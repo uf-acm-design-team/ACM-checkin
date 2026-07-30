@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import { useUser } from "@clerk/nextjs";
+import { useRouter } from "next/navigation";
 import { createClient } from "../../utils/supabase/client";
 import { resolveAndUpdateMembershipStatus } from "./actions";
 
@@ -16,6 +17,10 @@ interface ActiveMeeting {
   title: string;
   start_time: string;
   end_time: string;
+  is_geo_locked: boolean;
+  latitude?: number;
+  longitude?: number;
+  radius_meters?: number;
 }
 
 type Step = "email" | "profile";
@@ -30,7 +35,7 @@ export default function CheckinPage({
   const [userAttendee, setUserAttendee] = useState<any>(null);
   const [organization, setOrganization] = useState<Organization | null>(null);
   const [activeMeeting, setActiveMeeting] = useState<ActiveMeeting | null>(
-    null
+    null,
   );
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -47,7 +52,21 @@ export default function CheckinPage({
   const [checkInError, setCheckInError] = useState<string | null>(null);
   const [checkInSuccess, setCheckInSuccess] = useState(false);
 
+  const router = useRouter();
   const supabase = createClient();
+
+  const getClerkEmail = () => {
+    if (!user) return "";
+    return (
+      user.primaryEmailAddress?.emailAddress ||
+      user.emailAddresses?.[0]?.emailAddress ||
+      (user as any).email ||
+      ""
+    );
+  };
+
+  const getClerkFirstName = () => user?.firstName || "";
+  const getClerkLastName = () => user?.lastName || "";
 
   useEffect(() => {
     if (!isLoaded) return;
@@ -69,7 +88,9 @@ export default function CheckinPage({
 
       const { data: meetings } = await supabase
         .from("meetings")
-        .select("id, title, start_time, end_time")
+        .select(
+          "id, title, start_time, end_time, is_geo_locked, latitude, longitude, radius_meters",
+        )
         .eq("org_id", org.id)
         .eq("status", true)
         .order("start_time", { ascending: true })
@@ -83,7 +104,33 @@ export default function CheckinPage({
           .select("id, first_name, last_name, email")
           .eq("user_id", user.id)
           .maybeSingle();
-        setUserAttendee(attendee);
+
+        if (attendee) {
+          setUserAttendee(attendee);
+        } else {
+          const userEmail = getClerkEmail();
+
+          if (userEmail) {
+            const { data: attendeeByEmail, error: emailError } = await supabase
+              .from("attendees")
+              .select("id, first_name, last_name, email")
+              .eq("email", userEmail)
+              .maybeSingle();
+
+            if (!emailError && attendeeByEmail) {
+              const { data: linkedAttendee, error: linkError } = await supabase
+                .from("attendees")
+                .update({ user_id: user.id })
+                .eq("id", attendeeByEmail.id)
+                .select("id, first_name, last_name, email")
+                .single();
+
+              if (!linkError && linkedAttendee) {
+                setUserAttendee(linkedAttendee);
+              }
+            }
+          }
+        }
       }
 
       setLoading(false);
@@ -92,10 +139,7 @@ export default function CheckinPage({
     init();
   }, [orgSlug, isLoaded, user, supabase]);
 
-  const performCheckIn = async (
-    attendeeId: string,
-    userId?: string
-  ) => {
+  const performCheckIn = async (attendeeId: string, userId?: string) => {
     if (!organization || !activeMeeting) return;
     setCheckingIn(true);
     setCheckInError(null);
@@ -136,16 +180,44 @@ export default function CheckinPage({
           userId,
           attendeeId,
           organization.id,
-          orgSlug
+          orgSlug,
         );
       }
 
       setCheckInSuccess(true);
     } catch (err) {
-      setCheckInError("Check-in failed. Please try again.");
+      setCheckInError(
+        err instanceof Error
+          ? err.message
+          : "Check-in failed. Please try again.",
+      );
     } finally {
       setCheckingIn(false);
     }
+  };
+
+  const checkLocation = async (): Promise<boolean> => {
+    if (
+      activeMeeting?.is_geo_locked &&
+      activeMeeting.latitude &&
+      activeMeeting.longitude
+    ) {
+      setCheckingIn(true);
+      setCheckInError(null);
+
+      const geoResult = await verifyGeoLock(
+        activeMeeting.latitude,
+        activeMeeting.longitude,
+        activeMeeting.radius_meters || 200,
+      );
+
+      if (!geoResult.allowed) {
+        setCheckInError(geoResult.error || "Failed geolocation check.");
+        setCheckingIn(false);
+        return false; // Stop!
+      }
+    }
+    return true; // Pass!
   };
 
   const handleAuthenticatedCheckIn = async () => {
@@ -155,6 +227,10 @@ export default function CheckinPage({
 
   const handleEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    const isLocationValid = await checkLocation();
+    if (!isLocationValid) return;
+
     setCheckInError(null);
     setCheckingIn(true);
 
@@ -179,13 +255,21 @@ export default function CheckinPage({
 
   const handleProfileSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    const isLocationValid = await checkLocation();
+    if (!isLocationValid) return;
     setCheckInError(null);
     setCheckingIn(true);
 
     try {
       const { data: newAttendee, error: createError } = await supabase
         .from("attendees")
-        .insert({ email, first_name: firstName, last_name: lastName, grad_year: gradYear })
+        .insert({
+          email,
+          first_name: firstName,
+          last_name: lastName,
+          grad_year: gradYear,
+        })
         .select("id")
         .single();
 
@@ -258,7 +342,22 @@ export default function CheckinPage({
           )}
         </div>
 
-        {checkInSuccess ? (
+        {!activeMeeting ? (
+          <div className="text-center">
+            <p className="text-white/60 mb-4">
+              There is no active meeting right now.
+            </p>
+            {user && (
+              <button
+                type="button"
+                onClick={() => router.back()}
+                className="w-full bg-white/20 hover:bg-white/30 text-white font-semibold py-3 px-4 rounded-lg transition-all duration-200 border border-white/30"
+              >
+                Go back
+              </button>
+            )}
+          </div>
+        ) : checkInSuccess ? (
           <div className="text-center py-4">
             <p className="text-green-300 text-xl font-semibold">
               You&apos;re checked in!
@@ -279,7 +378,8 @@ export default function CheckinPage({
               </p>
             ) : (
               <p className="text-white/60 mb-4 text-sm">
-                Your attendee profile could not be found.
+                No attendee profile found yet. We&apos;ll create one and check
+                you in.
               </p>
             )}
             {checkInError && (
@@ -287,9 +387,9 @@ export default function CheckinPage({
             )}
             <button
               onClick={handleAuthenticatedCheckIn}
-              disabled={!activeMeeting || checkingIn || !userAttendee}
+              disabled={!activeMeeting || checkingIn}
               className={`w-full font-semibold py-3 px-4 rounded-lg transition-all duration-200 border ${
-                activeMeeting && userAttendee
+                activeMeeting
                   ? "bg-white/20 hover:bg-white/30 text-white border-white/30"
                   : "bg-white/5 text-white/30 border-white/10 cursor-not-allowed"
               }`}
@@ -297,8 +397,8 @@ export default function CheckinPage({
               {checkingIn
                 ? "Checking in..."
                 : activeMeeting
-                ? "Check In"
-                : "No Active Meeting"}
+                  ? "Check In"
+                  : "No Active Meeting"}
             </button>
           </div>
         ) : (
@@ -332,8 +432,8 @@ export default function CheckinPage({
                   {checkingIn
                     ? "Looking up..."
                     : activeMeeting
-                    ? "Continue"
-                    : "No Active Meeting"}
+                      ? "Continue"
+                      : "No Active Meeting"}
                 </button>
               </form>
             )}
