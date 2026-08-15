@@ -19,7 +19,26 @@ interface Meeting {
   end_time: string;
   status: boolean;
   attendance_count: number;
+  description: string | null;
+  is_geo_locked: boolean;
+  latitude: number | null;
+  longitude: number | null;
+  radius_meters: number | null;
 }
+
+// Blank form state, shared by the create and edit flows.
+const EMPTY_MEETING_DRAFT = {
+  title: "",
+  description: "",
+  start_time: "",
+  end_time: "",
+  status: true,
+  is_geo_locked: false,
+  latitude: "",
+  longitude: "",
+  radius_meters: "200",
+};
+type MeetingDraft = typeof EMPTY_MEETING_DRAFT;
 
 interface CheckIn {
   first_name: string;
@@ -98,13 +117,16 @@ export default function AdminDashboard({
   const [meetingsLoading, setMeetingsLoading] = useState(true);
   const [meetingFilter, setMeetingFilter] = useState<MeetingFilter>("upcoming");
   const [showMeetingModal, setShowMeetingModal] = useState(false);
-  const [meetingDraft, setMeetingDraft] = useState({
-    title: "",
-    start_time: "",
-    end_time: "",
-  });
+  const [meetingDraft, setMeetingDraft] =
+    useState<MeetingDraft>(EMPTY_MEETING_DRAFT);
+  // Non-null when the modal is editing an existing meeting rather than creating.
+  const [editingMeetingId, setEditingMeetingId] = useState<string | null>(null);
   const [creatingMeeting, setCreatingMeeting] = useState(false);
   const [meetingError, setMeetingError] = useState<string | null>(null);
+  const [locating, setLocating] = useState(false);
+  const [deletingMeetingId, setDeletingMeetingId] = useState<string | null>(
+    null,
+  );
 
   // Attendance
   const [attendanceMeetingId, setAttendanceMeetingId] = useState<string | null>(
@@ -211,7 +233,9 @@ export default function AdminDashboard({
     try {
       const { data, error } = await supabase
         .from("meetings")
-        .select("id, title, start_time, end_time, status")
+        .select(
+          "id, title, start_time, end_time, status, description, is_geo_locked, latitude, longitude, radius_meters",
+        )
         .eq("org_id", organization.id)
         .order("start_time", { ascending: false });
 
@@ -363,31 +387,178 @@ export default function AdminDashboard({
     fetchCheckIns();
   }, [attendanceMeetingId, checkIns, supabase]);
 
-  const handleCreateMeeting = async (e: React.FormEvent) => {
+  const openCreateMeeting = () => {
+    setEditingMeetingId(null);
+    setMeetingDraft(EMPTY_MEETING_DRAFT);
+    setMeetingError(null);
+    setShowMeetingModal(true);
+  };
+
+  const openEditMeeting = (m: Meeting) => {
+    setEditingMeetingId(m.id);
+    setMeetingError(null);
+    setMeetingDraft({
+      title: m.title,
+      description: m.description ?? "",
+      // <input type="datetime-local"> wants "YYYY-MM-DDTHH:mm". start_time is a
+      // timestamp WITHOUT time zone, so slicing avoids a Date round-trip that
+      // would shift the value by the viewer's UTC offset.
+      start_time: m.start_time ? m.start_time.slice(0, 16) : "",
+      end_time: m.end_time ? m.end_time.slice(0, 16) : "",
+      status: m.status,
+      is_geo_locked: m.is_geo_locked,
+      latitude: m.latitude?.toString() ?? "",
+      longitude: m.longitude?.toString() ?? "",
+      radius_meters: (m.radius_meters ?? 200).toString(),
+    });
+    setShowMeetingModal(true);
+  };
+
+  // Fill lat/lng from the officer's current position. They are expected to be
+  // standing at the meeting location when setting this up; the alternative
+  // (typing coordinates) is unusable on a phone.
+  const useCurrentLocation = () => {
+    if (!navigator.geolocation) {
+      setMeetingError("This browser doesn't support geolocation.");
+      return;
+    }
+    setLocating(true);
+    setMeetingError(null);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setMeetingDraft((d) => ({
+          ...d,
+          latitude: pos.coords.latitude.toFixed(6),
+          longitude: pos.coords.longitude.toFixed(6),
+        }));
+        setLocating(false);
+      },
+      (err) => {
+        setMeetingError(
+          err.code === err.PERMISSION_DENIED
+            ? "Location access denied. Allow it, or enter coordinates manually."
+            : "Couldn't read your location. Check that GPS is on.",
+        );
+        setLocating(false);
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 },
+    );
+  };
+
+  const handleSaveMeeting = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!organization || !user) return;
+
+    // Validate before hitting the DB so the officer gets a specific message
+    // rather than a constraint error.
+    if (meetingDraft.end_time && meetingDraft.start_time > meetingDraft.end_time) {
+      setMeetingError("End time must be after the start time.");
+      return;
+    }
+
+    const lat = meetingDraft.latitude.trim();
+    const lng = meetingDraft.longitude.trim();
+    if (meetingDraft.is_geo_locked && (!lat || !lng)) {
+      setMeetingError(
+        "Geo-locked meetings need a location. Use “Use current location” or enter coordinates.",
+      );
+      return;
+    }
+
+    const radius = Number(meetingDraft.radius_meters);
+    if (meetingDraft.is_geo_locked && (!Number.isFinite(radius) || radius <= 0)) {
+      setMeetingError("Radius must be a positive number of meters.");
+      return;
+    }
+
     setCreatingMeeting(true);
     setMeetingError(null);
+
+    // Only persist coordinates when geolocking is on -- otherwise a meeting
+    // that was un-geolocked would keep stale coordinates that mean nothing.
+    const payload = {
+      title: meetingDraft.title.trim(),
+      description: meetingDraft.description.trim() || null,
+      start_time: meetingDraft.start_time,
+      end_time: meetingDraft.end_time,
+      status: meetingDraft.status,
+      is_geo_locked: meetingDraft.is_geo_locked,
+      latitude: meetingDraft.is_geo_locked ? Number(lat) : null,
+      longitude: meetingDraft.is_geo_locked ? Number(lng) : null,
+      radius_meters: meetingDraft.is_geo_locked ? radius : null,
+    };
+
     try {
-      const { error } = await supabase.from("meetings").insert({
-        title: meetingDraft.title,
-        start_time: meetingDraft.start_time,
-        end_time: meetingDraft.end_time,
-        org_id: organization.id,
-        created_by: user.id,
-        status: true,
-      });
+      const { error } = editingMeetingId
+        ? await supabase
+            .from("meetings")
+            .update(payload)
+            .eq("id", editingMeetingId)
+        : await supabase
+            .from("meetings")
+            .insert({ ...payload, org_id: organization.id, created_by: user.id });
+
       if (error) {
         setMeetingError(error.message);
-      } else {
-        setShowMeetingModal(false);
-        setMeetingDraft({ title: "", start_time: "", end_time: "" });
-        fetchMeetings();
+        return;
       }
+
+      setShowMeetingModal(false);
+      setEditingMeetingId(null);
+      setMeetingDraft(EMPTY_MEETING_DRAFT);
+
+      // Make sure the meeting just saved is actually visible. Creating one that
+      // already ended (or backdating an edit) would otherwise drop it out of the
+      // default "Upcoming" view, which reads as "the save didn't work".
+      const endsInPast =
+        new Date(payload.end_time || payload.start_time).getTime() < Date.now();
+      if (endsInPast && meetingFilter === "upcoming") {
+        setMeetingFilter("all");
+      }
+
+      fetchMeetings();
     } catch {
-      setMeetingError("Failed to create meeting");
+      setMeetingError("Failed to save meeting");
     } finally {
       setCreatingMeeting(false);
+    }
+  };
+
+  // Open/close a meeting for check-in. This is the switch guests are gated on:
+  // meetings_anon_read_active only exposes rows with status = true.
+  const toggleMeetingStatus = async (m: Meeting) => {
+    const { error } = await supabase
+      .from("meetings")
+      .update({ status: !m.status })
+      .eq("id", m.id);
+    if (error) {
+      setMeetingError(error.message);
+      return;
+    }
+    fetchMeetings();
+  };
+
+  const handleDeleteMeeting = async (m: Meeting) => {
+    // Attendance rows reference meetings, so deleting one with check-ins would
+    // fail on the FK anyway -- say so up front instead of surfacing a raw error.
+    if (m.attendance_count > 0) {
+      setMeetingError(
+        `"${m.title}" has ${m.attendance_count} check-in(s). Close it instead of deleting to keep the attendance record.`,
+      );
+      return;
+    }
+    if (!confirm(`Delete "${m.title}"? This cannot be undone.`)) return;
+
+    setDeletingMeetingId(m.id);
+    try {
+      const { error } = await supabase.from("meetings").delete().eq("id", m.id);
+      if (error) {
+        setMeetingError(error.message);
+        return;
+      }
+      fetchMeetings();
+    } finally {
+      setDeletingMeetingId(null);
     }
   };
 
@@ -454,11 +625,28 @@ export default function AdminDashboard({
     URL.revokeObjectURL(url);
   };
 
-  const now = Date.now();
+  // The upcoming/past boundary. Held in state and refreshed on a timer rather
+  // than read inline: `Date.now()` in the render body differs on every pass, so
+  // the useMemos below would never cache. A minute of drift is irrelevant for
+  // deciding whether a meeting has ended.
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 60_000);
+    return () => clearInterval(id);
+  }, []);
+
+  // "Upcoming" keys off end_time, not start_time: a meeting that is currently
+  // running is still upcoming as far as an officer is concerned -- people are
+  // checking into it. Keying off start_time filed in-progress meetings under
+  // "Past" the moment they began, which made a just-created meeting look like
+  // it had failed to save.
+  const meetingEnd = (m: Meeting) =>
+    new Date(m.end_time || m.start_time).getTime();
+
   const upcomingMeetings = useMemo(
     () =>
       meetings
-        .filter((m) => new Date(m.start_time).getTime() >= now)
+        .filter((m) => meetingEnd(m) >= now)
         .sort(
           (a, b) =>
             new Date(a.start_time).getTime() - new Date(b.start_time).getTime()
@@ -466,7 +654,7 @@ export default function AdminDashboard({
     [meetings, now]
   );
   const pastMeetings = useMemo(
-    () => meetings.filter((m) => new Date(m.start_time).getTime() < now),
+    () => meetings.filter((m) => meetingEnd(m) < now),
     [meetings, now]
   );
 
@@ -733,10 +921,7 @@ export default function AdminDashboard({
                   ))}
                 </div>
                 <button
-                  onClick={() => {
-                    setMeetingError(null);
-                    setShowMeetingModal(true);
-                  }}
+                  onClick={openCreateMeeting}
                   className="cursor-pointer rounded-[9px] bg-brand-action px-4.5 py-2.5 text-sm font-bold text-white transition-all hover:opacity-90"
                 >
                   + New Meeting
@@ -744,13 +929,21 @@ export default function AdminDashboard({
               </div>
 
               <div className="overflow-hidden rounded-[14px] border border-slate-200 bg-white">
-                <div className="grid grid-cols-[2fr_1.4fr_1.4fr_1fr_100px] gap-4 border-b border-slate-200 px-5 py-3.5 text-xs font-bold tracking-wide text-slate-500 uppercase">
+                <div className="grid grid-cols-[2fr_1.3fr_1.3fr_1fr_100px_170px] gap-4 border-b border-slate-200 px-5 py-3.5 text-xs font-bold tracking-wide text-slate-500 uppercase">
                   <div>Meeting</div>
                   <div>Start</div>
                   <div>End</div>
                   <div>Attendance</div>
                   <div>Status</div>
+                  <div className="text-right">Actions</div>
                 </div>
+                {/* Errors from the row actions (toggle/delete) surface here --
+                    the modal is closed when those run. */}
+                {meetingError && !showMeetingModal && (
+                  <div className="border-b border-red-100 bg-red-50 px-5 py-3 text-sm text-red-700">
+                    {meetingError}
+                  </div>
+                )}
                 {meetingsLoading ? (
                   <div className="p-10 text-center text-sm text-slate-500">
                     Loading meetings...
@@ -763,9 +956,19 @@ export default function AdminDashboard({
                         setAttendanceMeetingId(m.id);
                         setActiveTab("attendance");
                       }}
-                      className="grid cursor-pointer grid-cols-[2fr_1.4fr_1.4fr_1fr_100px] items-center gap-4 border-b border-slate-100 px-5 py-4 text-sm transition-all last:border-b-0 hover:bg-slate-50"
+                      className="grid cursor-pointer grid-cols-[2fr_1.3fr_1.3fr_1fr_100px_170px] items-center gap-4 border-b border-slate-100 px-5 py-4 text-sm transition-all last:border-b-0 hover:bg-slate-50"
                     >
-                      <div className="font-bold">{m.title}</div>
+                      <div className="font-bold">
+                        {m.title}
+                        {m.is_geo_locked && (
+                          <span
+                            title={`Geo-locked to ${m.radius_meters ?? 200}m`}
+                            className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-700"
+                          >
+                            📍 {m.radius_meters ?? 200}m
+                          </span>
+                        )}
+                      </div>
                       <div className="font-medium text-slate-600">
                         {fmtDate(m.start_time)}, {fmtTime(m.start_time)}
                       </div>
@@ -789,11 +992,59 @@ export default function AdminDashboard({
                           {m.status ? "Active" : "Closed"}
                         </span>
                       </div>
+                      {/* stopPropagation on each: the row itself navigates to
+                          the attendance tab. */}
+                      <div className="flex justify-end gap-1.5">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleMeetingStatus(m);
+                          }}
+                          title={
+                            m.status
+                              ? "Close check-in for this meeting"
+                              : "Open check-in for this meeting"
+                          }
+                          className="cursor-pointer rounded-md border border-slate-200 px-2 py-1 text-[11px] font-bold text-slate-600 hover:bg-slate-100"
+                        >
+                          {m.status ? "Close" : "Open"}
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openEditMeeting(m);
+                          }}
+                          className="cursor-pointer rounded-md border border-slate-200 px-2 py-1 text-[11px] font-bold text-slate-600 hover:bg-slate-100"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteMeeting(m);
+                          }}
+                          disabled={deletingMeetingId === m.id}
+                          className="cursor-pointer rounded-md border border-red-200 px-2 py-1 text-[11px] font-bold text-red-600 hover:bg-red-50 disabled:opacity-50"
+                        >
+                          {deletingMeetingId === m.id ? "..." : "Delete"}
+                        </button>
+                      </div>
                     </div>
                   ))
                 ) : (
                   <div className="p-10 text-center text-sm text-slate-500">
                     No meetings in this view.
+                    {meetings.length > 0 && meetingFilter !== "all" && (
+                      <>
+                        {" "}
+                        <button
+                          onClick={() => setMeetingFilter("all")}
+                          className="cursor-pointer font-bold text-brand-action underline"
+                        >
+                          Show all {meetings.length}
+                        </button>
+                      </>
+                    )}
                   </div>
                 )}
               </div>
@@ -1033,18 +1284,20 @@ export default function AdminDashboard({
         </main>
       </div>
 
-      {/* NEW MEETING MODAL */}
+      {/* MEETING MODAL -- create and edit share this form */}
       {showMeetingModal && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/45"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/45 p-4"
           onClick={() => setShowMeetingModal(false)}
         >
           <form
-            onSubmit={handleCreateMeeting}
+            onSubmit={handleSaveMeeting}
             onClick={(e) => e.stopPropagation()}
-            className="w-[480px] max-w-[92vw] rounded-2xl bg-white p-7"
+            className="max-h-[90vh] w-[480px] max-w-[92vw] overflow-y-auto rounded-2xl bg-white p-7"
           >
-            <div className="mb-4 text-lg font-extrabold">New Meeting</div>
+            <div className="mb-4 text-lg font-extrabold">
+              {editingMeetingId ? "Edit Meeting" : "New Meeting"}
+            </div>
             <div className="flex flex-col gap-3.5">
               <div>
                 <label className="mb-1.5 block text-xs font-bold text-slate-500">
@@ -1059,6 +1312,23 @@ export default function AdminDashboard({
                   }
                   placeholder="Meeting title"
                   className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm"
+                />
+              </div>
+              <div>
+                <label className="mb-1.5 block text-xs font-bold text-slate-500">
+                  Description <span className="font-medium">(optional)</span>
+                </label>
+                <textarea
+                  rows={2}
+                  value={meetingDraft.description}
+                  onChange={(e) =>
+                    setMeetingDraft({
+                      ...meetingDraft,
+                      description: e.target.value,
+                    })
+                  }
+                  placeholder="What's this meeting about?"
+                  className="w-full resize-y rounded-lg border border-slate-200 px-3 py-2.5 text-sm"
                 />
               </div>
               <div>
@@ -1095,6 +1365,124 @@ export default function AdminDashboard({
                   className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm"
                 />
               </div>
+              {/* Open for check-in. Guests only ever see status = true
+                  meetings (meetings_anon_read_active), so this is the switch
+                  that makes a meeting checkin-able. */}
+              <label className="flex cursor-pointer items-start gap-2.5 rounded-lg border border-slate-200 p-3">
+                <input
+                  type="checkbox"
+                  checked={meetingDraft.status}
+                  onChange={(e) =>
+                    setMeetingDraft({
+                      ...meetingDraft,
+                      status: e.target.checked,
+                    })
+                  }
+                  className="mt-0.5"
+                />
+                <span className="text-sm">
+                  <span className="font-bold">Open for check-in</span>
+                  <span className="block text-xs text-slate-500">
+                    Members and guests can check in while this is on.
+                  </span>
+                </span>
+              </label>
+
+              <div className="rounded-lg border border-slate-200 p-3">
+                <label className="flex cursor-pointer items-start gap-2.5">
+                  <input
+                    type="checkbox"
+                    checked={meetingDraft.is_geo_locked}
+                    onChange={(e) =>
+                      setMeetingDraft({
+                        ...meetingDraft,
+                        is_geo_locked: e.target.checked,
+                      })
+                    }
+                    className="mt-0.5"
+                  />
+                  <span className="text-sm">
+                    <span className="font-bold">Require being on location</span>
+                    <span className="block text-xs text-slate-500">
+                      Check-in is refused beyond the radius below.
+                    </span>
+                  </span>
+                </label>
+
+                {meetingDraft.is_geo_locked && (
+                  <div className="mt-3 flex flex-col gap-2.5 border-t border-slate-100 pt-3">
+                    <button
+                      type="button"
+                      onClick={useCurrentLocation}
+                      disabled={locating}
+                      className="cursor-pointer rounded-lg border border-slate-300 px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                    >
+                      {locating ? "Getting location..." : "📍 Use current location"}
+                    </button>
+                    <div className="grid grid-cols-2 gap-2.5">
+                      <div>
+                        <label className="mb-1 block text-[11px] font-bold text-slate-500">
+                          Latitude
+                        </label>
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          value={meetingDraft.latitude}
+                          onChange={(e) =>
+                            setMeetingDraft({
+                              ...meetingDraft,
+                              latitude: e.target.value,
+                            })
+                          }
+                          placeholder="29.648"
+                          className="w-full rounded-lg border border-slate-200 px-2.5 py-2 text-sm"
+                        />
+                      </div>
+                      <div>
+                        <label className="mb-1 block text-[11px] font-bold text-slate-500">
+                          Longitude
+                        </label>
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          value={meetingDraft.longitude}
+                          onChange={(e) =>
+                            setMeetingDraft({
+                              ...meetingDraft,
+                              longitude: e.target.value,
+                            })
+                          }
+                          placeholder="-82.344"
+                          className="w-full rounded-lg border border-slate-200 px-2.5 py-2 text-sm"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-[11px] font-bold text-slate-500">
+                        Radius (meters)
+                      </label>
+                      <input
+                        type="number"
+                        min={10}
+                        step={10}
+                        value={meetingDraft.radius_meters}
+                        onChange={(e) =>
+                          setMeetingDraft({
+                            ...meetingDraft,
+                            radius_meters: e.target.value,
+                          })
+                        }
+                        className="w-full rounded-lg border border-slate-200 px-2.5 py-2 text-sm"
+                      />
+                      <p className="mt-1 text-[11px] text-slate-500">
+                        200m suits a lecture hall. Phone GPS is only accurate to
+                        roughly 10–50m indoors, so avoid going much tighter.
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+
               {meetingError && (
                 <p className="text-sm text-red-600">{meetingError}</p>
               )}
@@ -1112,7 +1500,11 @@ export default function AdminDashboard({
                 disabled={creatingMeeting}
                 className="cursor-pointer rounded-[9px] bg-brand-action px-4.5 py-2.5 text-[13px] font-bold text-white disabled:opacity-50"
               >
-                {creatingMeeting ? "Creating..." : "Create Meeting"}
+                {creatingMeeting
+                  ? "Saving..."
+                  : editingMeetingId
+                    ? "Save Changes"
+                    : "Create Meeting"}
               </button>
             </div>
           </form>

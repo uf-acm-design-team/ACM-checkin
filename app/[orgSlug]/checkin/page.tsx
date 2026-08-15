@@ -197,10 +197,13 @@ export default function CheckinPage({
   };
 
   const checkLocation = async (): Promise<boolean> => {
+    // Compare against null/undefined explicitly: latitude 0 (the equator) and
+    // longitude 0 (the prime meridian) are valid coordinates, and a truthiness
+    // check would silently skip the geolock for them.
     if (
       activeMeeting?.is_geo_locked &&
-      activeMeeting.latitude &&
-      activeMeeting.longitude
+      activeMeeting.latitude != null &&
+      activeMeeting.longitude != null
     ) {
       setCheckingIn(true);
       setCheckInError(null);
@@ -222,6 +225,14 @@ export default function CheckinPage({
 
   const handleAuthenticatedCheckIn = async () => {
     if (!user || !userAttendee || !organization) return;
+
+    // Signed-in members are subject to the geolock too. This path previously
+    // skipped checkLocation() entirely, so the guest flow was gated on location
+    // while the (far more common) member flow was not -- which made
+    // geo-locking effectively decorative.
+    const isLocationValid = await checkLocation();
+    if (!isLocationValid) return;
+
     await performCheckIn(userAttendee.id, user.id);
   };
 
