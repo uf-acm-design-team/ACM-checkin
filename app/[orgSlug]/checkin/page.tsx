@@ -5,6 +5,7 @@ import { useUser } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
 import { createClient } from "../../utils/supabase/client";
 import { resolveAndUpdateMembershipStatus } from "./actions";
+import { verifyGeoLock } from "./geolock";
 
 interface Organization {
   id: string;
@@ -177,7 +178,6 @@ export default function CheckinPage({
       // instead of jumping to "active" on the first check-in.
       if (userId) {
         await resolveAndUpdateMembershipStatus(
-          userId,
           attendeeId,
           organization.id,
           orgSlug,

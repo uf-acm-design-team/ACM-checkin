@@ -5,6 +5,13 @@ import { useRouter } from "next/navigation";
 import { useUser, UserButton } from "@clerk/nextjs";
 import { createClient } from "../utils/supabase/client";
 
+// Shape of the memberships rows joined to organizations. PostgREST types the
+// embedded relation loosely, so this is asserted at the call site.
+interface MembershipRow {
+  role: string | null;
+  organizations: Organization | null;
+}
+
 interface Organization {
   id: string;
   name: string;
@@ -17,6 +24,7 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [attendanceByOrg, setAttendanceByOrg] = useState<Record<string, number>>({});
+  const [roleByOrg, setRoleByOrg] = useState<Record<string, string>>({});
   const [orgsLoading, setOrgsLoading] = useState(true);
   const router = useRouter();
   const supabase = createClient();
@@ -41,17 +49,28 @@ export default function Dashboard() {
       try {
         const { data, error } = await supabase
           .from("memberships")
-          .select("organizations:org_id(id, name, slug, created_at)")
+          .select("role, organizations:org_id(id, name, slug, created_at)")
           .eq("user_id", user.id);
 
         if (error) {
           console.error("Error fetching memberships:", JSON.stringify(error, null, 2));
         } else {
-          const orgs = (data || [])
-            .map((m: any) => m.organizations)
-            .filter(Boolean)
-            .sort((a: any, b: any) => a.name.localeCompare(b.name));
+          const rows = (data ?? []) as unknown as MembershipRow[];
+          const orgs = rows
+            .map((m) => m.organizations)
+            .filter((o): o is Organization => Boolean(o))
+            .sort((a, b) => a.name.localeCompare(b.name));
           setOrganizations(orgs);
+
+          // Track the caller's role per org so the card can offer an admin
+          // link only where they can actually use it.
+          const roles: Record<string, string> = {};
+          for (const m of rows) {
+            if (m.organizations?.id && m.role) {
+              roles[m.organizations.id] = m.role;
+            }
+          }
+          setRoleByOrg(roles);
 
           const { data: attendee, error: attendeeError } = await supabase
             .from("attendees")
@@ -144,7 +163,7 @@ export default function Dashboard() {
                 {organizations.map((org) => (
                   <div
                     key={org.id}
-                    onClick={() => router.push(`/org/${org.slug}`)}
+                    onClick={() => router.push(`/${org.slug}`)}
                     className="bg-white/10 rounded-lg p-4 border border-white/20 hover:bg-white/20 transition-all cursor-pointer"
                   >
                     <div className="flex items-start justify-between gap-4">
@@ -165,7 +184,7 @@ export default function Dashboard() {
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              router.push(`/org/${org.slug}/checkin`);
+                              router.push(`/${org.slug}/checkin`);
                             }}
                             className="bg-white text-black font-semibold py-2 px-4 rounded-lg hover:bg-white/90 transition-all cursor-pointer"
                           >
@@ -174,12 +193,27 @@ export default function Dashboard() {
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              router.push(`/org/${org.slug}/stats`);
+                              router.push(`/${org.slug}/stats`);
                             }}
                             className="bg-white/15 hover:bg-white/25 text-white font-semibold py-2 px-4 rounded-lg transition-all border border-white/20 cursor-pointer"
                           >
                             Stats
                           </button>
+                          {/* Officers/owners/admins only -- the dashboard is
+                              gated on membership anyway, but a plain member has
+                              nothing to do there. */}
+                          {roleByOrg[org.id] &&
+                            roleByOrg[org.id].toLowerCase() !== "member" && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  router.push(`/${org.slug}/admin-dashboard`);
+                                }}
+                                className="bg-[#FA4616] hover:bg-[#e03d0f] text-white font-semibold py-2 px-4 rounded-lg transition-all cursor-pointer"
+                              >
+                                Admin
+                              </button>
+                            )}
                         </div>
                       </div>
                     </div>

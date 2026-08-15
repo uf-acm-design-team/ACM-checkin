@@ -88,6 +88,11 @@ export default function AdminDashboard({
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<TabKey>("overview");
 
+  // This user's role in THIS org (from memberships). Null until resolved.
+  const [membershipRole, setMembershipRole] = useState<string | null>(null);
+  // Global admin flag from attendees.admin -- gates the Orgs tab only.
+  const [isGlobalAdmin, setIsGlobalAdmin] = useState(false);
+
   // Meetings
   const [meetings, setMeetings] = useState<Meeting[]>([]);
   const [meetingsLoading, setMeetingsLoading] = useState(true);
@@ -129,6 +134,9 @@ export default function AdminDashboard({
   }, [isLoaded, user, router]);
 
   useEffect(() => {
+    if (!isLoaded) return;
+    if (!user) return; // the effect above handles the signed-out redirect
+
     const fetchOrganization = async () => {
       const { data, error } = await supabase
         .from("organizations")
@@ -138,14 +146,64 @@ export default function AdminDashboard({
 
       if (error || !data) {
         setError("Organization not found");
-      } else {
-        setOrganization(data);
+        setLoading(false);
+        return;
       }
+
+      // Access gate: you must hold a membership in THIS org to open its admin
+      // dashboard. Without this any signed-in user could load any org's
+      // dashboard by typing the slug.
+      //
+      // This is a UX gate, not the security boundary -- RLS decides what rows
+      // actually come back (see 20260813000100_enable_rls_clerk.sql). It exists
+      // so a non-member gets a clear "no access" message instead of a
+      // confusingly empty dashboard.
+      const { data: membership, error: membershipError } = await supabase
+        .from("memberships")
+        .select("role")
+        .eq("org_id", data.id)
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      if (membershipError) {
+        console.error("Membership check failed:", membershipError);
+        setError("Couldn't verify your access to this organization");
+        setLoading(false);
+        return;
+      }
+
+      if (!membership) {
+        setError("You don't have access to this organization");
+        setLoading(false);
+        return;
+      }
+
+      setMembershipRole(membership.role ?? null);
+      setOrganization(data);
       setLoading(false);
     };
 
     fetchOrganization();
-  }, [orgSlug, supabase]);
+  }, [orgSlug, supabase, isLoaded, user]);
+
+  // Whether this user may create organizations. Gated on attendees.admin --
+  // a global flag, distinct from the per-org memberships.role above.
+  useEffect(() => {
+    if (!isLoaded || !user) return;
+
+    supabase
+      .from("attendees")
+      .select("admin")
+      .eq("user_id", user.id)
+      .maybeSingle()
+      .then(({ data, error }) => {
+        if (error) {
+          console.error("Admin flag lookup failed:", error);
+          return;
+        }
+        setIsGlobalAdmin(Boolean(data?.admin));
+      });
+  }, [isLoaded, user, supabase]);
 
   const fetchMeetings = useCallback(async () => {
     if (!organization) return;
@@ -423,6 +481,23 @@ export default function AdminDashboard({
   const totalCheckIns = meetings.reduce((sum, m) => sum + m.attendance_count, 0);
   const officers = members.filter((m) => m.role?.toLowerCase() !== "member");
 
+  // The Orgs tab creates organizations, which is a global-admin action rather
+  // than a per-org one -- hide it unless attendees.admin is set. RLS enforces
+  // the same rule server-side (orgs_admin_insert), so this only prevents
+  // showing a control that would fail.
+  const visibleTabs = useMemo(
+    () => TABS.filter((tab) => tab.key !== "orgs" || isGlobalAdmin),
+    [isGlobalAdmin]
+  );
+
+  // If the active tab is no longer visible (admin flag resolved to false after
+  // the tab was already selected), fall back to overview.
+  useEffect(() => {
+    if (!visibleTabs.some((t) => t.key === activeTab)) {
+      setActiveTab("overview");
+    }
+  }, [visibleTabs, activeTab]);
+
   const search = memberSearch.trim().toLowerCase();
   const filteredMembers = members.filter(
     (m) =>
@@ -480,7 +555,7 @@ export default function AdminDashboard({
           </div>
         </div>
 
-        {TABS.map((tab) => {
+        {visibleTabs.map((tab) => {
           const active = activeTab === tab.key;
           return (
             <button
@@ -898,7 +973,7 @@ export default function AdminDashboard({
           )}
 
           {/* ORGS */}
-          {activeTab === "orgs" && (
+          {activeTab === "orgs" && isGlobalAdmin && (
             <>
               <div className="mb-5 flex items-center justify-between gap-4">
                 <div className="text-sm font-semibold text-slate-500">
@@ -938,7 +1013,7 @@ export default function AdminDashboard({
                       <div className="flex justify-end">
                         <button
                           onClick={() =>
-                            router.push(`/${org.slug}/adminDashboard`)
+                            router.push(`/${org.slug}/admin-dashboard`)
                           }
                           className="cursor-pointer rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-xs font-bold text-brand-background transition-all hover:bg-slate-50"
                         >

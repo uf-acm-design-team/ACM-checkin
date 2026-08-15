@@ -32,6 +32,7 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+!.env.example
 
 # Clerk local dev keys (never commit)
 .clerk/
@@ -42,6 +43,13 @@ supabase/.branches/
 
 # Claude Code local state (worktrees, session data)
 .claude/
+
+# Agent orientation notes (local, not part of the shipped repo)
+AGENTS.md
+
+# Local database dumps from `supabase db dump`
+backup-*.sql
+*.dump
 
 # vercel
 .vercel

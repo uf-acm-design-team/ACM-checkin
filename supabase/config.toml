@@ -343,10 +343,26 @@ enabled = false
 # user_pool_region = "us-east-1"
 
 # Use Clerk as a third-party provider alongside Supabase Auth.
+#
+# Required for RLS: the policies in 20260813000100_enable_rls_clerk.sql read the
+# caller's identity from `auth.jwt() ->> 'sub'`, which is only populated once
+# Supabase can verify Clerk-signed JWTs. With this disabled, every user-scoped
+# policy evaluates against a NULL subject and denies everything -- the app will
+# look like it has no data rather than like it is misconfigured.
+#
+# `domain` is the Clerk frontend API host (no scheme, no trailing slash). It
+# must be a literal hostname: the CLI validates this field against a hostname
+# pattern before expanding env(...) references, so "env(SOMETHING)" here fails
+# config parsing on every supabase command, not just `start`.
+#
+# This is the dev instance, and it is not a secret -- the same value is encoded
+# in NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY and ships in the browser bundle. It must
+# match the instance whose keys are in .env.local; if you point .env.local at a
+# different Clerk instance, change this too or Supabase will reject its tokens.
+# Find it at https://clerk.com/setup/supabase.
 [auth.third_party.clerk]
-enabled = false
-# Obtain from https://clerk.com/setup/supabase
-# domain = "example.clerk.accounts.dev"
+enabled = true
+domain = "good-pony-19.clerk.accounts.dev"
 
 # OAuth server configuration
 [auth.oauth_server]
