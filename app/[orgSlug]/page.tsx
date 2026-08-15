@@ -44,7 +44,18 @@ export default function OrgPage({
         .eq("slug", orgSlug)
         .single();
 
-      if (orgError || !org) {
+      // Distinguish "no such club" from "the query failed". Collapsing both
+      // into "Club does not exist" hides auth/permission errors -- an invalid
+      // API key or a denying RLS policy both look like a missing org, which
+      // sends you hunting in the database for a row that is actually there.
+      if (orgError) {
+        console.error("Organization lookup failed:", orgError);
+        setError(`Couldn't load this club: ${orgError.message}`);
+        setLoading(false);
+        return;
+      }
+
+      if (!org) {
         setError("Club does not exist");
         setLoading(false);
         return;
@@ -128,7 +139,7 @@ export default function OrgPage({
             Check In
           </button>
           <button
-            onClick={() => router.push(`${orgSlug}/stats`)}
+            onClick={() => router.push(`/${orgSlug}/stats`)}
             className="w-full bg-white/15 hover:bg-white/25 text-white font-semibold py-3 px-6 rounded-xl transition-all duration-200 border border-white/20"
           >
             Stats
