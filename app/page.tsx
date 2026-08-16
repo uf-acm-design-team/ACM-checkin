@@ -16,7 +16,7 @@ export default function Home() {
 
   if (!isLoaded || isSignedIn) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
+      <div className="flex items-center justify-center min-h-dvh">
         <div className="text-white text-xl">Loading...</div>
       </div>
     );

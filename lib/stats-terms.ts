@@ -1,6 +1,8 @@
 // Shared types + pure helpers for the member attendance stats feature.
 // No I/O — everything here is unit-tested and orchestrated by lib/stats-data.ts.
 
+import type { AnswerMap, FormSchema } from "./form-schema";
+
 export type Season = "Spring" | "Summer" | "Fall";
 export type Term = { key: string; label: string; season: Season; year: number };
 export type TermKey = Term["key"];
@@ -13,7 +15,7 @@ export type StatsMeeting = {
   start_time: string;
   attended: boolean;
   description?: string;
-  hasDetails: boolean; // description present OR questions exist
+  hasDetails: boolean; // description present OR the meeting has form questions
 };
 
 export type MeetingDetails = {
@@ -22,8 +24,15 @@ export type MeetingDetails = {
   start_time: string;
   end_time: string | null;
   description: string | null;
-  questions: string[];
-  answers: string[] | null; // aligned to questions; null if user didn't attend
+  questions: FormSchema;
+  /**
+   * The user's answers keyed by question id, or null if they didn't attend.
+   *
+   * Keyed rather than positional so reordering or rewording a question can't
+   * silently re-point historical answers -- see the migration that introduced
+   * form_schema.
+   */
+  answers: AnswerMap | null;
 };
 
 export type TermSummary = {

@@ -86,22 +86,29 @@ export function StatsView({
         : "No club meetings yet. Check back soon!";
 
   return (
-    <section className="flex flex-1 flex-col gap-6 px-6 py-8 md:px-10 md:py-12">
+    <section className="flex flex-1 flex-col gap-5 px-4 py-8 sm:px-6 md:gap-6 md:px-10 md:py-12">
       <header className="flex flex-col gap-1">
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
           <p className="text-xs font-semibold uppercase tracking-widest text-brand-primary">
             Your Activity
           </p>
           <MembershipBadge isMember={stats.isMember} orgName={name} role={stats.role} />
           <ViewToggle value={view} onChange={onChangeView} />
         </div>
-        <h1 className="text-2xl font-bold text-white md:text-3xl">Your Attendance</h1>
+        <h1 className="text-xl font-bold text-white sm:text-2xl md:text-3xl">
+          Your Attendance
+        </h1>
         <p className="text-sm text-white/60">{countLabel}</p>
       </header>
 
       <TermTabs terms={stats.terms} activeScope={scope} onSelect={onSelectScope} />
 
-      <div className={`max-h-[60vh] overflow-y-auto pr-1 ${pending ? "opacity-60" : ""}`}>
+      {/* On a phone the viewport is already short, so a nested 60vh scroller
+          leaves a cramped window inside a scrollable page. Let the list flow
+          with the page on mobile and cap it only once there's height to spare. */}
+      <div
+        className={`pr-1 md:max-h-[60vh] md:overflow-y-auto ${pending ? "opacity-60" : ""}`}
+      >
         <MeetingsList meetings={items} emptyMessage={emptyMessage} />
         {page.hasMore && (
           <button

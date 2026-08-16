@@ -90,7 +90,7 @@ export default function ParticlesLayout({
 
   return (
     <div
-      className="relative min-h-screen w-full overflow-hidden"
+      className="relative min-h-dvh w-full overflow-hidden"
       style={{
         background:
           "linear-gradient(to bottom, var(--brand-primary), var(--brand-background) 60%)",

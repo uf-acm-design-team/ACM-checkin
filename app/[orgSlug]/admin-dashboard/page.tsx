@@ -1,10 +1,22 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
 import { createClient } from "../../utils/supabase/client";
 import { useBranding } from "@/app/components/BrandingProvider";
+import {
+  parseAnswers,
+  parseSchema,
+  type AnswerMap,
+  type FormSchema,
+} from "@/lib/form-schema";
+import {
+  attendanceFilename,
+  buildAttendanceCsv,
+  downloadCsv,
+} from "@/lib/attendance-csv";
 
 interface Organization {
   id: string;
@@ -24,9 +36,16 @@ interface Meeting {
   latitude: number | null;
   longitude: number | null;
   radius_meters: number | null;
+  // Parsed once on fetch: the list needs its length for the badge and the CSV
+  // export needs the questions themselves for its columns.
+  form_schema: FormSchema;
 }
 
-// Blank form state, shared by the create and edit flows.
+// Blank form state for the create modal.
+//
+// Creation only collects the scheduling fields; questions are authored in the
+// full-page editor (admin-dashboard/meetings/[meetingId]), which is where the
+// officer lands right after creating. A form builder does not fit in a dialog.
 const EMPTY_MEETING_DRAFT = {
   title: "",
   description: "",
@@ -46,6 +65,7 @@ interface CheckIn {
   email: string;
   grad_year: string;
   checked_in_at: string;
+  answers: AnswerMap;
 }
 
 interface Member {
@@ -106,6 +126,8 @@ export default function AdminDashboard({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<TabKey>("overview");
+  // Mobile only: the sidebar collapses to an off-canvas drawer below lg.
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   // This user's role in THIS org (from memberships). Null until resolved.
   const [membershipRole, setMembershipRole] = useState<string | null>(null);
@@ -119,8 +141,6 @@ export default function AdminDashboard({
   const [showMeetingModal, setShowMeetingModal] = useState(false);
   const [meetingDraft, setMeetingDraft] =
     useState<MeetingDraft>(EMPTY_MEETING_DRAFT);
-  // Non-null when the modal is editing an existing meeting rather than creating.
-  const [editingMeetingId, setEditingMeetingId] = useState<string | null>(null);
   const [creatingMeeting, setCreatingMeeting] = useState(false);
   const [meetingError, setMeetingError] = useState<string | null>(null);
   const [locating, setLocating] = useState(false);
@@ -234,7 +254,7 @@ export default function AdminDashboard({
       const { data, error } = await supabase
         .from("meetings")
         .select(
-          "id, title, start_time, end_time, status, description, is_geo_locked, latitude, longitude, radius_meters",
+          "id, title, start_time, end_time, status, description, is_geo_locked, latitude, longitude, radius_meters, form_schema",
         )
         .eq("org_id", organization.id)
         .order("start_time", { ascending: false });
@@ -244,16 +264,33 @@ export default function AdminDashboard({
         return;
       }
 
-      const withCounts = await Promise.all(
-        (data || []).map(async (meeting) => {
-          const { count } = await supabase
-            .from("attendance")
-            .select("*", { count: "exact", head: true })
-            .eq("meeting_id", meeting.id);
-          return { ...meeting, attendance_count: count || 0 };
-        })
+      // One request for every meeting's check-ins, tallied here -- this used to
+      // fire a separate head-count query per meeting (N+1), which meant ~30
+      // round trips for a semester of meetings before the tab could render.
+      const meetingIds = (data || []).map((m) => m.id);
+      const countsByMeeting: Record<string, number> = {};
+      if (meetingIds.length > 0) {
+        const { data: attendanceRows, error: countError } = await supabase
+          .from("attendance")
+          .select("meeting_id")
+          .in("meeting_id", meetingIds);
+
+        if (countError) {
+          console.error("Error counting attendance:", countError);
+        }
+        for (const row of attendanceRows || []) {
+          countsByMeeting[row.meeting_id] =
+            (countsByMeeting[row.meeting_id] || 0) + 1;
+        }
+      }
+
+      setMeetings(
+        (data || []).map((meeting) => ({
+          ...meeting,
+          attendance_count: countsByMeeting[meeting.id] || 0,
+          form_schema: parseSchema(meeting.form_schema),
+        })),
       );
-      setMeetings(withCounts);
     } finally {
       setMeetingsLoading(false);
     }
@@ -364,7 +401,7 @@ export default function AdminDashboard({
         const { data, error } = await supabase
           .from("attendance")
           .select(
-            "checked_in_at, attendee:attendee_id(first_name, last_name, email, grad_year)"
+            "checked_in_at, answers, attendee:attendee_id(first_name, last_name, email, grad_year)"
           )
           .eq("meeting_id", meetingId);
 
@@ -377,6 +414,7 @@ export default function AdminDashboard({
               email: row.attendee?.email ?? "",
               grad_year: row.attendee?.grad_year ?? "",
               checked_in_at: row.checked_in_at,
+              answers: parseAnswers(row.answers),
             })),
           }));
         }
@@ -388,30 +426,15 @@ export default function AdminDashboard({
   }, [attendanceMeetingId, checkIns, supabase]);
 
   const openCreateMeeting = () => {
-    setEditingMeetingId(null);
     setMeetingDraft(EMPTY_MEETING_DRAFT);
     setMeetingError(null);
     setShowMeetingModal(true);
   };
 
+  // Editing happens in the full-page editor, which owns the form builder along
+  // with these scheduling fields. The modal here is create-only.
   const openEditMeeting = (m: Meeting) => {
-    setEditingMeetingId(m.id);
-    setMeetingError(null);
-    setMeetingDraft({
-      title: m.title,
-      description: m.description ?? "",
-      // <input type="datetime-local"> wants "YYYY-MM-DDTHH:mm". start_time is a
-      // timestamp WITHOUT time zone, so slicing avoids a Date round-trip that
-      // would shift the value by the viewer's UTC offset.
-      start_time: m.start_time ? m.start_time.slice(0, 16) : "",
-      end_time: m.end_time ? m.end_time.slice(0, 16) : "",
-      status: m.status,
-      is_geo_locked: m.is_geo_locked,
-      latitude: m.latitude?.toString() ?? "",
-      longitude: m.longitude?.toString() ?? "",
-      radius_meters: (m.radius_meters ?? 200).toString(),
-    });
-    setShowMeetingModal(true);
+    router.push(`/${orgSlug}/admin-dashboard/meetings/${m.id}`);
   };
 
   // Fill lat/lng from the officer's current position. They are expected to be
@@ -489,14 +512,11 @@ export default function AdminDashboard({
     };
 
     try {
-      const { error } = editingMeetingId
-        ? await supabase
-            .from("meetings")
-            .update(payload)
-            .eq("id", editingMeetingId)
-        : await supabase
-            .from("meetings")
-            .insert({ ...payload, org_id: organization.id, created_by: user.id });
+      const { data: created, error } = await supabase
+        .from("meetings")
+        .insert({ ...payload, org_id: organization.id, created_by: user.id })
+        .select("id")
+        .single();
 
       if (error) {
         setMeetingError(error.message);
@@ -504,12 +524,18 @@ export default function AdminDashboard({
       }
 
       setShowMeetingModal(false);
-      setEditingMeetingId(null);
       setMeetingDraft(EMPTY_MEETING_DRAFT);
 
-      // Make sure the meeting just saved is actually visible. Creating one that
-      // already ended (or backdating an edit) would otherwise drop it out of the
-      // default "Upcoming" view, which reads as "the save didn't work".
+      // Land in the editor so the next step -- adding check-in questions -- is
+      // in front of the officer rather than behind an Edit button.
+      if (created?.id) {
+        router.push(`/${orgSlug}/admin-dashboard/meetings/${created.id}`);
+        return;
+      }
+
+      // Make sure the meeting just created is actually visible. Creating one
+      // that already ended would otherwise drop it out of the default
+      // "Upcoming" view, which reads as "the save didn't work".
       const endsInPast =
         new Date(payload.end_time || payload.start_time).getTime() < Date.now();
       if (endsInPast && meetingFilter === "upcoming") {
@@ -598,31 +624,17 @@ export default function AdminDashboard({
     }
   };
 
+  // One column per form question, appended after the fixed attendee columns.
+  // See lib/attendance-csv.ts -- shared with the meeting editor's Responses tab
+  // so both produce the same file.
   const downloadAttendanceCSV = () => {
     const meeting = meetings.find((m) => m.id === attendanceMeetingId);
     const rows = checkIns[attendanceMeetingId ?? ""];
     if (!meeting || !rows) return;
-    const csvRows = [["Name", "Email", "Grad Year", "Checked In At"]];
-    rows.forEach((r) => {
-      csvRows.push([
-        `${r.first_name} ${r.last_name}`,
-        r.email,
-        r.grad_year,
-        new Date(r.checked_in_at).toLocaleString(),
-      ]);
-    });
-    const csv = csvRows
-      .map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(","))
-      .join("\n");
-    const blob = new Blob([csv], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${meeting.title}_attendance`.replace(/\s+/g, "_") + ".csv";
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    downloadCsv(
+      buildAttendanceCsv(rows, meeting.form_schema),
+      attendanceFilename(meeting.title),
+    );
   };
 
   // The upcoming/past boundary. Held in state and refreshed on a timer rather
@@ -686,6 +698,23 @@ export default function AdminDashboard({
     }
   }, [visibleTabs, activeTab]);
 
+  // While the mobile drawer is open, freeze the page behind it and let Escape
+  // dismiss it -- otherwise the content scrolls under the overlay and the only
+  // way out is the backdrop tap.
+  useEffect(() => {
+    if (!sidebarOpen) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setSidebarOpen(false);
+    };
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [sidebarOpen]);
+
   const search = memberSearch.trim().toLowerCase();
   const filteredMembers = members.filter(
     (m) =>
@@ -704,7 +733,7 @@ export default function AdminDashboard({
 
   if (!isLoaded || loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-50">
+      <div className="flex min-h-dvh items-center justify-center bg-slate-50">
         <div className="text-xl text-slate-500">Loading...</div>
       </div>
     );
@@ -712,7 +741,7 @@ export default function AdminDashboard({
 
   if (error || !organization) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center bg-slate-50 p-4">
+      <div className="flex min-h-dvh flex-col items-center justify-center bg-slate-50 p-4">
         <div className="w-full max-w-md rounded-[14px] border border-slate-200 bg-white p-8 text-center">
           <h1 className="mb-2 text-2xl font-extrabold text-slate-900">Admin</h1>
           <p className="text-slate-500">{error}</p>
@@ -724,23 +753,55 @@ export default function AdminDashboard({
   const activeLabel = TABS.find((t) => t.key === activeTab)?.label;
 
   return (
-    <div className="flex min-h-screen bg-slate-50 text-slate-900">
-      {/* Sidebar — painted with the org's brand colors */}
-      <aside className="flex w-60 flex-none flex-col gap-1 bg-brand-background p-4 pt-6 text-white">
+    <div className="flex min-h-dvh bg-slate-50 text-slate-900">
+      {/* Backdrop for the mobile drawer. Hidden at lg, where the sidebar is
+          permanently docked. */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-slate-900/50 lg:hidden"
+          onClick={() => setSidebarOpen(false)}
+          aria-hidden="true"
+        />
+      )}
+
+      {/* Sidebar — painted with the org's brand colors. Off-canvas drawer below
+          lg, static column at lg and up. */}
+      <aside
+        className={`fixed inset-y-0 left-0 z-50 flex w-64 flex-none flex-col gap-1 overflow-y-auto bg-brand-background p-4 pt-6 text-white transition-transform duration-200 lg:static lg:z-auto lg:w-60 lg:translate-x-0 ${
+          sidebarOpen ? "translate-x-0" : "-translate-x-full"
+        }`}
+      >
         <div className="mb-5 flex items-center gap-2.5 px-2">
           <img
             src={branding.logo.crest}
             alt={`${branding.name || organization.name} logo`}
-            className="h-9 w-9 rounded-[10px] bg-white/10 object-contain p-1"
+            className="h-9 w-9 flex-none rounded-[10px] bg-white/10 object-contain p-1"
           />
-          <div className="leading-tight">
-            <div className="text-[15px] font-extrabold tracking-[0.2px]">
+          <div className="min-w-0 leading-tight">
+            <div className="truncate text-[15px] font-extrabold tracking-[0.2px]">
               {branding.name || organization.name}
             </div>
             <div className="text-[11px] font-medium text-white/70">
               Admin Console
             </div>
           </div>
+          <button
+            onClick={() => setSidebarOpen(false)}
+            aria-label="Close menu"
+            className="ml-auto cursor-pointer rounded-lg p-1.5 text-white/70 hover:bg-white/10 lg:hidden"
+          >
+            <svg
+              className="h-5 w-5"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={2}
+              strokeLinecap="round"
+              aria-hidden="true"
+            >
+              <path d="M6 6l12 12M18 6L6 18" />
+            </svg>
+          </button>
         </div>
 
         {visibleTabs.map((tab) => {
@@ -748,7 +809,10 @@ export default function AdminDashboard({
           return (
             <button
               key={tab.key}
-              onClick={() => setActiveTab(tab.key)}
+              onClick={() => {
+                setActiveTab(tab.key);
+                setSidebarOpen(false);
+              }}
               className={`flex cursor-pointer items-center gap-3 rounded-[10px] px-3.5 py-2.5 text-left text-sm font-semibold transition-all ${
                 active
                   ? "bg-brand-background-secondary text-white"
@@ -764,15 +828,66 @@ export default function AdminDashboard({
             </button>
           );
         })}
+
+        {/* The way out. OrgNav deliberately doesn't render on this route (it
+            would collide with this sidebar + the light top bar), so without
+            this the admin console is a dead end. */}
+        <Link
+          href={`/${orgSlug}`}
+          className="mt-auto flex items-center gap-2.5 rounded-[10px] border-t border-white/10 px-3.5 pt-4 pb-2.5 text-sm font-semibold text-white/60 transition-colors hover:text-white"
+        >
+          <svg
+            className="h-4 w-4 flex-none"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={2}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M19 12H5M12 19l-7-7 7-7" />
+          </svg>
+          Exit to {branding.name || organization.name}
+        </Link>
+        <Link
+          href="/dashboard"
+          className="flex items-center gap-2.5 rounded-[10px] px-3.5 py-2 text-xs font-semibold text-white/45 transition-colors hover:text-white/80"
+        >
+          <span className="w-4 flex-none" aria-hidden="true" />
+          All clubs
+        </Link>
       </aside>
 
       {/* Main */}
       <div className="flex min-w-0 flex-1 flex-col">
         {/* Top bar */}
-        <header className="flex h-[72px] flex-none items-center justify-between border-b border-slate-200 bg-white px-9">
-          <div className="text-xl font-extrabold">{activeLabel}</div>
-          <div className="flex items-center gap-3.5">
-            <span className="text-[13px] font-medium text-slate-500">
+        <header className="sticky top-0 z-30 flex h-16 flex-none items-center justify-between gap-3 border-b border-slate-200 bg-white px-4 sm:px-6 lg:h-18 lg:px-9">
+          <div className="flex min-w-0 items-center gap-2.5">
+            <button
+              onClick={() => setSidebarOpen(true)}
+              aria-label="Open menu"
+              className="-ml-1 cursor-pointer rounded-lg p-2 text-slate-600 hover:bg-slate-100 lg:hidden"
+            >
+              <svg
+                className="h-5 w-5"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={2}
+                strokeLinecap="round"
+                aria-hidden="true"
+              >
+                <path d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+            </button>
+            <div className="truncate text-lg font-extrabold sm:text-xl">
+              {activeLabel}
+            </div>
+          </div>
+          <div className="flex flex-none items-center gap-3.5">
+            {/* The full date is noise on a phone -- the avatar is what matters. */}
+            <span className="hidden text-[13px] font-medium text-slate-500 lg:inline">
               {new Date().toLocaleDateString("en-US", {
                 weekday: "long",
                 month: "long",
@@ -780,17 +895,17 @@ export default function AdminDashboard({
                 year: "numeric",
               })}
             </span>
-            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-brand-action text-[13px] font-bold text-white">
+            <div className="flex h-9 w-9 flex-none items-center justify-center rounded-full bg-brand-action text-[13px] font-bold text-white">
               {userInitials}
             </div>
           </div>
         </header>
 
-        <main className="flex-1 overflow-auto p-8">
+        <main className="flex-1 overflow-auto p-4 sm:p-6 lg:p-8">
           {/* OVERVIEW */}
           {activeTab === "overview" && (
             <>
-              <div className="mb-7 grid grid-cols-2 gap-5 xl:grid-cols-4">
+              <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-5 lg:mb-7 xl:grid-cols-4">
                 {[
                   {
                     label: "Total Members",
@@ -831,12 +946,12 @@ export default function AdminDashboard({
               </div>
 
               <div className="grid gap-5 lg:grid-cols-[1.3fr_1fr]">
-                <div className="rounded-[14px] border border-slate-200 bg-white p-6">
+                <div className="rounded-[14px] border border-slate-200 bg-white p-5 sm:p-6">
                   <div className="mb-4 text-base font-bold">Next Meeting</div>
                   {nextMeeting ? (
-                    <div className="flex items-start justify-between gap-4">
-                      <div>
-                        <div className="text-lg font-extrabold">
+                    <div className="flex flex-col items-start justify-between gap-4 sm:flex-row">
+                      <div className="min-w-0">
+                        <div className="text-lg font-extrabold wrap-break-word">
                           {nextMeeting.title}
                         </div>
                         <div className="mt-1.5 text-sm font-medium text-slate-500">
@@ -868,7 +983,7 @@ export default function AdminDashboard({
                   )}
                 </div>
 
-                <div className="rounded-[14px] border border-slate-200 bg-white p-6">
+                <div className="rounded-[14px] border border-slate-200 bg-white p-5 sm:p-6">
                   <div className="mb-4 text-base font-bold">Officers</div>
                   {officers.length > 0 ? (
                     <div className="flex flex-col gap-3.5">
@@ -904,13 +1019,13 @@ export default function AdminDashboard({
           {/* MEETINGS */}
           {activeTab === "meetings" && (
             <>
-              <div className="mb-5 flex items-center justify-between gap-4">
+              <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
                 <div className="flex gap-1.5 rounded-[10px] bg-slate-100 p-1">
                   {(["upcoming", "past", "all"] as MeetingFilter[]).map((f) => (
                     <button
                       key={f}
                       onClick={() => setMeetingFilter(f)}
-                      className={`cursor-pointer rounded-lg px-4 py-2 text-[13px] font-bold capitalize transition-all ${
+                      className={`flex-1 cursor-pointer rounded-lg px-3 py-2 text-[13px] font-bold capitalize transition-all sm:flex-none sm:px-4 ${
                         meetingFilter === f
                           ? "bg-white text-brand-background shadow-sm"
                           : "text-slate-500"
@@ -922,14 +1037,16 @@ export default function AdminDashboard({
                 </div>
                 <button
                   onClick={openCreateMeeting}
-                  className="cursor-pointer rounded-[9px] bg-brand-action px-4.5 py-2.5 text-sm font-bold text-white transition-all hover:opacity-90"
+                  className="w-full cursor-pointer rounded-[9px] bg-brand-action px-4.5 py-2.5 text-sm font-bold text-white transition-all hover:opacity-90 sm:w-auto"
                 >
                   + New Meeting
                 </button>
               </div>
 
               <div className="overflow-hidden rounded-[14px] border border-slate-200 bg-white">
-                <div className="grid grid-cols-[2fr_1.3fr_1.3fr_1fr_100px_170px] gap-4 border-b border-slate-200 px-5 py-3.5 text-xs font-bold tracking-wide text-slate-500 uppercase">
+                {/* Column headers only make sense once the rows are actually a
+                    grid -- below lg each row renders as a stacked card. */}
+                <div className="hidden grid-cols-[2fr_1.3fr_1.3fr_1fr_100px_170px] gap-4 border-b border-slate-200 px-5 py-3.5 text-xs font-bold tracking-wide text-slate-500 uppercase lg:grid">
                   <div>Meeting</div>
                   <div>Start</div>
                   <div>End</div>
@@ -956,23 +1073,36 @@ export default function AdminDashboard({
                         setAttendanceMeetingId(m.id);
                         setActiveTab("attendance");
                       }}
-                      className="grid cursor-pointer grid-cols-[2fr_1.3fr_1.3fr_1fr_100px_170px] items-center gap-4 border-b border-slate-100 px-5 py-4 text-sm transition-all last:border-b-0 hover:bg-slate-50"
+                      className="flex cursor-pointer flex-col gap-2 border-b border-slate-100 px-4 py-4 text-sm transition-all last:border-b-0 hover:bg-slate-50 sm:px-5 lg:grid lg:grid-cols-[2fr_1.3fr_1.3fr_1fr_100px_170px] lg:items-center lg:gap-4"
                     >
-                      <div className="font-bold">
+                      <div className="font-bold wrap-break-word">
                         {m.title}
                         {m.is_geo_locked && (
                           <span
                             title={`Geo-locked to ${m.radius_meters ?? 200}m`}
-                            className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-700"
+                            className="ml-2 inline-block rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-700"
                           >
                             📍 {m.radius_meters ?? 200}m
                           </span>
                         )}
+                        {m.form_schema.length > 0 && (
+                          <span
+                            title={`${m.form_schema.length} check-in question(s)`}
+                            className="ml-2 inline-block rounded bg-brand-primary/10 px-1.5 py-0.5 text-[10px] font-bold text-brand-primary"
+                          >
+                            {m.form_schema.length} question
+                            {m.form_schema.length === 1 ? "" : "s"}
+                          </span>
+                        )}
                       </div>
+                      {/* The stacked layout has no column headers, so each
+                          value carries its own label below lg. */}
                       <div className="font-medium text-slate-600">
+                        <span className="text-slate-400 lg:hidden">Start: </span>
                         {fmtDate(m.start_time)}, {fmtTime(m.start_time)}
                       </div>
                       <div className="font-medium text-slate-600">
+                        <span className="text-slate-400 lg:hidden">End: </span>
                         {fmtDate(m.end_time)}, {fmtTime(m.end_time)}
                       </div>
                       <div className="font-bold">
@@ -983,7 +1113,7 @@ export default function AdminDashboard({
                       </div>
                       <div>
                         <span
-                          className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${
+                          className={`inline-block rounded-full px-2.5 py-1 text-[11px] font-bold ${
                             m.status
                               ? "bg-green-100 text-green-700"
                               : "bg-slate-100 text-slate-500"
@@ -994,7 +1124,7 @@ export default function AdminDashboard({
                       </div>
                       {/* stopPropagation on each: the row itself navigates to
                           the attendance tab. */}
-                      <div className="flex justify-end gap-1.5">
+                      <div className="mt-1 flex flex-wrap gap-1.5 lg:mt-0 lg:justify-end">
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
@@ -1054,15 +1184,19 @@ export default function AdminDashboard({
           {/* ATTENDANCE */}
           {activeTab === "attendance" && (
             <>
-              <div className="mb-5 flex flex-wrap items-center justify-between gap-4">
-                <div className="flex items-center gap-3">
-                  <label className="text-sm font-bold text-slate-500">
+              <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:gap-4">
+                <div className="flex min-w-0 flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-3">
+                  <label
+                    htmlFor="attendance-meeting"
+                    className="text-sm font-bold text-slate-500"
+                  >
                     Meeting:
                   </label>
                   <select
+                    id="attendance-meeting"
                     value={attendanceMeetingId ?? ""}
                     onChange={(e) => setAttendanceMeetingId(e.target.value)}
-                    className="min-w-[280px] rounded-[9px] border border-slate-200 bg-white px-3.5 py-2.5 text-sm font-semibold"
+                    className="w-full rounded-[9px] border border-slate-200 bg-white px-3.5 py-2.5 text-sm font-semibold sm:w-auto sm:min-w-70"
                   >
                     {meetings.map((m) => (
                       <option key={m.id} value={m.id}>
@@ -1074,7 +1208,7 @@ export default function AdminDashboard({
                 <button
                   onClick={downloadAttendanceCSV}
                   disabled={!selectedCheckIns?.length}
-                  className="cursor-pointer rounded-[9px] bg-brand-background px-4.5 py-2.5 text-sm font-bold text-white transition-all hover:opacity-90 disabled:opacity-50"
+                  className="w-full cursor-pointer rounded-[9px] bg-brand-background px-4.5 py-2.5 text-sm font-bold text-white transition-all hover:opacity-90 disabled:opacity-50 sm:w-auto"
                 >
                   ↓ Download attendance (.csv)
                 </button>
@@ -1082,9 +1216,9 @@ export default function AdminDashboard({
 
               {selectedMeeting ? (
                 <div className="overflow-hidden rounded-[14px] border border-slate-200 bg-white">
-                  <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
-                    <div>
-                      <div className="text-base font-extrabold">
+                  <div className="flex flex-col gap-1 border-b border-slate-200 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+                    <div className="min-w-0">
+                      <div className="text-base font-extrabold wrap-break-word">
                         {selectedMeeting.title}
                       </div>
                       <div className="mt-0.5 text-xs font-semibold text-slate-500">
@@ -1092,11 +1226,11 @@ export default function AdminDashboard({
                         {fmtTime(selectedMeeting.start_time)}
                       </div>
                     </div>
-                    <div className="text-[13px] font-bold text-brand-background">
+                    <div className="flex-none text-[13px] font-bold text-brand-background">
                       {selectedMeeting.attendance_count} checked in
                     </div>
                   </div>
-                  <div className="grid grid-cols-[2fr_2fr_1fr_1.4fr] gap-4 border-b border-slate-200 px-5 py-3.5 text-xs font-bold tracking-wide text-slate-500 uppercase">
+                  <div className="hidden grid-cols-[2fr_2fr_1fr_1.4fr] gap-4 border-b border-slate-200 px-5 py-3.5 text-xs font-bold tracking-wide text-slate-500 uppercase md:grid">
                     <div>Attendee</div>
                     <div>Email</div>
                     <div>Class</div>
@@ -1110,21 +1244,29 @@ export default function AdminDashboard({
                     selectedCheckIns.map((row, idx) => (
                       <div
                         key={idx}
-                        className="grid grid-cols-[2fr_2fr_1fr_1.4fr] items-center gap-4 border-b border-slate-100 px-5 py-3.5 text-sm last:border-b-0"
+                        className="flex flex-col gap-1.5 border-b border-slate-100 px-4 py-3.5 text-sm last:border-b-0 sm:px-5 md:grid md:grid-cols-[2fr_2fr_1fr_1.4fr] md:items-center md:gap-4"
                       >
-                        <div className="flex items-center gap-2.5 font-bold">
+                        <div className="flex min-w-0 items-center gap-2.5 font-bold">
                           <div className="flex h-8 w-8 flex-none items-center justify-center rounded-full bg-brand-primary/10 text-[11px] font-bold text-brand-primary">
                             {initials(`${row.first_name} ${row.last_name}`)}
                           </div>
-                          {row.first_name} {row.last_name}
+                          <span className="min-w-0 wrap-break-word">
+                            {row.first_name} {row.last_name}
+                          </span>
                         </div>
-                        <div className="truncate text-[13px] font-medium text-slate-600">
+                        {/* Long addresses wrap on mobile rather than truncate --
+                            a stacked card has the room, and a clipped email is
+                            useless to an officer. */}
+                        <div className="text-[13px] font-medium break-all text-slate-600 md:truncate md:break-normal">
                           {row.email}
                         </div>
                         <div className="font-medium text-slate-600">
                           {row.grad_year ? `Class of ${row.grad_year}` : "—"}
                         </div>
-                        <div className="font-medium text-slate-600">
+                        <div className="text-[13px] font-medium text-slate-600">
+                          <span className="text-slate-400 md:hidden">
+                            Checked in:{" "}
+                          </span>
                           {new Date(row.checked_in_at).toLocaleString()}
                         </div>
                       </div>
@@ -1146,13 +1288,13 @@ export default function AdminDashboard({
           {/* MEMBERS */}
           {activeTab === "members" && (
             <>
-              <div className="mb-5 flex flex-wrap items-center justify-between gap-4">
+              <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:gap-4">
                 <input
                   type="text"
                   placeholder="Search members..."
                   value={memberSearch}
                   onChange={(e) => setMemberSearch(e.target.value)}
-                  className="min-w-[260px] rounded-[9px] border border-slate-200 bg-white px-4 py-2.5 text-sm"
+                  className="w-full rounded-[9px] border border-slate-200 bg-white px-4 py-2.5 text-sm sm:w-auto sm:min-w-65"
                 />
                 <div className="text-[13px] font-semibold text-slate-500">
                   {members.length} member{members.length === 1 ? "" : "s"}
@@ -1160,7 +1302,7 @@ export default function AdminDashboard({
               </div>
 
               <div className="overflow-hidden rounded-[14px] border border-slate-200 bg-white">
-                <div className="grid grid-cols-[1.8fr_2fr_1.2fr_1.3fr] gap-4 border-b border-slate-200 px-5 py-3.5 text-xs font-bold tracking-wide text-slate-500 uppercase">
+                <div className="hidden grid-cols-[1.8fr_2fr_1.2fr_1.3fr] gap-4 border-b border-slate-200 px-5 py-3.5 text-xs font-bold tracking-wide text-slate-500 uppercase md:grid">
                   <div>Name</div>
                   <div>Contact</div>
                   <div>Role</div>
@@ -1184,24 +1326,26 @@ export default function AdminDashboard({
                     return (
                       <div
                         key={mem.user_id}
-                        className="grid grid-cols-[1.8fr_2fr_1.2fr_1.3fr] items-center gap-4 border-b border-slate-100 px-5 py-3.5 text-sm last:border-b-0"
+                        className="flex flex-col gap-1.5 border-b border-slate-100 px-4 py-3.5 text-sm last:border-b-0 sm:px-5 md:grid md:grid-cols-[1.8fr_2fr_1.2fr_1.3fr] md:items-center md:gap-4"
                       >
-                        <div className="flex items-center gap-2.5 font-bold">
+                        <div className="flex min-w-0 items-center gap-2.5 font-bold">
                           <div className="flex h-8 w-8 flex-none items-center justify-center rounded-full bg-brand-primary/10 text-[11px] font-bold text-brand-primary">
                             {initials(`${mem.first_name} ${mem.last_name}`)}
                           </div>
-                          {mem.first_name} {mem.last_name}
+                          <span className="min-w-0 wrap-break-word">
+                            {mem.first_name} {mem.last_name}
+                          </span>
                         </div>
-                        <div className="truncate text-[13px] font-medium text-slate-600">
+                        <div className="text-[13px] font-medium break-all text-slate-600 md:truncate md:break-normal">
                           {mem.email}
                         </div>
                         <div>
-                          <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-bold text-slate-600 capitalize">
+                          <span className="inline-block rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-bold text-slate-600 capitalize">
                             {mem.role || "member"}
                           </span>
                         </div>
                         <div className="flex items-center gap-2">
-                          <div className="h-1.5 w-[60px] overflow-hidden rounded-full bg-slate-100">
+                          <div className="h-1.5 w-15 overflow-hidden rounded-full bg-slate-100">
                             <div
                               className="h-full bg-brand-action"
                               style={{ width: `${rate}%` }}
@@ -1209,6 +1353,9 @@ export default function AdminDashboard({
                           </div>
                           <span className="text-xs font-bold">
                             {mem.attendance_count}
+                          </span>
+                          <span className="text-xs text-slate-400 md:hidden">
+                            check-ins
                           </span>
                         </div>
                       </div>
@@ -1226,7 +1373,7 @@ export default function AdminDashboard({
           {/* ORGS */}
           {activeTab === "orgs" && isGlobalAdmin && (
             <>
-              <div className="mb-5 flex items-center justify-between gap-4">
+              <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
                 <div className="text-sm font-semibold text-slate-500">
                   All organizations on the platform.
                 </div>
@@ -1235,14 +1382,14 @@ export default function AdminDashboard({
                     setOrgError(null);
                     setShowOrgModal(true);
                   }}
-                  className="cursor-pointer rounded-[9px] bg-brand-action px-4.5 py-2.5 text-sm font-bold text-white transition-all hover:opacity-90"
+                  className="w-full cursor-pointer rounded-[9px] bg-brand-action px-4.5 py-2.5 text-sm font-bold text-white transition-all hover:opacity-90 sm:w-auto"
                 >
                   + New Org
                 </button>
               </div>
 
               <div className="overflow-hidden rounded-[14px] border border-slate-200 bg-white">
-                <div className="grid grid-cols-[2.6fr_1.6fr_120px] gap-4 border-b border-slate-200 px-5 py-3.5 text-xs font-bold tracking-wide text-slate-500 uppercase">
+                <div className="hidden grid-cols-[2.6fr_1.6fr_120px] gap-4 border-b border-slate-200 px-5 py-3.5 text-xs font-bold tracking-wide text-slate-500 uppercase sm:grid">
                   <div>Organization</div>
                   <div>Slug</div>
                   <div></div>
@@ -1255,13 +1402,13 @@ export default function AdminDashboard({
                   orgs.map((org) => (
                     <div
                       key={org.id}
-                      className="grid grid-cols-[2.6fr_1.6fr_120px] items-center gap-4 border-b border-slate-100 px-5 py-4 text-sm last:border-b-0"
+                      className="flex flex-col gap-2 border-b border-slate-100 px-4 py-4 text-sm last:border-b-0 sm:grid sm:grid-cols-[2.6fr_1.6fr_120px] sm:items-center sm:gap-4 sm:px-5"
                     >
-                      <div className="font-bold">{org.name}</div>
+                      <div className="font-bold wrap-break-word">{org.name}</div>
                       <div className="font-semibold text-slate-600">
                         @{org.slug}
                       </div>
-                      <div className="flex justify-end">
+                      <div className="flex sm:justify-end">
                         <button
                           onClick={() =>
                             router.push(`/${org.slug}/admin-dashboard`)
@@ -1287,17 +1434,18 @@ export default function AdminDashboard({
       {/* MEETING MODAL -- create and edit share this form */}
       {showMeetingModal && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/45 p-4"
+          className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/45 p-0 sm:items-center sm:p-4"
           onClick={() => setShowMeetingModal(false)}
         >
           <form
             onSubmit={handleSaveMeeting}
             onClick={(e) => e.stopPropagation()}
-            className="max-h-[90vh] w-[480px] max-w-[92vw] overflow-y-auto rounded-2xl bg-white p-7"
+            className="max-h-[92dvh] w-full overflow-y-auto rounded-t-2xl bg-white p-5 sm:max-h-[90dvh] sm:w-120 sm:max-w-[92vw] sm:rounded-2xl sm:p-7"
           >
-            <div className="mb-4 text-lg font-extrabold">
-              {editingMeetingId ? "Edit Meeting" : "New Meeting"}
-            </div>
+            <div className="mb-1 text-lg font-extrabold">New Meeting</div>
+            <p className="mb-4 text-xs text-slate-500">
+              You&apos;ll add check-in questions on the next screen.
+            </p>
             <div className="flex flex-col gap-3.5">
               <div>
                 <label className="mb-1.5 block text-xs font-bold text-slate-500">
@@ -1487,7 +1635,10 @@ export default function AdminDashboard({
                 <p className="text-sm text-red-600">{meetingError}</p>
               )}
             </div>
-            <div className="mt-5 flex justify-end gap-2.5">
+            {/* Primary action first in the DOM but visually last on desktop --
+                on mobile the stacked order puts Save at the top of the thumb's
+                reach. */}
+            <div className="mt-5 flex flex-col-reverse gap-2.5 sm:flex-row sm:justify-end">
               <button
                 type="button"
                 onClick={() => setShowMeetingModal(false)}
@@ -1500,11 +1651,7 @@ export default function AdminDashboard({
                 disabled={creatingMeeting}
                 className="cursor-pointer rounded-[9px] bg-brand-action px-4.5 py-2.5 text-[13px] font-bold text-white disabled:opacity-50"
               >
-                {creatingMeeting
-                  ? "Saving..."
-                  : editingMeetingId
-                    ? "Save Changes"
-                    : "Create Meeting"}
+                {creatingMeeting ? "Saving..." : "Create Meeting"}
               </button>
             </div>
           </form>
@@ -1514,13 +1661,13 @@ export default function AdminDashboard({
       {/* NEW ORG MODAL */}
       {showOrgModal && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/45"
+          className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/45 p-0 sm:items-center sm:p-4"
           onClick={() => setShowOrgModal(false)}
         >
           <form
             onSubmit={handleCreateOrg}
             onClick={(e) => e.stopPropagation()}
-            className="w-[440px] max-w-[92vw] rounded-2xl bg-white p-7"
+            className="max-h-[92dvh] w-full overflow-y-auto rounded-t-2xl bg-white p-5 sm:w-110 sm:max-w-[92vw] sm:rounded-2xl sm:p-7"
           >
             <div className="mb-4 text-lg font-extrabold">New Organization</div>
             <div className="flex flex-col gap-3.5">
@@ -1556,7 +1703,7 @@ export default function AdminDashboard({
               </div>
               {orgError && <p className="text-sm text-red-600">{orgError}</p>}
             </div>
-            <div className="mt-5 flex justify-end gap-2.5">
+            <div className="mt-5 flex flex-col-reverse gap-2.5 sm:flex-row sm:justify-end">
               <button
                 type="button"
                 onClick={() => setShowOrgModal(false)}

@@ -22,7 +22,7 @@ export default async function StatsPage({
     // failure (DB/runtime) must surface, not masquerade as a missing club.
     if (err instanceof Error && err.message === "ORG_NOT_FOUND") {
       return (
-        <main className="mx-auto w-full max-w-4xl px-6 py-12">
+        <main className="mx-auto w-full max-w-4xl px-4 py-12 sm:px-6">
           <p className="text-center text-white/80">Club does not exist</p>
         </main>
       );
