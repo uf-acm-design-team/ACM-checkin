@@ -18,12 +18,14 @@ export function MeetingListItem({ meeting }: { meeting: StatsMeeting }) {
 
   return (
     <li className="flex flex-col gap-3 rounded-2xl border border-white/15 bg-white/5 px-4 py-3 shadow-sm">
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-3 sm:gap-4">
         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-brand-background">
           <Calendar className="h-5 w-5 text-brand-primary" />
         </div>
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-semibold text-white">
+          {/* Wraps to two lines rather than truncating -- on a narrow card the
+              truncated form often cuts the title before it's identifiable. */}
+          <p className="line-clamp-2 text-sm font-semibold text-white">
             {meeting.title}
           </p>
           <p className="text-xs text-white/60">
@@ -34,7 +36,7 @@ export function MeetingListItem({ meeting }: { meeting: StatsMeeting }) {
           <button
             type="button"
             onClick={() => setShowModal(true)}
-            className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-white/25 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-white/10"
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-white/25 px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-white/10"
           >
             <Info className="h-3.5 w-3.5" />
             Details

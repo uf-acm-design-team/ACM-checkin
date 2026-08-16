@@ -4,6 +4,96 @@ import { auth } from "@clerk/nextjs/server";
 
 import { createClerkSupabaseClient } from "../../utils/supabase/server";
 import { membershipThreshold } from "@/lib/membership";
+import { parseSchema, validateAnswers } from "@/lib/form-schema";
+
+export type MemberCheckInResult =
+  | { ok: true; alreadyCheckedIn?: boolean }
+  | { ok: false; error: string; answerErrors?: Record<string, string> };
+
+/**
+ * Check in a signed-in member, with their form answers.
+ *
+ * The browser used to write the attendance row itself. That was fine for the
+ * row's own columns -- RLS constrains those -- but there is no way to express
+ * "answers must match this meeting's form_schema" as a policy, so a member could
+ * post arbitrary jsonb into attendance.answers and it would be accepted. Moving
+ * the write here puts the schema check on the same side of the trust boundary
+ * as the insert.
+ *
+ * The meeting id is NOT taken from the caller: it is resolved server-side from
+ * the org's currently-active meeting, the same rule guestCheckIn() follows, so a
+ * replayed id cannot backfill a closed meeting.
+ */
+export async function memberCheckIn(input: {
+  orgSlug: string;
+  answers: unknown;
+}): Promise<MemberCheckInResult> {
+  const { userId } = await auth();
+  if (!userId) return { ok: false, error: "You need to be signed in." };
+
+  const supabase = createClerkSupabaseClient();
+
+  const { data: org } = await supabase
+    .from("organizations")
+    .select("id")
+    .eq("slug", input.orgSlug)
+    .maybeSingle();
+  if (!org) return { ok: false, error: "Club does not exist." };
+
+  const { data: meeting } = await supabase
+    .from("meetings")
+    .select("id, form_schema")
+    .eq("org_id", org.id)
+    .eq("status", true)
+    .order("start_time", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+  if (!meeting) return { ok: false, error: "There is no active meeting." };
+
+  const { data: attendee } = await supabase
+    .from("attendees")
+    .select("id")
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (!attendee) {
+    return { ok: false, error: "No attendee profile found for your account." };
+  }
+
+  // Validated against the schema read here, never one supplied by the caller.
+  const schema = parseSchema(meeting.form_schema);
+  const validated = validateAnswers(schema, input.answers);
+  if (!validated.ok) {
+    return {
+      ok: false,
+      error: "Answer the required questions before checking in.",
+      answerErrors: validated.errors,
+    };
+  }
+
+  const { error: attendanceError } = await supabase.from("attendance").insert({
+    attendee_id: attendee.id,
+    org_id: org.id,
+    meeting_id: meeting.id,
+    source: "authenticated",
+    // NULL rather than {} when the meeting asks nothing, matching how the
+    // migration normalized historical rows.
+    answers:
+      Object.keys(validated.answers).length > 0 ? validated.answers : null,
+  });
+
+  if (attendanceError) {
+    // 23505 = the unique (meeting_id, attendee_id) constraint. The member is
+    // already checked in, which is not a failure from their point of view --
+    // but say so, since unlike a guest they are looking at a button they just
+    // pressed and expect a distinct outcome.
+    if (attendanceError.code === "23505") {
+      return { ok: true, alreadyCheckedIn: true };
+    }
+    return { ok: false, error: attendanceError.message };
+  }
+
+  return { ok: true };
+}
 
 export async function resolveAndUpdateMembershipStatus(
   attendeeId: string,

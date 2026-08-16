@@ -6,6 +6,12 @@
   /* Default ACM theme — fallback for non-org pages and missing branding.
      Mirrors DEFAULT_BRANDING in lib/branding.ts. Overridden per-org at :root
      by OrgTheme's injected <style>. */
+  /* Height of the sticky OrgNav bar. Pages under app/[orgSlug] that vertically
+     center their content subtract this from the viewport (min-h-[calc(100dvh-var(--org-nav-h))])
+     so the card stays optically centred in the space left below the bar
+     instead of being pushed down by it. Matches the py + content height of
+     the nav in app/components/OrgNav.tsx. */
+  --org-nav-h: 3.25rem;
   --brand-primary: #fa4616;
   --brand-background: #0021a5;
   --brand-background-secondary: #001b87;
@@ -15,6 +21,10 @@
 }
 
 @theme inline {
+  /* Extra-small breakpoint for the sub-400px phones (iPhone SE et al) where
+     the org nav has to drop its wordmark to keep the tabs on one line.
+     Tailwind ships nothing below `sm` (640px). */
+  --breakpoint-xs: 25rem;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-brand-primary: var(--brand-primary);
@@ -33,8 +43,64 @@
   }
 }
 
+html {
+  /* Anchors/tab strips scrolled into view shouldn't tuck under sticky headers. */
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+}
+
+/* The nav grows at sm (py-2.5 → py-3, 28px → 32px crest). Keep --org-nav-h in
+   step so centred pages don't drift. */
+@media (min-width: 40rem) {
+  :root {
+    --org-nav-h: 3.5rem;
+  }
+}
+
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+  /* A single wide child (a table, a long unbroken email) must not make the
+     whole page pan sideways on a phone -- wide content scrolls in its own
+     container instead. */
+  overflow-x: hidden;
+}
+
+/* iOS Safari zooms the viewport when a focused input's font-size is under 16px.
+   The design uses 13-14px inputs in the admin console, so pin the *rendered*
+   size to 16px on small screens and let it shrink back at sm and up. */
+@media (max-width: 639px) {
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
+}
+
+/* Comfortable touch targets for the controls that are small by design
+   (icon-only and compact table-row buttons). Pointer-precision-gated so it
+   applies to touch devices only and leaves mouse layouts untouched. */
+@media (pointer: coarse) {
+  button,
+  [role="tab"],
+  a[role="button"] {
+    touch-action: manipulation;
+  }
+}
+
+/* Respect users who ask for less motion; the particle field and transitions
+   are decorative. */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

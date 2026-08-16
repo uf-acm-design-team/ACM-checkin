@@ -48,7 +48,7 @@ WITH orgs AS (
   FROM public.organizations
   WHERE slug IN ('aed', 'acm', 'colorstack')
 )
-INSERT INTO public.meetings (org_id, title, start_time, end_time, status, questions)
+INSERT INTO public.meetings (org_id, title, start_time, end_time, status, form_schema)
 SELECT
   o.id,
   CASE o.slug
@@ -59,7 +59,21 @@ SELECT
   (now() - interval '15 minutes')::timestamp,
   (now() + interval '45 minutes')::timestamp,
   true,
-  ARRAY['How did you hear about this?', 'Did you bring a friend?']::text[]
+  -- Covers several question types so the check-in form and the Responses
+  -- summary can both be exercised locally without hand-building a form.
+  '[
+    {"id": "q_seed_source", "type": "multiple_choice", "required": true,
+     "label": "How did you hear about this?",
+     "options": ["Instagram", "A friend", "In class", "Flyer"]},
+    {"id": "q_seed_friend", "type": "checkboxes", "required": false,
+     "label": "What are you hoping to get out of today?",
+     "options": ["Meet people", "Learn something", "Free food", "Resume"]},
+    {"id": "q_seed_rating", "type": "scale", "required": false,
+     "label": "How familiar are you with the topic already?",
+     "scale": {"min": 1, "max": 5, "min_label": "New to it", "max_label": "Very familiar"}},
+    {"id": "q_seed_notes", "type": "long_text", "required": false,
+     "label": "Anything you want the officers to know?"}
+  ]'::jsonb
 FROM orgs o;
 
 WITH orgs AS (
@@ -67,7 +81,7 @@ WITH orgs AS (
   FROM public.organizations
   WHERE slug IN ('aed', 'acm', 'colorstack')
 )
-INSERT INTO public.meetings (org_id, title, start_time, end_time, status, questions)
+INSERT INTO public.meetings (org_id, title, start_time, end_time, status, form_schema)
 SELECT
   o.id,
   CASE o.slug
@@ -78,7 +92,8 @@ SELECT
   (now() - interval '14 days')::timestamp,
   (now() - interval '14 days' + interval '1 hour')::timestamp,
   false,
-  ARRAY[]::text[]
+  -- Attendance-only meeting: check-in is a single tap, no form.
+  '[]'::jsonb
 FROM orgs o;
 
 -- 3) Attendees (global people)
@@ -114,7 +129,14 @@ SELECT
   am.meeting_id,
   a.attendee_id,
   'seed' AS source,
-  '["seed answer 1", "seed answer 2"]'::jsonb
+  -- Keyed by the question ids in the active meeting's form_schema above.
+  -- q_seed_notes is deliberately absent: an unanswered optional question is
+  -- represented by the key being missing, not by an empty string.
+  '{
+     "q_seed_source": "Instagram",
+     "q_seed_friend": ["Meet people", "Free food"],
+     "q_seed_rating": 3
+   }'::jsonb
 FROM (VALUES
   ('aed','alice@ufl.edu'),
   ('acm','bryce@ufl.edu'),

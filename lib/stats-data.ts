@@ -10,6 +10,7 @@ import { unstable_cache } from "next/cache";
 // JWT"). createClerkSupabaseClient remains the RLS-ready path for that future.
 import { createAnonSupabaseClient } from "@/app/utils/supabase/server";
 import { resolveMembership } from "@/lib/membership";
+import { parseAnswers, parseSchema, type AnswerMap } from "@/lib/form-schema";
 import {
   academicYearTerms,
   buildTermSummaries,
@@ -177,7 +178,7 @@ export async function getMeetingsPage(
 
   const rows = (data ?? []) as {
     id: string; title: string; start_time: string;
-    description: string | null; questions: string[] | null;
+    description: string | null; form_schema: unknown;
     attended: boolean; total_count: number | string;
   }[];
 
@@ -192,8 +193,7 @@ export async function getMeetingsPage(
     attended: row.attended,
     description: row.description ?? undefined,
     hasDetails:
-      Boolean(row.description?.trim()) ||
-      (Array.isArray(row.questions) && row.questions.length > 0),
+      Boolean(row.description?.trim()) || parseSchema(row.form_schema).length > 0,
   }));
 
   return { items, total, page, pageSize, hasMore: hasMore(page, pageSize, total) };
@@ -205,18 +205,21 @@ export async function getMeetingDetails(meetingId: string): Promise<MeetingDetai
 
   const { data: m } = await supabase
     .from("meetings")
-    .select("id, title, start_time, end_time, description, questions")
+    .select("id, title, start_time, end_time, description, form_schema")
     .eq("id", meetingId)
     .single();
   if (!m) throw new Error("MEETING_NOT_FOUND");
 
   const meeting = m as {
     id: string; title: string; start_time: string;
-    end_time: string | null; description: string | null; questions: string[] | null;
+    end_time: string | null; description: string | null; form_schema: unknown;
   };
-  const questions: string[] = Array.isArray(meeting.questions) ? meeting.questions : [];
+  const questions = parseSchema(meeting.form_schema);
 
-  let answers: string[] | null = null;
+  // null means "didn't attend" and is what the modal keys off to show its
+  // did-not-attend note -- distinct from an empty map, which means attended but
+  // answered nothing.
+  let answers: AnswerMap | null = null;
   if (userId) {
     const { data: attendee } = await supabase
       .from("attendees").select("id").eq("user_id", userId).maybeSingle();
@@ -227,7 +230,7 @@ export async function getMeetingDetails(meetingId: string): Promise<MeetingDetai
         .eq("meeting_id", meetingId)
         .eq("attendee_id", attendee.id)
         .maybeSingle();
-      if (att) answers = normalizeAnswers(att.answers, questions);
+      if (att) answers = parseAnswers(att.answers);
     }
   }
 
@@ -236,15 +239,4 @@ export async function getMeetingDetails(meetingId: string): Promise<MeetingDetai
     end_time: meeting.end_time ?? null, description: meeting.description ?? null,
     questions, answers,
   };
-}
-
-// attendance.answers is jsonb with no standardized shape yet. Accept an
-// index-aligned array or an object keyed by question text; fall back to empty.
-function normalizeAnswers(raw: unknown, questions: string[]): string[] {
-  if (Array.isArray(raw)) return questions.map((_, i) => String(raw[i] ?? ""));
-  if (raw && typeof raw === "object") {
-    const obj = raw as Record<string, unknown>;
-    return questions.map((q) => String(obj[q] ?? ""));
-  }
-  return questions.map(() => "");
 }

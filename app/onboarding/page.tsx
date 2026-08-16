@@ -69,7 +69,7 @@ export default function OnboardingPage() {
 
   if (!isLoaded || checkingExisting) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
+      <div className="flex items-center justify-center min-h-dvh">
         <div className="text-white text-xl">Loading...</div>
       </div>
     );
@@ -147,18 +147,20 @@ export default function OnboardingPage() {
   };
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen p-4">
-      <div className="text-center mb-8">
-        <h1 className="text-5xl font-bold text-white mb-2">UF Check-In</h1>
-        <p className="text-white/90 text-lg">Powered by ACM</p>
+    <div className="flex flex-col items-center justify-center min-h-dvh px-4 py-8 sm:px-6">
+      <div className="text-center mb-6 sm:mb-8">
+        <h1 className="text-3xl font-bold text-white mb-2 sm:text-4xl md:text-5xl">
+          UF Check-In
+        </h1>
+        <p className="text-white/90 text-base sm:text-lg">Powered by ACM</p>
       </div>
 
-      <div className="bg-white/10 backdrop-blur-md rounded-2xl shadow-2xl p-8 w-full max-w-md border border-white/20">
-        <div className="text-center mb-8">
-          <h2 className="text-2xl font-bold text-white mb-2">
+      <div className="bg-white/10 backdrop-blur-md rounded-2xl shadow-2xl p-5 sm:p-8 w-full max-w-md border border-white/20">
+        <div className="text-center mb-6 sm:mb-8">
+          <h2 className="text-xl font-bold text-white mb-2 sm:text-2xl">
             Complete Your Profile
           </h2>
-          <p className="text-white/80">
+          <p className="text-white/80 text-sm sm:text-base">
             Just a few more details to get started
           </p>
         </div>
@@ -203,7 +205,7 @@ export default function OnboardingPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-[#FA4616] hover:bg-[#e03d0f] text-white font-semibold py-3 px-4 rounded-lg transition-all duration-200 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full bg-brand-action hover:opacity-90 text-white font-semibold py-3 px-4 rounded-lg transition-opacity duration-200 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {loading ? "Saving..." : "Continue"}
           </button>
