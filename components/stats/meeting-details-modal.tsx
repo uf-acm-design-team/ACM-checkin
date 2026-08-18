@@ -11,6 +11,10 @@ const DATE_FORMAT = new Intl.DateTimeFormat("en-US", {
   weekday: "short", month: "short", day: "numeric", year: "numeric",
 });
 
+// Only one details sheet is ever mounted at a time (the list item unmounts it
+// on close), so a module-level id is unambiguous.
+const TITLE_ID = "meeting-details-title";
+
 export function MeetingDetailsModal({
   meetingId,
   onClose,
@@ -47,22 +51,36 @@ export function MeetingDetailsModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 sm:items-center sm:p-4"
+      className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm sm:items-center sm:p-4"
       onClick={onClose}
       role="dialog"
       aria-modal="true"
+      aria-labelledby={details ? TITLE_ID : undefined}
+      aria-busy={!details}
     >
+      {/* --brand-background is also the gradient's bottom stop, so a panel
+          painted with it reads as a flat slab rather than a raised surface.
+          Use the org's secondary background (its designated panel color) under
+          the same translucent-white wash the other pages use. */}
       <div
-        className="max-h-[85dvh] w-full overflow-y-auto rounded-t-2xl border border-white/15 bg-brand-background p-5 shadow-2xl sm:max-w-lg sm:rounded-2xl sm:p-6"
+        className="max-h-[85dvh] w-full overflow-y-auto rounded-t-2xl border border-white/20 bg-brand-background-secondary/95 p-5 shadow-2xl backdrop-blur-md sm:max-w-lg sm:rounded-2xl sm:p-6"
         onClick={(e) => e.stopPropagation()}
       >
         {!details ? (
-          <p className="text-white/60">Loading…</p>
+          // Skeleton rather than a bare word: the sheet is already on screen at
+          // full size, so an unsized "Loading…" collapses it and then snaps to
+          // full height when the fetch lands.
+          <div aria-hidden="true" className="animate-pulse space-y-3">
+            <div className="h-5 w-2/3 rounded bg-white/15" />
+            <div className="h-3 w-1/3 rounded bg-white/10" />
+            <div className="h-16 rounded-lg bg-white/5" />
+            <div className="h-16 rounded-lg bg-white/5" />
+          </div>
         ) : (
           <>
             <div className="mb-3 flex items-start justify-between gap-3">
               <div className="min-w-0">
-                <h2 className="text-lg font-bold text-white wrap-break-word">
+                <h2 id={TITLE_ID} className="text-lg font-bold text-white wrap-break-word">
                   {details.title}
                 </h2>
                 <p className="text-xs text-white/60">
@@ -73,7 +91,7 @@ export function MeetingDetailsModal({
                 type="button"
                 onClick={onClose}
                 aria-label="Close"
-                className="-m-2 flex-none rounded-lg p-2 text-white/60 transition-colors hover:text-white"
+                className="-m-2 flex-none rounded-lg p-2 text-white/60 transition-colors hover:bg-white/10 hover:text-white focus-visible:ring-2 focus-visible:ring-white/40 focus-visible:outline-none"
               >
                 <X className="h-5 w-5" />
               </button>
