@@ -38,8 +38,12 @@ export function TermTabs({
             onClick={() => onSelect(tab.key)}
             className={cn(
               "shrink-0 rounded-full px-4 py-1.5 text-sm font-medium transition-colors",
+              "focus-visible:ring-2 focus-visible:ring-white/40 focus-visible:outline-none",
               isActive
-                ? "bg-brand-action text-white shadow-[0_4px_12px_rgba(225,59,53,0.3)]"
+                // The glow was a hardcoded red rgba(), which stayed red no
+                // matter what accent an org picked. Derive it from the live
+                // --brand-action instead so it tints with the club's color.
+                ? "bg-brand-action text-white shadow-[0_4px_12px_color-mix(in_srgb,var(--brand-action)_45%,transparent)]"
                 : "bg-white/10 text-white/70 hover:bg-white/15 hover:text-white",
             )}
           >

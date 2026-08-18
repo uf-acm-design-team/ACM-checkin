@@ -201,19 +201,38 @@ export async function getMeetingsPage(
 
 export async function getMeetingDetails(meetingId: string): Promise<MeetingDetails> {
   const { userId } = await auth();
+  // This is a server action, so it is a callable endpoint: the only thing
+  // standing between an arbitrary meeting UUID and this data is the check
+  // below. RLS is off (see the note at the top of this file), so identity has
+  // to be enforced here in app code. Signing out is not enough -- a signed-in
+  // member of club A must not be able to read club B's meeting by id.
+  if (!userId) throw new Error("MEETING_NOT_FOUND");
+
   const supabase = createAnonSupabaseClient();
 
   const { data: m } = await supabase
     .from("meetings")
-    .select("id, title, start_time, end_time, description, form_schema")
+    .select("id, org_id, title, start_time, end_time, description, form_schema")
     .eq("id", meetingId)
     .single();
   if (!m) throw new Error("MEETING_NOT_FOUND");
 
   const meeting = m as {
-    id: string; title: string; start_time: string;
+    id: string; org_id: string; title: string; start_time: string;
     end_time: string | null; description: string | null; form_schema: unknown;
   };
+
+  // Caller must belong to the org that owns this meeting. Reported as
+  // MEETING_NOT_FOUND rather than a distinct "forbidden" so the response
+  // cannot be used to probe which meeting ids exist.
+  const { data: callerMembership } = await supabase
+    .from("memberships")
+    .select("user_id")
+    .eq("org_id", meeting.org_id)
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (!callerMembership) throw new Error("MEETING_NOT_FOUND");
+
   const questions = parseSchema(meeting.form_schema);
 
   // null means "didn't attend" and is what the modal keys off to show its

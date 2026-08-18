@@ -67,7 +67,9 @@ export function ViewToggle({
         <ul
           role="listbox"
           aria-label="Meeting view"
-          className="absolute right-0 z-20 mt-1 w-44 overflow-hidden rounded-xl border border-white/15 bg-brand-background p-1 shadow-lg"
+          // Same reasoning as the details sheet: the org's panel color, not the
+          // gradient's bottom stop, so the menu reads as floating above the page.
+          className="absolute right-0 z-20 mt-1 w-44 overflow-hidden rounded-xl border border-white/20 bg-brand-background-secondary/95 p-1 shadow-xl backdrop-blur-md"
         >
           {OPTIONS.map((option) => {
             const selected = option.value === value;
