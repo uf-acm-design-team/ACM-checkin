@@ -43,6 +43,7 @@ supabase/.branches/
 
 # Claude Code local state (worktrees, session data)
 .claude/
+/docs/
 
 # Agent orientation notes (local, not part of the shipped repo)
 AGENTS.md

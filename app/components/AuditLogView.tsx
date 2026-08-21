@@ -45,11 +45,8 @@ function summarize(action: string, metadata: Record<string, unknown>): string {
       return `${str("target_name")} (was ${str("prior_role")})`;
     case "member.invited":
       return `${str("target_email")} as ${str("role")}`;
-    case "meeting.deleted":
-      return str("meeting_title");
     case "meeting.status_toggled":
-      return `${str("meeting_title")}: ${metadata.to_status ? "opened" : "closed"}`;
-    case "meeting.geo_lock_changed":
+      return `${str("meeting_title")}: ${metadata["to_status"] === true ? "opened" : "closed"}`;
       return str("meeting_title");
     case "attendance.exported":
       return `${str("meeting_title")} (${String(metadata.row_count ?? "?")} rows)`;
