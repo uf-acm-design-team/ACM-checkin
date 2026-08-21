@@ -31,10 +31,39 @@ interface ActiveMeeting {
   latitude?: number;
   longitude?: number;
   radius_meters?: number;
+  requires_checkin_password: boolean;
   form_schema: FormSchema;
 }
 
 type Step = "email" | "profile";
+
+// Shared across the authenticated and guest flows below -- both need the
+// same field when activeMeeting.requires_checkin_password is true, and
+// `checkinPassword` is page-level state so it survives the guest flow's
+// email -> profile step transition the same way `answers` already does.
+function CheckinPasswordField({
+  value,
+  onChange,
+  disabled,
+  inputClass,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  disabled: boolean;
+  inputClass: string;
+}) {
+  return (
+    <input
+      type="password"
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      disabled={disabled}
+      required
+      placeholder="Meeting password"
+      className={inputClass}
+    />
+  );
+}
 
 export default function CheckinPage({
   params,
@@ -67,6 +96,11 @@ export default function CheckinPage({
   // in; validateAnswers treats a missing key as unanswered.
   const [answers, setAnswers] = useState<AnswerMap>({});
   const [answerErrors, setAnswerErrors] = useState<Record<string, string>>({});
+
+  // Only rendered when activeMeeting.requires_checkin_password is true. The
+  // server never tells the client what the password IS (checkin_password is
+  // column-locked / read via service-role only) -- this is purely user input.
+  const [checkinPassword, setCheckinPassword] = useState("");
 
   const setAnswer = (questionId: string, value: AnswerValue) => {
     setAnswers((prev) => ({ ...prev, [questionId]: value }));
@@ -136,7 +170,7 @@ export default function CheckinPage({
       const { data: meetings } = await supabase
         .from("meetings")
         .select(
-          "id, title, start_time, end_time, is_geo_locked, latitude, longitude, radius_meters, form_schema",
+          "id, title, start_time, end_time, is_geo_locked, latitude, longitude, radius_meters, requires_checkin_password, form_schema",
         )
         .eq("org_id", org.id)
         .eq("status", true)
@@ -207,6 +241,7 @@ export default function CheckinPage({
       const result = await memberCheckIn({
         orgSlug,
         answers: validatedAnswers,
+        password: checkinPassword,
       });
 
       if (!result.ok) {
@@ -308,6 +343,7 @@ export default function CheckinPage({
         orgSlug,
         email,
         answers: validatedAnswers,
+        password: checkinPassword,
         ...(withProfile ? { firstName, lastName, gradYear } : {}),
       });
 
@@ -448,6 +484,16 @@ export default function CheckinPage({
                 you in.
               </p>
             )}
+            {activeMeeting.requires_checkin_password && (
+              <div className="mb-4">
+                <CheckinPasswordField
+                  value={checkinPassword}
+                  onChange={setCheckinPassword}
+                  disabled={checkingIn}
+                  inputClass={inputClass}
+                />
+              </div>
+            )}
             {activeMeeting.form_schema.length > 0 && (
               <div className="mb-5 text-left">
                 <FormRenderer
@@ -497,6 +543,14 @@ export default function CheckinPage({
                   placeholder="Email address"
                   className={inputClass}
                 />
+                {activeMeeting.requires_checkin_password && (
+                  <CheckinPasswordField
+                    value={checkinPassword}
+                    onChange={setCheckinPassword}
+                    disabled={checkingIn}
+                    inputClass={inputClass}
+                  />
+                )}
                 {/* The questions live on this step as well as the profile step:
                     a returning guest whose email is already known never reaches
                     the profile step, so putting them only there would skip the

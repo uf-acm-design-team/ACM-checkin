@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useUser, UserButton } from "@clerk/nextjs";
+import { SignOutButton, useUser } from "@clerk/nextjs";
 import { createClient } from "../utils/supabase/client";
 
 // Shape of the memberships rows joined to organizations. PostgREST types the
@@ -26,6 +26,8 @@ export default function Dashboard() {
   const [attendanceByOrg, setAttendanceByOrg] = useState<Record<string, number>>({});
   const [roleByOrg, setRoleByOrg] = useState<Record<string, string>>({});
   const [orgsLoading, setOrgsLoading] = useState(true);
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+  const [isGlobalAdmin, setIsGlobalAdmin] = useState(false);
   const router = useRouter();
   const supabase = createClient();
 
@@ -37,6 +39,24 @@ export default function Dashboard() {
     }
     setLoading(false);
   }, [isLoaded, user]);
+
+  // Gates the "Developer" item in the profile menu below -- same flag
+  // admin-dashboard and /developer itself check.
+  useEffect(() => {
+    if (!isLoaded || !user) return;
+    supabase
+      .from("attendees")
+      .select("admin")
+      .eq("user_id", user.id)
+      .maybeSingle()
+      .then(({ data, error }) => {
+        if (error) {
+          console.error("Admin flag lookup failed:", error);
+          return;
+        }
+        setIsGlobalAdmin(Boolean(data?.admin));
+      });
+  }, [isLoaded, user, supabase]);
 
   useEffect(() => {
     if (loading || !user) {
@@ -138,20 +158,74 @@ export default function Dashboard() {
               Welcome to your Dashboard!
             </h2>
             <p className="text-white/80 text-sm sm:text-base">
-              You&apos;re logged in as{" "}
+              You're logged in as{" "}
               <span className="font-semibold break-all">
                 {user?.fullName || user?.primaryEmailAddress?.emailAddress}
               </span>
             </p>
           </div>
-          <div className="flex-none">
-            <UserButton
-              appearance={{
-                elements: {
-                  avatarBox: "w-10 h-10",
-                },
-              }}
-            />
+          <div className="relative flex-none">
+            <button
+              type="button"
+              onClick={() => setProfileMenuOpen((open) => !open)}
+              className="flex items-center gap-3 rounded-full border border-white/20 bg-white/10 px-2.5 py-2 text-left text-white shadow-lg transition hover:bg-white/15"
+            >
+              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-action text-sm font-bold text-white">
+                {(user?.firstName?.[0] || user?.fullName?.[0] || "U").toUpperCase()}
+              </div>
+              <span className="max-w-32 truncate text-sm font-semibold sm:max-w-48">
+                {user?.fullName || user?.primaryEmailAddress?.emailAddress || "Profile"}
+              </span>
+              <svg
+                viewBox="0 0 20 20"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                className={`h-4 w-4 transition-transform ${profileMenuOpen ? "rotate-180" : ""}`}
+                aria-hidden="true"
+              >
+                <path d="M5 7.5L10 12.5L15 7.5" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </button>
+
+            {profileMenuOpen && (
+              <div className="absolute right-0 z-20 mt-2 w-48 overflow-hidden rounded-xl border border-white/20 bg-slate-900/95 shadow-2xl backdrop-blur-md">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setProfileMenuOpen(false);
+                    router.push("/settings");
+                  }}
+                  className="flex w-full items-center justify-between px-4 py-3 text-left text-sm font-medium text-white transition hover:bg-white/10"
+                >
+                  <span>Settings</span>
+                  <span aria-hidden="true">→</span>
+                </button>
+                {isGlobalAdmin && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setProfileMenuOpen(false);
+                      router.push("/developer");
+                    }}
+                    className="flex w-full items-center justify-between px-4 py-3 text-left text-sm font-medium text-white transition hover:bg-white/10"
+                  >
+                    <span>Developer</span>
+                    <span aria-hidden="true">→</span>
+                  </button>
+                )}
+                <div className="h-px bg-white/10" />
+                <SignOutButton signOutOptions={{ redirectUrl: "/sign-in" }}>
+                  <button
+                    type="button"
+                    className="flex w-full items-center justify-between px-4 py-3 text-left text-sm font-medium text-red-200 transition hover:bg-red-500/10"
+                  >
+                    <span>Log out</span>
+                    <span aria-hidden="true">↩</span>
+                  </button>
+                </SignOutButton>
+              </div>
+            )}
           </div>
         </div>
 

@@ -27,6 +27,7 @@ export type MemberCheckInResult =
 export async function memberCheckIn(input: {
   orgSlug: string;
   answers: unknown;
+  password?: string;
 }): Promise<MemberCheckInResult> {
   const { userId } = await auth();
   if (!userId) return { ok: false, error: "You need to be signed in." };
@@ -40,6 +41,9 @@ export async function memberCheckIn(input: {
     .maybeSingle();
   if (!org) return { ok: false, error: "Club does not exist." };
 
+  // RLS (meetings_member_read) already hides officer-only meetings from a
+  // non-officer caller, so this naturally only ever resolves to a meeting
+  // this member is allowed to see -- no extra filter needed here.
   const { data: meeting } = await supabase
     .from("meetings")
     .select("id, form_schema")
@@ -49,6 +53,20 @@ export async function memberCheckIn(input: {
     .limit(1)
     .maybeSingle();
   if (!meeting) return { ok: false, error: "There is no active meeting." };
+
+  // checkin_password is column-locked from direct SELECT (this client runs
+  // as `authenticated`, not service_role), so verification goes through a
+  // SECURITY DEFINER RPC rather than reading the value here.
+  const { data: passwordOk, error: passwordError } = await supabase.rpc(
+    "verify_meeting_checkin_password",
+    { p_meeting_id: meeting.id, p_password: input.password ?? "" },
+  );
+  if (passwordError) {
+    return { ok: false, error: "Could not verify the meeting password." };
+  }
+  if (!passwordOk) {
+    return { ok: false, error: "Incorrect meeting password." };
+  }
 
   const { data: attendee } = await supabase
     .from("attendees")

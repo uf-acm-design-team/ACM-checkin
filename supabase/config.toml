@@ -375,6 +375,18 @@ allow_dynamic_registration = false
 
 # validate-signup edge function removed — signup is now handled by Clerk
 
+# create-org authenticates callers itself (via the current_clerk_id() RPC,
+# which verifies the Clerk JWT the same way Postgres RLS does). The platform's
+# own gateway-level JWT check only trusts Supabase Auth-issued tokens, not
+# third-party (Clerk) ones, so it must be disabled here or every request is
+# rejected before the function even runs.
+[functions.create-org]
+verify_jwt = false
+
+# Same reasoning as create-org above -- authenticates via current_clerk_id().
+[functions.update-org-branding]
+verify_jwt = false
+
 [edge_runtime]
 enabled = true
 # Supported request policies: `oneshot`, `per_worker`.
