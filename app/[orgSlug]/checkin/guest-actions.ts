@@ -79,6 +79,7 @@ export async function guestCheckIn(input: {
   firstName?: string;
   lastName?: string;
   gradYear?: string;
+  password?: string;
 }): Promise<GuestCheckInResult> {
   const email = input.email.trim().toLowerCase();
   if (!email || !email.includes("@")) {
@@ -109,16 +110,24 @@ export async function guestCheckIn(input: {
 
   // The meeting must be open right now. Never trust a meeting id from the
   // client -- resolve the active one server-side so a guest cannot backfill a
-  // closed meeting by replaying an old id.
+  // closed meeting by replaying an old id. Guests are never officers, so
+  // officer-only meetings are excluded outright -- this client runs as
+  // service_role and bypasses RLS entirely, so that filter has to happen
+  // here rather than relying on meetings_anon_read_active.
   const { data: meeting } = await supabase
     .from("meetings")
-    .select("id, form_schema")
+    .select("id, form_schema, checkin_password")
     .eq("org_id", org.id)
     .eq("status", true)
+    .eq("is_officer_only", false)
     .order("start_time", { ascending: true })
     .limit(1)
     .maybeSingle();
   if (!meeting) return { ok: false, error: "There is no active meeting." };
+
+  if (meeting.checkin_password && meeting.checkin_password !== (input.password ?? "")) {
+    return { ok: false, error: "Incorrect meeting password." };
+  }
 
   // Validate answers against the schema READ HERE, never one supplied by the
   // caller. This endpoint is public and unauthenticated, so the browser copy of

@@ -31,10 +31,11 @@ export default function OrgNav() {
   const pathname = usePathname();
   const supabase = createClient();
 
-  // Whether this user holds a non-member role (officer/owner/admin) in THIS
-  // org -- gates the Admin tab. Only ever set from the async lookup below; the
-  // signed-out case needs no state, since `user` already tells us in render.
+  // Whether this user is a global admin or holds a non-member role in THIS
+  // org -- gates the Admin tab. Only ever set from the async lookup below;
+  // the signed-out case needs no state, since `user` already tells us in render.
   const [hasAdminRole, setHasAdminRole] = useState(false);
+  const [isGlobalAdmin, setIsGlobalAdmin] = useState(false);
 
   useEffect(() => {
     if (!isLoaded || !user) return;
@@ -48,6 +49,12 @@ export default function OrgNav() {
         .eq("slug", slug)
         .maybeSingle();
 
+      const { data: attendee } = await supabase
+        .from("attendees")
+        .select("admin")
+        .eq("user_id", user.id)
+        .maybeSingle();
+
       if (!org) return;
 
       const { data: membership } = await supabase
@@ -58,15 +65,22 @@ export default function OrgNav() {
         .maybeSingle();
 
       if (cancelled) return;
+
       const role = membership?.role?.toLowerCase();
-      // This only decides whether to render a link. RLS is the real boundary,
-      // and the admin page re-checks membership on load.
-      if (role && role !== "member") setHasAdminRole(true);
+      const globalAdmin = Boolean(attendee?.admin);
+      const orgAdmin = Boolean(role && role !== "member");
+
+      setIsGlobalAdmin(globalAdmin);
+      setHasAdminRole(globalAdmin || orgAdmin);
     };
 
     // A failed lookup simply leaves the Admin tab hidden -- officers can still
     // reach it from /dashboard, and showing a tab that 403s is worse.
-    resolveRole().catch(() => {});
+    resolveRole().catch(() => {
+      if (cancelled) return;
+      setIsGlobalAdmin(false);
+      setHasAdminRole(false);
+    });
 
     return () => {
       cancelled = true;
@@ -80,7 +94,7 @@ export default function OrgNav() {
     { href: `/${slug}/checkin`, label: "Check In" },
     // Stats reads the caller's own attendance, so it's meaningless signed out.
     ...(user ? [{ href: `/${slug}/stats`, label: "Stats" }] : []),
-    ...(user && hasAdminRole
+    ...(user && (hasAdminRole || isGlobalAdmin)
       ? [{ href: `/${slug}/admin-dashboard`, label: "Admin" }]
       : []),
   ];

@@ -2,13 +2,16 @@
 
 import { auth } from "@clerk/nextjs/server";
 import { unstable_cache } from "next/cache";
-// NOTE: We query with the anon client, not the Clerk-token client. RLS is off
-// and identity is enforced in app code (attendeeId is derived server-side from
-// auth() and every attendance read is filtered by it). Forwarding the Clerk
-// token to Supabase only works once Clerk is registered as a third-party auth
-// provider; until then Supabase rejects it ("No suitable key to decode the
-// JWT"). createClerkSupabaseClient remains the RLS-ready path for that future.
-import { createAnonSupabaseClient } from "@/app/utils/supabase/server";
+// NOTE: We query with the service-role client, not the anon or Clerk-token
+// client. RLS is ON (20260813000100_enable_rls_clerk.sql) and its anon
+// policies only expose organizations and *active* meetings -- nowhere near
+// enough for a stats page (memberships/attendance have no anon SELECT grant
+// at all, and every meeting the auto-close cron has closed becomes invisible
+// to anon). Identity is instead enforced in app code: attendeeId/org
+// membership are derived server-side from auth() and every read below is
+// filtered by them, the same pattern app/[orgSlug]/checkin/guest-actions.ts
+// uses for the same reason.
+import { createServiceSupabaseClient } from "@/app/utils/supabase/server";
 import { resolveMembership } from "@/lib/membership";
 import { parseAnswers, parseSchema, type AnswerMap } from "@/lib/form-schema";
 import {
@@ -46,7 +49,7 @@ function nowEst(): { year: number; month: number; iso: string } {
 
 export async function getMemberStats(orgSlug: string): Promise<MemberStats> {
   const { userId } = await auth();
-  const supabase = createAnonSupabaseClient();
+  const supabase = createServiceSupabaseClient();
 
   const { data: org } = await supabase
     .from("organizations")
@@ -77,13 +80,15 @@ export async function getMemberStats(orgSlug: string): Promise<MemberStats> {
   // Keyed on orgId (NOT on now — that would defeat the cache). We fetch all org
   // meetings and filter "occurred" in JS below. Invalidate on meeting
   // create/update via revalidateTag(`org-meetings:${org.id}`).
-  // Uses the anon client (not the Clerk client): unstable_cache forbids reading
-  // request headers, and the Clerk client's accessToken callback calls auth().
-  // Org meetings are non-sensitive and RLS is off, so no token is needed.
+  // Uses the service-role client (not the Clerk client): unstable_cache forbids
+  // reading request headers, and the Clerk client's accessToken callback calls
+  // auth(). The anon client can't substitute -- its RLS policy only exposes
+  // *active* (status = true) meetings, which would silently drop every past
+  // meeting from the term totals.
   const loadOrgMeetings = unstable_cache(
     async () => {
-      const anon = createAnonSupabaseClient();
-      const { data } = await anon
+      const service = createServiceSupabaseClient();
+      const { data } = await service
         .from("meetings")
         .select("id, start_time")
         .eq("org_id", org.id);
@@ -139,7 +144,7 @@ export async function getMeetingsPage(
   pageSize = 10,
 ): Promise<Page<StatsMeeting>> {
   const { userId } = await auth();
-  const supabase = createAnonSupabaseClient();
+  const supabase = createServiceSupabaseClient();
   const now = nowEst();
 
   // Window (always capped at now — occurred meetings only).
@@ -203,12 +208,13 @@ export async function getMeetingDetails(meetingId: string): Promise<MeetingDetai
   const { userId } = await auth();
   // This is a server action, so it is a callable endpoint: the only thing
   // standing between an arbitrary meeting UUID and this data is the check
-  // below. RLS is off (see the note at the top of this file), so identity has
-  // to be enforced here in app code. Signing out is not enough -- a signed-in
-  // member of club A must not be able to read club B's meeting by id.
+  // below. This uses the service-role client (see the note at the top of this
+  // file), so RLS isn't the backstop here -- identity has to be enforced here
+  // in app code. Signing out is not enough -- a signed-in member of club A
+  // must not be able to read club B's meeting by id.
   if (!userId) throw new Error("MEETING_NOT_FOUND");
 
-  const supabase = createAnonSupabaseClient();
+  const supabase = createServiceSupabaseClient();
 
   const { data: m } = await supabase
     .from("meetings")

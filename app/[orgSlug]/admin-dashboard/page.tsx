@@ -6,6 +6,10 @@ import { useRouter } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
 import { createClient } from "../../utils/supabase/client";
 import { useBranding } from "@/app/components/BrandingProvider";
+import { resolveBranding } from "@/lib/branding";
+import AuditLogView from "@/app/components/AuditLogView";
+import MembersTab from "./members-tab";
+import BrandingTab from "./branding-tab";
 import {
   parseAnswers,
   parseSchema,
@@ -22,6 +26,7 @@ interface Organization {
   id: string;
   name: string;
   slug: string;
+  branding: unknown;
 }
 
 interface Meeting {
@@ -36,6 +41,8 @@ interface Meeting {
   latitude: number | null;
   longitude: number | null;
   radius_meters: number | null;
+  is_officer_only: boolean;
+  requires_checkin_password: boolean;
   // Parsed once on fetch: the list needs its length for the badge and the CSV
   // export needs the questions themselves for its columns.
   form_schema: FormSchema;
@@ -56,6 +63,8 @@ const EMPTY_MEETING_DRAFT = {
   latitude: "",
   longitude: "",
   radius_meters: "200",
+  is_officer_only: false,
+  checkin_password: "",
 };
 type MeetingDraft = typeof EMPTY_MEETING_DRAFT;
 
@@ -83,7 +92,8 @@ const TABS = [
   { key: "meetings", label: "Meetings" },
   { key: "attendance", label: "Attendance" },
   { key: "members", label: "Members" },
-  { key: "orgs", label: "Orgs" },
+  { key: "audit-log", label: "Audit Log" },
+  { key: "branding", label: "Branding" },
 ] as const;
 type TabKey = (typeof TABS)[number]["key"];
 
@@ -131,8 +141,11 @@ export default function AdminDashboard({
 
   // This user's role in THIS org (from memberships). Null until resolved.
   const [membershipRole, setMembershipRole] = useState<string | null>(null);
-  // Global admin flag from attendees.admin -- gates the Orgs tab only.
+  // Global admin flag from attendees.admin. This is the developer/platform-admin
+  // role, and it intentionally bypasses org membership checks so internal admins
+  // can smoke-test any org route without a per-org membership row.
   const [isGlobalAdmin, setIsGlobalAdmin] = useState(false);
+  const [adminCheckFinished, setAdminCheckFinished] = useState(false);
 
   // Meetings
   const [meetings, setMeetings] = useState<Meeting[]>([]);
@@ -155,18 +168,10 @@ export default function AdminDashboard({
   const [checkIns, setCheckIns] = useState<Record<string, CheckIn[]>>({});
   const [checkInsLoading, setCheckInsLoading] = useState(false);
 
-  // Members
+  // Members (Overview stats/officers panel only -- the Members tab itself
+  // fetches and manages its own roster in members-tab.tsx)
   const [members, setMembers] = useState<Member[]>([]);
-  const [membersLoading, setMembersLoading] = useState(true);
-  const [memberSearch, setMemberSearch] = useState("");
-
-  // Orgs
-  const [orgs, setOrgs] = useState<Organization[]>([]);
-  const [orgsLoading, setOrgsLoading] = useState(true);
-  const [showOrgModal, setShowOrgModal] = useState(false);
-  const [orgDraft, setOrgDraft] = useState({ name: "", slug: "" });
-  const [creatingOrg, setCreatingOrg] = useState(false);
-  const [orgError, setOrgError] = useState<string | null>(null);
+  const [, setMembersLoading] = useState(true);
 
   useEffect(() => {
     if (!isLoaded) return;
@@ -176,13 +181,12 @@ export default function AdminDashboard({
   }, [isLoaded, user, router]);
 
   useEffect(() => {
-    if (!isLoaded) return;
-    if (!user) return; // the effect above handles the signed-out redirect
+    if (!isLoaded || !user || !adminCheckFinished) return;
 
     const fetchOrganization = async () => {
       const { data, error } = await supabase
         .from("organizations")
-        .select("id, name, slug")
+        .select("id, name, slug, branding")
         .eq("slug", orgSlug)
         .single();
 
@@ -215,7 +219,21 @@ export default function AdminDashboard({
       }
 
       if (!membership) {
-        setError("You don't have access to this organization");
+        if (isGlobalAdmin) {
+          setMembershipRole("admin");
+          setOrganization(data);
+          setLoading(false);
+          return;
+        }
+
+        router.replace(`/${orgSlug}`);
+        setLoading(false);
+        return;
+      }
+
+      const allowedOrgRoles = new Set(["officer", "co-owner", "owner", "admin"]);
+      if (!allowedOrgRoles.has((membership.role ?? "").toLowerCase()) && !isGlobalAdmin) {
+        router.replace(`/${orgSlug}`);
         setLoading(false);
         return;
       }
@@ -226,10 +244,13 @@ export default function AdminDashboard({
     };
 
     fetchOrganization();
-  }, [orgSlug, supabase, isLoaded, user]);
+  }, [orgSlug, supabase, isLoaded, user, adminCheckFinished, isGlobalAdmin]);
 
-  // Whether this user may create organizations. Gated on attendees.admin --
-  // a global flag, distinct from the per-org memberships.role above.
+  // Global admin status (attendees.admin) -- distinct from the per-org
+  // memberships.role above. Bypasses org membership entirely (see
+  // 20260822000000_global_admin_no_org_bypass.sql) and grants the same
+  // authority as 'owner' in the member-management RPCs
+  // (_effective_org_role, has_org_role).
   useEffect(() => {
     if (!isLoaded || !user) return;
 
@@ -241,9 +262,11 @@ export default function AdminDashboard({
       .then(({ data, error }) => {
         if (error) {
           console.error("Admin flag lookup failed:", error);
+          setAdminCheckFinished(true);
           return;
         }
         setIsGlobalAdmin(Boolean(data?.admin));
+        setAdminCheckFinished(true);
       });
   }, [isLoaded, user, supabase]);
 
@@ -254,7 +277,7 @@ export default function AdminDashboard({
       const { data, error } = await supabase
         .from("meetings")
         .select(
-          "id, title, start_time, end_time, status, description, is_geo_locked, latitude, longitude, radius_meters, form_schema",
+          "id, title, start_time, end_time, status, description, is_geo_locked, latitude, longitude, radius_meters, is_officer_only, requires_checkin_password, form_schema",
         )
         .eq("org_id", organization.id)
         .order("start_time", { ascending: false });
@@ -264,10 +287,15 @@ export default function AdminDashboard({
         return;
       }
 
+      const normalizedMeetings = (data || []).map((meeting) => ({
+        ...meeting,
+        form_schema: parseSchema(meeting.form_schema),
+      }));
+
       // One request for every meeting's check-ins, tallied here -- this used to
       // fire a separate head-count query per meeting (N+1), which meant ~30
       // round trips for a semester of meetings before the tab could render.
-      const meetingIds = (data || []).map((m) => m.id);
+      const meetingIds = normalizedMeetings.map((m) => m.id);
       const countsByMeeting: Record<string, number> = {};
       if (meetingIds.length > 0) {
         const { data: attendanceRows, error: countError } = await supabase
@@ -284,13 +312,12 @@ export default function AdminDashboard({
         }
       }
 
-      setMeetings(
-        (data || []).map((meeting) => ({
-          ...meeting,
-          attendance_count: countsByMeeting[meeting.id] || 0,
-          form_schema: parseSchema(meeting.form_schema),
-        })),
-      );
+      const nextMeetings = normalizedMeetings.map((meeting) => ({
+        ...meeting,
+        attendance_count: countsByMeeting[meeting.id] || 0,
+      }));
+
+      setMeetings(nextMeetings);
     } finally {
       setMeetingsLoading(false);
     }
@@ -361,29 +388,12 @@ export default function AdminDashboard({
     }
   }, [organization, supabase]);
 
-  const fetchOrgs = useCallback(async () => {
-    setOrgsLoading(true);
-    try {
-      const { data, error } = await supabase
-        .from("organizations")
-        .select("id, name, slug")
-        .order("name");
-      if (error) {
-        console.error("Error fetching organizations:", error);
-      } else {
-        setOrgs(data || []);
-      }
-    } finally {
-      setOrgsLoading(false);
-    }
-  }, [supabase]);
-
   useEffect(() => {
     if (!organization) return;
     fetchMeetings();
     fetchMembers();
-    fetchOrgs();
-  }, [organization, fetchMeetings, fetchMembers, fetchOrgs]);
+  }, [organization, fetchMeetings, fetchMembers]);
+
 
   // Default the attendance dropdown to the most recent meeting.
   useEffect(() => {
@@ -509,6 +519,8 @@ export default function AdminDashboard({
       latitude: meetingDraft.is_geo_locked ? Number(lat) : null,
       longitude: meetingDraft.is_geo_locked ? Number(lng) : null,
       radius_meters: meetingDraft.is_geo_locked ? radius : null,
+      is_officer_only: meetingDraft.is_officer_only,
+      checkin_password: meetingDraft.checkin_password.trim() || null,
     };
 
     try {
@@ -553,15 +565,25 @@ export default function AdminDashboard({
   // Open/close a meeting for check-in. This is the switch guests are gated on:
   // meetings_anon_read_active only exposes rows with status = true.
   const toggleMeetingStatus = async (m: Meeting) => {
+    const nextStatus = !m.status;
+    setMeetingError(null);
+
     const { error } = await supabase
       .from("meetings")
-      .update({ status: !m.status })
-      .eq("id", m.id);
+      .update({ status: nextStatus })
+      .eq("id", m.id)
+      .select("id, status");
+
     if (error) {
       setMeetingError(error.message);
       return;
     }
-    fetchMeetings();
+
+    setMeetings((prev) =>
+      prev.map((meeting) =>
+        meeting.id === m.id ? { ...meeting, status: nextStatus } : meeting,
+      ),
+    );
   };
 
   const handleDeleteMeeting = async (m: Meeting) => {
@@ -588,42 +610,6 @@ export default function AdminDashboard({
     }
   };
 
-  const handleCreateOrg = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!user) return;
-    setCreatingOrg(true);
-    setOrgError(null);
-    try {
-      // Only attendees flagged as admins may create organizations.
-      const { data: admin, error: adminError } = await supabase
-        .from("attendees")
-        .select("admin")
-        .eq("user_id", user.id)
-        .maybeSingle();
-
-      if (adminError || !admin?.admin) {
-        setOrgError("You are not authorized to create organizations.");
-        return;
-      }
-
-      const { error: orgInsertError } = await supabase
-        .from("organizations")
-        .insert({ name: orgDraft.name, slug: orgDraft.slug });
-
-      if (orgInsertError) {
-        setOrgError(orgInsertError.message);
-      } else {
-        setShowOrgModal(false);
-        setOrgDraft({ name: "", slug: "" });
-        fetchOrgs();
-      }
-    } catch {
-      setOrgError("Error verifying admin");
-    } finally {
-      setCreatingOrg(false);
-    }
-  };
-
   // One column per form question, appended after the fixed attendee columns.
   // See lib/attendance-csv.ts -- shared with the meeting editor's Responses tab
   // so both produce the same file.
@@ -635,6 +621,17 @@ export default function AdminDashboard({
       buildAttendanceCsv(rows, meeting.form_schema),
       attendanceFilename(meeting.title),
     );
+
+    // Best-effort: the export already happened, so a logging failure
+    // shouldn't surface as an error to the officer who just downloaded it.
+    supabase
+      .rpc("log_attendance_export", {
+        p_meeting_id: meeting.id,
+        p_row_count: rows.length,
+      })
+      .then(({ error }) => {
+        if (error) console.error("Failed to log attendance export:", error);
+      });
   };
 
   // The upcoming/past boundary. Held in state and refreshed on a timer rather
@@ -681,13 +678,20 @@ export default function AdminDashboard({
   const totalCheckIns = meetings.reduce((sum, m) => sum + m.attendance_count, 0);
   const officers = members.filter((m) => m.role?.toLowerCase() !== "member");
 
-  // The Orgs tab creates organizations, which is a global-admin action rather
-  // than a per-org one -- hide it unless attendees.admin is set. RLS enforces
-  // the same rule server-side (orgs_admin_insert), so this only prevents
-  // showing a control that would fail.
+  // Audit Log and Branding are co-owner/owner (or global admin) tools --
+  // matches the audit_owner_read and orgs_officer_update RLS policies from
+  // 20260824000000_member_management_and_coowner.sql, so this only prevents
+  // showing a control that would fail rather than being the real gate.
+  const canManageOrg =
+    isGlobalAdmin || membershipRole === "owner" || membershipRole === "co-owner";
+
   const visibleTabs = useMemo(
-    () => TABS.filter((tab) => tab.key !== "orgs" || isGlobalAdmin),
-    [isGlobalAdmin]
+    () =>
+      TABS.filter((tab) => {
+        if (tab.key === "audit-log" || tab.key === "branding") return canManageOrg;
+        return true;
+      }),
+    [canManageOrg]
   );
 
   // If the active tab is no longer visible (admin flag resolved to false after
@@ -714,15 +718,6 @@ export default function AdminDashboard({
       document.removeEventListener("keydown", onKey);
     };
   }, [sidebarOpen]);
-
-  const search = memberSearch.trim().toLowerCase();
-  const filteredMembers = members.filter(
-    (m) =>
-      !search ||
-      `${m.first_name} ${m.last_name}`.toLowerCase().includes(search) ||
-      m.email.toLowerCase().includes(search) ||
-      m.role?.toLowerCase().includes(search)
-  );
 
   const selectedMeeting = meetings.find((m) => m.id === attendanceMeetingId);
   const selectedCheckIns = checkIns[attendanceMeetingId ?? ""];
@@ -1094,6 +1089,22 @@ export default function AdminDashboard({
                             {m.form_schema.length === 1 ? "" : "s"}
                           </span>
                         )}
+                        {m.is_officer_only && (
+                          <span
+                            title="Hidden from regular members"
+                            className="ml-2 inline-block rounded bg-purple-100 px-1.5 py-0.5 text-[10px] font-bold text-purple-700"
+                          >
+                            Officers only
+                          </span>
+                        )}
+                        {m.requires_checkin_password && (
+                          <span
+                            title="Requires a password to check in"
+                            className="ml-2 inline-block rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-bold text-slate-600"
+                          >
+                            🔒 Password
+                          </span>
+                        )}
                       </div>
                       {/* The stacked layout has no column headers, so each
                           value carries its own label below lg. */}
@@ -1126,9 +1137,11 @@ export default function AdminDashboard({
                           the attendance tab. */}
                       <div className="mt-1 flex flex-wrap gap-1.5 lg:mt-0 lg:justify-end">
                         <button
+                          type="button"
                           onClick={(e) => {
+                            e.preventDefault();
                             e.stopPropagation();
-                            toggleMeetingStatus(m);
+                            void toggleMeetingStatus(m);
                           }}
                           title={
                             m.status
@@ -1287,146 +1300,32 @@ export default function AdminDashboard({
 
           {/* MEMBERS */}
           {activeTab === "members" && (
-            <>
-              <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:gap-4">
-                <input
-                  type="text"
-                  placeholder="Search members..."
-                  value={memberSearch}
-                  onChange={(e) => setMemberSearch(e.target.value)}
-                  className="w-full rounded-[9px] border border-slate-200 bg-white px-4 py-2.5 text-sm sm:w-auto sm:min-w-65"
-                />
-                <div className="text-[13px] font-semibold text-slate-500">
-                  {members.length} member{members.length === 1 ? "" : "s"}
-                </div>
-              </div>
-
-              <div className="overflow-hidden rounded-[14px] border border-slate-200 bg-white">
-                <div className="hidden grid-cols-[1.8fr_2fr_1.2fr_1.3fr] gap-4 border-b border-slate-200 px-5 py-3.5 text-xs font-bold tracking-wide text-slate-500 uppercase md:grid">
-                  <div>Name</div>
-                  <div>Contact</div>
-                  <div>Role</div>
-                  <div>Check-Ins</div>
-                </div>
-                {membersLoading ? (
-                  <div className="p-10 text-center text-sm text-slate-500">
-                    Loading members...
-                  </div>
-                ) : filteredMembers.length > 0 ? (
-                  filteredMembers.map((mem) => {
-                    const rate =
-                      pastMeetings.length > 0
-                        ? Math.min(
-                            100,
-                            Math.round(
-                              (mem.attendance_count / pastMeetings.length) * 100
-                            )
-                          )
-                        : 0;
-                    return (
-                      <div
-                        key={mem.user_id}
-                        className="flex flex-col gap-1.5 border-b border-slate-100 px-4 py-3.5 text-sm last:border-b-0 sm:px-5 md:grid md:grid-cols-[1.8fr_2fr_1.2fr_1.3fr] md:items-center md:gap-4"
-                      >
-                        <div className="flex min-w-0 items-center gap-2.5 font-bold">
-                          <div className="flex h-8 w-8 flex-none items-center justify-center rounded-full bg-brand-primary/10 text-[11px] font-bold text-brand-primary">
-                            {initials(`${mem.first_name} ${mem.last_name}`)}
-                          </div>
-                          <span className="min-w-0 wrap-break-word">
-                            {mem.first_name} {mem.last_name}
-                          </span>
-                        </div>
-                        <div className="text-[13px] font-medium break-all text-slate-600 md:truncate md:break-normal">
-                          {mem.email}
-                        </div>
-                        <div>
-                          <span className="inline-block rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-bold text-slate-600 capitalize">
-                            {mem.role || "member"}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <div className="h-1.5 w-15 overflow-hidden rounded-full bg-slate-100">
-                            <div
-                              className="h-full bg-brand-action"
-                              style={{ width: `${rate}%` }}
-                            />
-                          </div>
-                          <span className="text-xs font-bold">
-                            {mem.attendance_count}
-                          </span>
-                          <span className="text-xs text-slate-400 md:hidden">
-                            check-ins
-                          </span>
-                        </div>
-                      </div>
-                    );
-                  })
-                ) : (
-                  <div className="p-10 text-center text-sm text-slate-500">
-                    No members match your search.
-                  </div>
-                )}
-              </div>
-            </>
+            <MembersTab
+              orgId={organization.id}
+              membershipRole={membershipRole}
+              isGlobalAdmin={isGlobalAdmin}
+              meetings={meetings}
+            />
           )}
 
-          {/* ORGS */}
-          {activeTab === "orgs" && isGlobalAdmin && (
-            <>
-              <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-                <div className="text-sm font-semibold text-slate-500">
-                  All organizations on the platform.
-                </div>
-                <button
-                  onClick={() => {
-                    setOrgError(null);
-                    setShowOrgModal(true);
-                  }}
-                  className="w-full cursor-pointer rounded-[9px] bg-brand-action px-4.5 py-2.5 text-sm font-bold text-white transition-all hover:opacity-90 sm:w-auto"
-                >
-                  + New Org
-                </button>
-              </div>
+          {/* AUDIT LOG */}
+          {activeTab === "audit-log" && canManageOrg && (
+            <AuditLogView
+              scope="org"
+              orgId={organization.id}
+              emptyMessage="No activity recorded yet for this organization."
+            />
+          )}
 
-              <div className="overflow-hidden rounded-[14px] border border-slate-200 bg-white">
-                <div className="hidden grid-cols-[2.6fr_1.6fr_120px] gap-4 border-b border-slate-200 px-5 py-3.5 text-xs font-bold tracking-wide text-slate-500 uppercase sm:grid">
-                  <div>Organization</div>
-                  <div>Slug</div>
-                  <div></div>
-                </div>
-                {orgsLoading ? (
-                  <div className="p-10 text-center text-sm text-slate-500">
-                    Loading organizations...
-                  </div>
-                ) : orgs.length > 0 ? (
-                  orgs.map((org) => (
-                    <div
-                      key={org.id}
-                      className="flex flex-col gap-2 border-b border-slate-100 px-4 py-4 text-sm last:border-b-0 sm:grid sm:grid-cols-[2.6fr_1.6fr_120px] sm:items-center sm:gap-4 sm:px-5"
-                    >
-                      <div className="font-bold wrap-break-word">{org.name}</div>
-                      <div className="font-semibold text-slate-600">
-                        @{org.slug}
-                      </div>
-                      <div className="flex sm:justify-end">
-                        <button
-                          onClick={() =>
-                            router.push(`/${org.slug}/admin-dashboard`)
-                          }
-                          className="cursor-pointer rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-xs font-bold text-brand-background transition-all hover:bg-slate-50"
-                        >
-                          Open
-                        </button>
-                      </div>
-                    </div>
-                  ))
-                ) : (
-                  <div className="p-10 text-center text-sm text-slate-500">
-                    No organizations yet.
-                  </div>
-                )}
-              </div>
-            </>
+          {/* BRANDING */}
+          {activeTab === "branding" && canManageOrg && (
+            <BrandingTab
+              orgId={organization.id}
+              branding={resolveBranding(organization.branding)}
+              onSaved={(next) =>
+                setOrganization((prev) => (prev ? { ...prev, branding: next } : prev))
+              }
+            />
           )}
         </main>
       </div>
@@ -1631,6 +1530,48 @@ export default function AdminDashboard({
                 )}
               </div>
 
+              <label className="flex cursor-pointer items-start gap-2.5 rounded-lg border border-slate-200 p-3">
+                <input
+                  type="checkbox"
+                  checked={meetingDraft.is_officer_only}
+                  onChange={(e) =>
+                    setMeetingDraft({
+                      ...meetingDraft,
+                      is_officer_only: e.target.checked,
+                    })
+                  }
+                  className="mt-0.5"
+                />
+                <span className="text-sm">
+                  <span className="font-bold">Officers only</span>
+                  <span className="block text-xs text-slate-500">
+                    Hidden from regular members entirely -- doesn&apos;t appear
+                    on their check-in page or count toward their attendance.
+                  </span>
+                </span>
+              </label>
+
+              <div>
+                <label className="mb-1.5 block text-xs font-bold text-slate-500">
+                  Password <span className="font-medium">(optional)</span>
+                </label>
+                <input
+                  type="text"
+                  value={meetingDraft.checkin_password}
+                  onChange={(e) =>
+                    setMeetingDraft({
+                      ...meetingDraft,
+                      checkin_password: e.target.value,
+                    })
+                  }
+                  placeholder="Leave blank for no password"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm"
+                />
+                <p className="mt-1 text-[11px] text-slate-500">
+                  Required from everyone checking in, guest or member.
+                </p>
+              </div>
+
               {meetingError && (
                 <p className="text-sm text-red-600">{meetingError}</p>
               )}
@@ -1658,70 +1599,6 @@ export default function AdminDashboard({
         </div>
       )}
 
-      {/* NEW ORG MODAL */}
-      {showOrgModal && (
-        <div
-          className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/45 p-0 sm:items-center sm:p-4"
-          onClick={() => setShowOrgModal(false)}
-        >
-          <form
-            onSubmit={handleCreateOrg}
-            onClick={(e) => e.stopPropagation()}
-            className="max-h-[92dvh] w-full overflow-y-auto rounded-t-2xl bg-white p-5 sm:w-110 sm:max-w-[92vw] sm:rounded-2xl sm:p-7"
-          >
-            <div className="mb-4 text-lg font-extrabold">New Organization</div>
-            <div className="flex flex-col gap-3.5">
-              <div>
-                <label className="mb-1.5 block text-xs font-bold text-slate-500">
-                  Organization Name
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={orgDraft.name}
-                  onChange={(e) =>
-                    setOrgDraft({ ...orgDraft, name: e.target.value })
-                  }
-                  placeholder="Organization Name"
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm"
-                />
-              </div>
-              <div>
-                <label className="mb-1.5 block text-xs font-bold text-slate-500">
-                  Slug
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={orgDraft.slug}
-                  onChange={(e) =>
-                    setOrgDraft({ ...orgDraft, slug: e.target.value })
-                  }
-                  placeholder="e.g. acm"
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm"
-                />
-              </div>
-              {orgError && <p className="text-sm text-red-600">{orgError}</p>}
-            </div>
-            <div className="mt-5 flex flex-col-reverse gap-2.5 sm:flex-row sm:justify-end">
-              <button
-                type="button"
-                onClick={() => setShowOrgModal(false)}
-                className="cursor-pointer rounded-[9px] border border-slate-200 bg-white px-4.5 py-2.5 text-[13px] font-bold"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={creatingOrg}
-                className="cursor-pointer rounded-[9px] bg-brand-action px-4.5 py-2.5 text-[13px] font-bold text-white disabled:opacity-50"
-              >
-                {creatingOrg ? "Creating..." : "Create Organization"}
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
     </div>
   );
 }

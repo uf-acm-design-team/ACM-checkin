@@ -6,6 +6,8 @@ import { useUser } from "@clerk/nextjs";
 import { createClient } from "../utils/supabase/client";
 import { completeOnboarding, syncOnboardingStatus } from "./actions";
 
+const MAX_NAME_LENGTH = 50;
+
 export default function OnboardingPage() {
   const { user, isLoaded } = useUser();
   const [firstName, setFirstName] = useState("");
@@ -83,6 +85,28 @@ export default function OnboardingPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+
+    const trimmedFirstName = firstName.trim();
+    const trimmedLastName = lastName.trim();
+    const trimmedGradYear = gradYear.trim();
+
+    //ensure the name is valid, configurable in case of outliers and we have to update lol
+    if (trimmedFirstName.length === 0 || trimmedFirstName.length > MAX_NAME_LENGTH) {
+      setError(`First name must be between 1 and ${MAX_NAME_LENGTH} characters.`);
+      return;
+    }
+
+    if (trimmedLastName.length === 0 || trimmedLastName.length > MAX_NAME_LENGTH) {
+      setError(`Last name must be between 1 and ${MAX_NAME_LENGTH} characters.`);
+      return;
+    }
+
+    //ensure the grad year is a number
+    if (!/^\d+$/.test(trimmedGradYear)) {
+      setError("Grad year must be a number.");
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -105,9 +129,9 @@ export default function OnboardingPage() {
       const { error: insertError } = await supabase.from("attendees").insert({
         user_id: user.id,
         email: user.primaryEmailAddress?.emailAddress || "",
-        first_name: firstName.trim(),
-        last_name: lastName.trim(),
-        grad_year: gradYear.trim(),
+        first_name: trimmedFirstName,
+        last_name: trimmedLastName,
+        grad_year: trimmedGradYear,
       });
 
       if (insertError) {
@@ -117,8 +141,8 @@ export default function OnboardingPage() {
 
       // Update Clerk user metadata with the name
       await user.update({
-        firstName: firstName.trim(),
-        lastName: lastName.trim(),
+        firstName: trimmedFirstName,
+        lastName: trimmedLastName,
       });
 
       // Flip the onboarding flag the proxy gates on. This must happen before
@@ -179,6 +203,7 @@ export default function OnboardingPage() {
               value={firstName}
               onChange={(e) => setFirstName(e.target.value)}
               required
+              maxLength={MAX_NAME_LENGTH}
               className="w-full bg-white/20 placeholder-white/70 text-white font-semibold py-3 px-4 rounded-lg focus:outline-none focus:ring-2 focus:ring-white/50 transition-all duration-200 backdrop-blur-sm border border-white/30"
             />
           </div>
@@ -189,16 +214,19 @@ export default function OnboardingPage() {
               value={lastName}
               onChange={(e) => setLastName(e.target.value)}
               required
+              maxLength={MAX_NAME_LENGTH}
               className="w-full bg-white/20 placeholder-white/70 text-white font-semibold py-3 px-4 rounded-lg focus:outline-none focus:ring-2 focus:ring-white/50 transition-all duration-200 backdrop-blur-sm border border-white/30"
             />
           </div>
           <div>
             <input
               type="text"
+              inputMode="numeric"
               placeholder="Grad Year (e.g., 2027)"
               value={gradYear}
-              onChange={(e) => setGradYear(e.target.value)}
+              onChange={(e) => setGradYear(e.target.value.replace(/\D/g, ""))}
               required
+              maxLength={4}
               className="w-full bg-white/20 placeholder-white/70 text-white font-semibold py-3 px-4 rounded-lg focus:outline-none focus:ring-2 focus:ring-white/50 transition-all duration-200 backdrop-blur-sm border border-white/30"
             />
           </div>

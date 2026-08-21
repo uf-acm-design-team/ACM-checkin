@@ -169,7 +169,7 @@ export default function OrgPage({
             <p className="mt-2.5 text-center text-sm text-white/70">
               {attendanceCount >= threshold ? (
                 <span className="font-semibold text-emerald-200">
-                  You&apos;re a member
+                  You're a member
                 </span>
               ) : (
                 <>

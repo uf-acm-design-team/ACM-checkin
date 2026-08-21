@@ -51,6 +51,7 @@ type Meeting = {
   latitude: number | null;
   longitude: number | null;
   radius_meters: number | null;
+  is_officer_only: boolean;
   form_schema: unknown;
 };
 
@@ -64,6 +65,12 @@ type Settings = {
   latitude: string;
   longitude: string;
   radius_meters: string;
+  is_officer_only: boolean;
+  // The actual current password (empty string = none). checkin_password is
+  // column-locked from plain SELECT (see 20260826000000), so this is fetched
+  // separately via the get_meeting_password() RPC in load() rather than
+  // coming back with the rest of the row.
+  checkin_password: string;
 };
 
 const EDITOR_TABS = [
@@ -110,7 +117,7 @@ export default function MeetingEditor({
     const { data, error: fetchError } = await supabase
       .from("meetings")
       .select(
-        "id, org_id, title, description, start_time, end_time, status, is_geo_locked, latitude, longitude, radius_meters, form_schema",
+        "id, org_id, title, description, start_time, end_time, status, is_geo_locked, latitude, longitude, radius_meters, is_officer_only, form_schema",
       )
       .eq("id", meetingId)
       .maybeSingle();
@@ -125,6 +132,16 @@ export default function MeetingEditor({
 
     const m = data as Meeting;
     const parsed = parseSchema(m.form_schema);
+
+    // checkin_password is column-locked from the plain SELECT above (see
+    // 20260826000000_meeting_levels_and_password.sql) -- fetched separately
+    // through the officer-gated RPC. A failure here (e.g. a non-officer
+    // somehow reaching this page) just leaves it blank rather than blocking
+    // the rest of the editor.
+    const { data: password } = await supabase.rpc("get_meeting_password", {
+      p_meeting_id: meetingId,
+    });
+
     const nextSettings: Settings = {
       title: m.title,
       description: m.description ?? "",
@@ -138,6 +155,8 @@ export default function MeetingEditor({
       latitude: m.latitude?.toString() ?? "",
       longitude: m.longitude?.toString() ?? "",
       radius_meters: (m.radius_meters ?? 200).toString(),
+      is_officer_only: m.is_officer_only,
+      checkin_password: password ?? "",
     };
 
     setMeeting(m);
@@ -320,6 +339,8 @@ export default function MeetingEditor({
           latitude: settings.is_geo_locked ? Number(lat) : null,
           longitude: settings.is_geo_locked ? Number(lng) : null,
           radius_meters: settings.is_geo_locked ? radius : null,
+          is_officer_only: settings.is_officer_only,
+          checkin_password: settings.checkin_password.trim() || null,
           form_schema: cleanSchema,
         })
         .eq("id", meeting.id);
@@ -596,6 +617,39 @@ export default function MeetingEditor({
                 </div>
               )}
             </div>
+
+            <label className="flex cursor-pointer items-start gap-2.5 rounded-lg border border-slate-200 p-3">
+              <input
+                type="checkbox"
+                checked={settings.is_officer_only}
+                onChange={(e) =>
+                  setSettings({ ...settings, is_officer_only: e.target.checked })
+                }
+                className="mt-0.5"
+              />
+              <span className="text-sm">
+                <span className="font-bold">Officers only</span>
+                <span className="block text-xs text-slate-500">
+                  Hidden from regular members entirely -- doesn&apos;t appear on
+                  their check-in page or count toward their attendance.
+                </span>
+              </span>
+            </label>
+
+            <Field label="Password" optional>
+              <input
+                type="text"
+                value={settings.checkin_password}
+                onChange={(e) =>
+                  setSettings({ ...settings, checkin_password: e.target.value })
+                }
+                placeholder="Leave blank for no password"
+                className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm"
+              />
+              <p className="mt-1 text-[11px] text-slate-500">
+                Required from everyone checking in, guest or member.
+              </p>
+            </Field>
           </div>
         )}
 
