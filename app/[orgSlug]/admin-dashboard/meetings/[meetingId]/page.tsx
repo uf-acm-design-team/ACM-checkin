@@ -22,6 +22,7 @@ import {
   downloadCsv,
   type AttendanceRow,
 } from "@/lib/attendance-csv";
+import { toDateTimeLocal, fromDateTimeLocal } from "@/lib/meeting-time";
 import { ResponsesPanel } from "./responses-panel";
 
 /**
@@ -93,7 +94,10 @@ export default function MeetingEditor({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [meeting, setMeeting] = useState<Meeting | null>(null);
-  const [activeTab, setActiveTab] = useState<EditorTab>("questions");
+  // Settings, not Questions. Questions are optional -- a meeting with none
+  // is a normal, fully working attendance-only meeting -- and opening on an
+  // empty builder framed them as a step the officer still owed.
+  const [activeTab, setActiveTab] = useState<EditorTab>("settings");
 
   // Draft state. `saved*` mirrors what is in the database so dirty state is a
   // comparison rather than a flag that has to be cleared everywhere.
@@ -145,11 +149,13 @@ export default function MeetingEditor({
     const nextSettings: Settings = {
       title: m.title,
       description: m.description ?? "",
-      // <input type="datetime-local"> wants "YYYY-MM-DDTHH:mm". start_time is a
-      // timestamp WITHOUT time zone, so slice rather than round-tripping through
-      // Date, which would shift by the viewer's UTC offset.
-      start_time: m.start_time ? m.start_time.slice(0, 16) : "",
-      end_time: m.end_time ? m.end_time.slice(0, 16) : "",
+      // start_time/end_time are timestamptz, so the raw string carries a UTC
+      // offset. Slicing its first 16 characters (what this used to do, back
+      // when the column was tz-less Eastern wall clock) would prefill the UTC
+      // time -- 7:00 PM for a 3:00 PM meeting -- and saving would push it four
+      // hours later on every visit.
+      start_time: toDateTimeLocal(m.start_time),
+      end_time: toDateTimeLocal(m.end_time),
       status: m.status,
       is_geo_locked: m.is_geo_locked,
       latitude: m.latitude?.toString() ?? "",
@@ -305,6 +311,16 @@ export default function MeetingEditor({
       return;
     }
 
+    // Convert up front so an unparseable value is caught here rather than
+    // becoming a NULL start_time in the database.
+    const startIso = fromDateTimeLocal(settings.start_time);
+    const endIso = fromDateTimeLocal(settings.end_time);
+    if (!startIso || !endIso) {
+      setActiveTab("settings");
+      setSaveError("Enter a valid start and end time.");
+      return;
+    }
+
     const lat = settings.latitude.trim();
     const lng = settings.longitude.trim();
     if (settings.is_geo_locked && (!lat || !lng)) {
@@ -330,8 +346,11 @@ export default function MeetingEditor({
         .update({
           title: settings.title.trim(),
           description: settings.description.trim() || null,
-          start_time: settings.start_time,
-          end_time: settings.end_time,
+          // Sent as explicit instants. A bare "YYYY-MM-DDTHH:mm" would be
+          // interpreted in the SERVER's zone (UTC on Supabase), storing 3:00 PM
+          // Eastern as 3:00 PM UTC.
+          start_time: startIso,
+          end_time: endIso,
           status: settings.status,
           is_geo_locked: settings.is_geo_locked,
           // Only persist coordinates while geolocking is on, so un-geolocking

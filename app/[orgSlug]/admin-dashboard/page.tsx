@@ -9,6 +9,7 @@ import { useBranding } from "@/app/components/BrandingProvider";
 import { resolveBranding } from "@/lib/branding";
 import AuditLogView from "@/app/components/AuditLogView";
 import MembersTab from "./members-tab";
+import { roleBadgeLabel } from "@/lib/org-roles";
 import BrandingTab from "./branding-tab";
 import {
   parseAnswers,
@@ -16,6 +17,7 @@ import {
   type AnswerMap,
   type FormSchema,
 } from "@/lib/form-schema";
+import { fromDateTimeLocal } from "@/lib/meeting-time";
 import {
   attendanceFilename,
   buildAttendanceCsv,
@@ -489,6 +491,15 @@ export default function AdminDashboard({
       return;
     }
 
+    // Convert to instants before anything else so an unparseable value is
+    // caught here rather than becoming a NULL start_time in the database.
+    const startIso = fromDateTimeLocal(meetingDraft.start_time);
+    const endIso = fromDateTimeLocal(meetingDraft.end_time);
+    if (!startIso || !endIso) {
+      setMeetingError("Enter a valid start and end time.");
+      return;
+    }
+
     const lat = meetingDraft.latitude.trim();
     const lng = meetingDraft.longitude.trim();
     if (meetingDraft.is_geo_locked && (!lat || !lng)) {
@@ -512,8 +523,10 @@ export default function AdminDashboard({
     const payload = {
       title: meetingDraft.title.trim(),
       description: meetingDraft.description.trim() || null,
-      start_time: meetingDraft.start_time,
-      end_time: meetingDraft.end_time,
+      // Explicit instants -- see lib/meeting-time.ts. The bare datetime-local
+      // string would be read in the server's zone (UTC), not the club's.
+      start_time: startIso,
+      end_time: endIso,
       status: meetingDraft.status,
       is_geo_locked: meetingDraft.is_geo_locked,
       latitude: meetingDraft.is_geo_locked ? Number(lat) : null,
@@ -722,6 +735,8 @@ export default function AdminDashboard({
   const selectedMeeting = meetings.find((m) => m.id === attendanceMeetingId);
   const selectedCheckIns = checkIns[attendanceMeetingId ?? ""];
 
+  const roleBadge = roleBadgeLabel(membershipRole, isGlobalAdmin);
+
   const userInitials = initials(
     user?.fullName || user?.primaryEmailAddress?.emailAddress || "?"
   );
@@ -890,6 +905,11 @@ export default function AdminDashboard({
                 year: "numeric",
               })}
             </span>
+            {roleBadge && (
+              <span className="hidden rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-bold text-slate-600 sm:inline">
+                {roleBadge}
+              </span>
+            )}
             <div className="flex h-9 w-9 flex-none items-center justify-center rounded-full bg-brand-action text-[13px] font-bold text-white">
               {userInitials}
             </div>
@@ -1343,7 +1363,8 @@ export default function AdminDashboard({
           >
             <div className="mb-1 text-lg font-extrabold">New Meeting</div>
             <p className="mb-4 text-xs text-slate-500">
-              You&apos;ll add check-in questions on the next screen.
+              This is all a meeting needs. You can optionally add check-in
+              questions afterwards.
             </p>
             <div className="flex flex-col gap-3.5">
               <div>

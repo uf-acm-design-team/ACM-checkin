@@ -114,11 +114,11 @@ export function FormBuilder({
       {schema.length === 0 ? (
         <div className="rounded-[14px] border border-dashed border-slate-300 bg-white p-10 text-center">
           <p className="text-sm font-semibold text-slate-600">
-            No questions yet.
+            No questions — attendance only.
           </p>
           <p className="mt-1 text-xs text-slate-500">
-            Attendees will just tap “Check In”. Add a question to collect
-            something at the door.
+            This meeting is ready to use. Attendees just tap “Check In”. Add a
+            question below only if you want to collect something at the door.
           </p>
         </div>
       ) : (
