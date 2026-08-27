@@ -3,14 +3,22 @@ import { NextResponse } from "next/server";
 
 // Routes that don't require authentication
 const isPublicRoute = createRouteMatcher([
+  // The landing page is a real entry page, not a redirector. A signed-out
+  // visitor who scanned a poster (rather than a QR code) arrives here to find
+  // their club, so it must render without bouncing to sign-in.
+  "/",
   "/sign-in(.*)",
   "/sign-up(.*)",
   "/(.*)/checkin", // guest check-in is public
+  // Dev-only visual harness for the check-in states; the page itself 404s
+  // outside development.
+  "/(.*)/checkin/states-preview",
 ]);
 
 // Routes a signed-in user may visit before completing their attendee profile.
 // /onboarding itself must be reachable or the redirect below would loop.
 const isOnboardingExempt = createRouteMatcher([
+  "/",
   "/onboarding(.*)",
   "/sign-in(.*)",
   "/sign-up(.*)",

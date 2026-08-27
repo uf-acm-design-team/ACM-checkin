@@ -3,7 +3,7 @@ import { resolveBranding, brandingToCssVars } from "@/lib/branding";
 import { BrandingProvider } from "@/app/components/BrandingProvider";
 
 // Server component. Fetches an org's name + branding by slug, injects the
-// resolved colors as :root CSS variables (so the ancestor ParticlesLayout
+// resolved colors as :root CSS variables (so the ancestor AppBackground
 // picks them up), and provides name/logo to client descendants via context.
 //
 // Branding is public (RLS is disabled), so the anon supabase-js client is

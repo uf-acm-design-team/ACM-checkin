@@ -18,6 +18,27 @@
   --brand-action: #fa4616;
   --text-main: #ffffff;
   --particle-color: #ffffff;
+  /* Derived by inkOn() in lib/branding.ts, mirrored here for the default theme.
+     Text that sits ON --brand-action: near-black, because the default orange
+     only makes 3.0:1 against white. */
+  --brand-action-ink: #1a0800;
+  /* Text that sits ON --brand-background. White for the default blue; flips to
+     near-black for orgs that store a light background. */
+  --surface-ink: #ffffff;
+
+  /* The officer console (option 1b: split system with a shared spine). A
+     neutral light surface, deliberately NOT branded -- seven-column tables stay
+     legible on any org's palette, with brand held in the rail and primary
+     button only. Fixed, so org branding never reaches these. */
+  --console-canvas: #fafaf9;
+  --console-ink: #18181b;
+
+  /* Shared spine. The two surfaces differ in colour and density, never in type
+     scale or geometry, so a component's anatomy is the same on both sides. */
+  --radius-phone: 22px;
+  --radius-card: 12px;
+  --radius-control: 8px;
+  --radius-pill: 99px;
 }
 
 @theme inline {
@@ -31,9 +52,18 @@
   --color-brand-background: var(--brand-background);
   --color-brand-background-secondary: var(--brand-background-secondary);
   --color-brand-action: var(--brand-action);
+  --color-brand-action-ink: var(--brand-action-ink);
+  --color-surface-ink: var(--surface-ink);
   --color-text-main: var(--text-main);
+  --color-console-canvas: var(--console-canvas);
+  --color-console-ink: var(--console-ink);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+
+  --radius-phone: var(--radius-phone);
+  --radius-card: var(--radius-card);
+  --radius-control: var(--radius-control);
+  --radius-pill: var(--radius-pill);
 }
 
 @media (prefers-color-scheme: dark) {

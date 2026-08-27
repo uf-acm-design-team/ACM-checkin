@@ -42,7 +42,8 @@ const ORG_COLOR_FIELDS = [
   { key: "colorBackgroundSecondary", label: "Background (secondary)" },
   { key: "colorAccent", label: "Accent" },
   { key: "colorText", label: "Text" },
-  { key: "particleColor", label: "Particles" },
+  // No "Particles" row: the field is still sent to create-org (which requires
+  // it) but is no longer rendered anywhere, so there's nothing to configure.
 ] as const satisfies ReadonlyArray<{ key: keyof OrgDraft; label: string }>;
 
 const TABS = [

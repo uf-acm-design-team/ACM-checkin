@@ -28,7 +28,6 @@ export default function BrandingTab({ orgId, branding, onSaved }: BrandingTabPro
   const { getToken } = useAuth();
 
   const [colors, setColors] = useState(branding.colors);
-  const [particleColor, setParticleColor] = useState(branding.particleColor);
   const [crestFile, setCrestFile] = useState<File | null>(null);
   const [wordmarkFile, setWordmarkFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
@@ -55,7 +54,9 @@ export default function BrandingTab({ orgId, branding, onSaved }: BrandingTabPro
       body.set("color_background_secondary", colors.backgroundSecondary);
       body.set("color_accent", colors.accent);
       body.set("color_text", colors.text);
-      body.set("particle_color", particleColor);
+      // Particles no longer render, but the edge function still expects this
+      // field -- send the stored value back unchanged rather than blanking it.
+      body.set("particle_color", branding.particleColor);
       if (crestFile) body.set("crest", crestFile);
       if (wordmarkFile) body.set("wordmark", wordmarkFile);
 
@@ -141,18 +142,6 @@ export default function BrandingTab({ orgId, branding, onSaved }: BrandingTabPro
               </div>
             ))}
           </div>
-        </div>
-
-        <div>
-          <label className="mb-1.5 block text-xs font-bold text-slate-500">
-            Particle color
-          </label>
-          <input
-            type="color"
-            value={particleColor}
-            onChange={(e) => setParticleColor(e.target.value)}
-            className="h-9 w-20 cursor-pointer rounded-md border border-slate-200"
-          />
         </div>
 
         <div className="grid grid-cols-2 gap-2.5">

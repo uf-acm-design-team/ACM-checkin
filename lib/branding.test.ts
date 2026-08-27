@@ -1,5 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
+  contrastRatio,
+  inkOn,
   resolveBranding,
   brandingToCssVars,
   DEFAULT_BRANDING,
@@ -72,5 +74,52 @@ describe("brandingToCssVars", () => {
     expect(css).toContain(`--brand-action:${DEFAULT_BRANDING.colors.accent}`);
     expect(css).not.toContain("<script>");
     expect(css).not.toContain("</style>");
+  });
+});
+
+describe("inkOn", () => {
+  it("picks near-black on the default orange, which fails white at 3.0:1", () => {
+    // The whole reason --brand-action-ink exists.
+    expect(contrastRatio("#FA4616", "#FFFFFF")).toBeLessThan(4.5);
+    expect(inkOn("#FA4616")).toBe("#1A0800");
+  });
+
+  it("picks white on dark/saturated actions", () => {
+    expect(inkOn("#0021A5")).toBe("#FFFFFF"); // UF blue
+    expect(inkOn("#4C1D95")).toBe("#FFFFFF"); // ColorStack deep purple
+  });
+
+  it("picks near-black on light actions", () => {
+    expect(inkOn("#FFFFFF")).toBe("#1A0800");
+    expect(inkOn("#FDE047")).toBe("#1A0800");
+  });
+
+  it("always clears 4.5:1 with the ink it chose", () => {
+    for (const c of ["#FA4616", "#0021A5", "#4C1D95", "#FDE047", "#22C55E", "#EC4899"]) {
+      expect(contrastRatio(c, inkOn(c))).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+
+  it("handles 3-digit hex", () => {
+    expect(inkOn("#fff")).toBe("#1A0800");
+    expect(inkOn("#000")).toBe("#FFFFFF");
+  });
+});
+
+describe("brandingToCssVars — derived tokens", () => {
+  it("emits action-ink and surface-ink", () => {
+    const css = brandingToCssVars(DEFAULT_BRANDING);
+    expect(css).toContain("--brand-action-ink:#1A0800");
+    expect(css).toContain("--surface-ink:#FFFFFF");
+  });
+
+  it("derives from the org's stored accent, not the default", () => {
+    const b = resolveBranding({
+      colors: { accent: "#4C1D95", background: "#FFFFFF" },
+    });
+    const css = brandingToCssVars(b);
+    expect(css).toContain("--brand-action-ink:#FFFFFF");
+    // A light stored background flips the public surface ink to near-black.
+    expect(css).toContain("--surface-ink:#1A0800");
   });
 });
