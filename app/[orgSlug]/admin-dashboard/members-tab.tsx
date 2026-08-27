@@ -2,68 +2,18 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createClient } from "../../utils/supabase/client";
-
-// Role hierarchy for the confirmed permission matrix (see
-// supabase/migrations/20260824000000_member_management_and_coowner.sql for
-// the server-side source of truth -- this file only mirrors it for UX, every
-// rule here is re-enforced by the RPCs regardless of what renders).
-const ROLE_LEVEL: Record<string, number> = {
-  member: 0,
-  officer: 1,
-  "co-owner": 2,
-  owner: 3,
-};
-const ROLE_LABEL: Record<string, string> = {
-  member: "Member",
-  officer: "Officer",
-  "co-owner": "Co-owner",
-  owner: "Owner",
-};
-const ROLE_ORDER = ["member", "officer", "co-owner"] as const;
-
-// One tier at a time -- a single Promote/Demote button per row rather than a
-// button per reachable target role.
-const NEXT_ROLE_UP: Record<string, string | undefined> = {
-  member: "officer",
-  officer: "co-owner",
-};
-const NEXT_ROLE_DOWN: Record<string, string | undefined> = {
-  "co-owner": "officer",
-  officer: "member",
-};
-
-function callerLevel(membershipRole: string | null, isGlobalAdmin: boolean) {
-  if (isGlobalAdmin) return ROLE_LEVEL.owner;
-  return ROLE_LEVEL[membershipRole ?? ""] ?? -1;
-}
-
-// Mirrors set_member_role's promotion ceiling: officers can promote up to
-// officer only; co-owner/owner up to co-owner.
-function promoteTarget(targetRole: string, level: number): string | null {
-  const next = NEXT_ROLE_UP[targetRole];
-  if (!next) return null;
-  return level >= 1 && ROLE_LEVEL[next] <= level ? next : null;
-}
-
-// Mirrors set_member_role's demotion rule: co-owner/owner only, except
-// demoting an owner is admin-only (20260825000000_admin_demote_owner.sql).
-function demoteTarget(
-  targetRole: string,
-  level: number,
-  isGlobalAdmin: boolean,
-): string | null {
-  if (targetRole === "owner") return isGlobalAdmin ? "co-owner" : null;
-  const next = NEXT_ROLE_DOWN[targetRole];
-  if (!next) return null;
-  return level >= 2 ? next : null;
-}
-
-// Mirrors remove_org_member's branches exactly.
-function canRemove(targetRole: string, level: number, isGlobalAdmin: boolean) {
-  if (targetRole === "owner") return isGlobalAdmin;
-  if (targetRole === "co-owner" || targetRole === "officer") return level >= 2;
-  return level >= 1;
-}
+// Permission matrix mirror -- pure, unit-tested, and documented against the
+// RPCs that actually enforce these rules. See lib/org-roles.ts.
+import {
+  ROLE_LEVEL,
+  ROLE_LABEL,
+  ROLE_ORDER,
+  appointmentCeiling,
+  callerLevel,
+  canRemove,
+  demoteTarget,
+  promoteTarget,
+} from "@/lib/org-roles";
 
 interface Member {
   user_id: string;
@@ -105,6 +55,8 @@ export default function MembersTab({
 }: MembersTabProps) {
   const supabase = createClient();
   const level = callerLevel(membershipRole, isGlobalAdmin);
+  // What the caller may GRANT, which is now narrower than what they hold.
+  const ceiling = appointmentCeiling(membershipRole, isGlobalAdmin);
 
   const [members, setMembers] = useState<Member[]>([]);
   const [membersLoading, setMembersLoading] = useState(true);
@@ -206,8 +158,8 @@ export default function MembersTab({
   );
 
   const invitableRoles = useMemo(
-    () => ROLE_ORDER.filter((role) => ROLE_LEVEL[role] <= level),
-    [level],
+    () => ROLE_ORDER.filter((role) => ROLE_LEVEL[role] <= ceiling),
+    [ceiling],
   );
 
   const handleInvite = async (e: React.FormEvent) => {
@@ -363,7 +315,7 @@ export default function MembersTab({
               Transfer ownership
             </button>
           )}
-          {level >= 1 && (
+          {ceiling >= 0 && (
             <button
               onClick={() => {
                 setInviteError(null);
@@ -397,7 +349,7 @@ export default function MembersTab({
           </div>
         ) : filteredMembers.length > 0 ? (
           filteredMembers.map((mem) => {
-            const promoteRole = promoteTarget(mem.role, level);
+            const promoteRole = promoteTarget(mem.role, ceiling);
             const demoteRole = demoteTarget(mem.role, level, isGlobalAdmin);
             const removable = canRemove(mem.role, level, isGlobalAdmin);
             const busy = busyUserId === mem.user_id;
@@ -518,6 +470,15 @@ export default function MembersTab({
                     </option>
                   ))}
                 </select>
+                {/* Say why the higher roles are absent. Without this the
+                    select just silently lacks them and reads as a bug. */}
+                {ceiling < ROLE_LEVEL["co-owner"] && (
+                  <p className="mt-1.5 text-[11px] text-slate-500">
+                    {ceiling < ROLE_LEVEL.officer
+                      ? "Only the owner can appoint officers, and only a global admin can appoint co-owners."
+                      : "Only a global admin can appoint co-owners."}
+                  </p>
+                )}
               </div>
               {inviteError && <p className="text-sm text-red-600">{inviteError}</p>}
             </div>

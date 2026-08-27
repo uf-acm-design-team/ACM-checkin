@@ -56,8 +56,8 @@ SELECT
     WHEN 'acm' THEN 'ACM Workshop'
     WHEN 'colorstack' THEN 'ColorStack Community Meetup'
   END,
-  (now() - interval '15 minutes')::timestamp,
-  (now() + interval '45 minutes')::timestamp,
+  (now() - interval '15 minutes'),
+  (now() + interval '45 minutes'),
   true,
   -- Covers several question types so the check-in form and the Responses
   -- summary can both be exercised locally without hand-building a form.
@@ -89,8 +89,8 @@ SELECT
     WHEN 'acm' THEN 'ACM Past Event'
     WHEN 'colorstack' THEN 'ColorStack Past Event'
   END,
-  (now() - interval '14 days')::timestamp,
-  (now() - interval '14 days' + interval '1 hour')::timestamp,
+  (now() - interval '14 days'),
+  (now() - interval '14 days' + interval '1 hour'),
   false,
   -- Attendance-only meeting: check-in is a single tap, no form.
   '[]'::jsonb

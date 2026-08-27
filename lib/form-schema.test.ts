@@ -8,6 +8,7 @@ import {
   retypeQuestion,
   newQuestionId,
   formatAnswer,
+  hasQuestions,
   canEditStructurally,
   MAX_QUESTIONS,
   MAX_SHORT_TEXT_LENGTH,
@@ -350,5 +351,45 @@ describe("id-keyed answers survive edits that positional keys would not", () => 
       q({ id: "q_b", label: "Grad year" }),
     ];
     expect(validateAnswers(reworded, answers).answers).toEqual(answers);
+  });
+});
+
+describe("a meeting with no questions is fully valid", () => {
+  // Questions are OPTIONAL. An attendance-only meeting is the normal case, not
+  // a half-configured one -- an officer must be able to create a meeting and
+  // never open the form builder at all. These guard against a future change
+  // that makes the builder mandatory.
+
+  it("saves with an empty schema", () => {
+    expect(validateSchema([])).toEqual([]);
+  });
+
+  it("normalizes an empty schema to an empty array, not null", () => {
+    // The column is NOT NULL DEFAULT '[]', so a null here would fail the insert.
+    expect(normalizeSchema([])).toEqual([]);
+  });
+
+  it("reads a missing or null form_schema as no questions", () => {
+    expect(parseSchema(null)).toEqual([]);
+    expect(parseSchema(undefined)).toEqual([]);
+  });
+
+  it("lets a check-in through with no answers submitted", () => {
+    const result = validateAnswers([], {});
+    expect(result.ok).toBe(true);
+    expect(result.answers).toEqual({});
+    expect(result.errors).toEqual({});
+  });
+
+  it("still lets a check-in through if stray answers are submitted", () => {
+    // e.g. the officer deleted every question while someone had the page open.
+    const result = validateAnswers([], { q_gone: "orphan" });
+    expect(result.ok).toBe(true);
+    expect(result.answers).toEqual({});
+  });
+
+  it("reports the meeting as having no questions", () => {
+    expect(hasQuestions([])).toBe(false);
+    expect(hasQuestions(parseSchema(null))).toBe(false);
   });
 });
