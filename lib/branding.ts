@@ -38,6 +38,57 @@ export const DEFAULT_BRANDING: Branding = {
 
 const HEX = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
 
+// Ink colors for the two derived contrast tokens. Near-black rather than pure
+// black: on a mid-chroma action colour (orange, amber, lime) #1A0800 reads as
+// intentional type rather than a hole punched in the button.
+const INK_DARK = "#1A0800";
+const INK_LIGHT = "#FFFFFF";
+
+/** Expand #abc to #aabbcc and return the r/g/b bytes. Assumes HEX-validated input. */
+function toRgb(value: string): [number, number, number] {
+  let h = value.slice(1);
+  if (h.length === 3) h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2];
+  return [
+    parseInt(h.slice(0, 2), 16),
+    parseInt(h.slice(2, 4), 16),
+    parseInt(h.slice(4, 6), 16),
+  ];
+}
+
+/** WCAG relative luminance (sRGB, D65). */
+function luminance(value: string): number {
+  const channel = (byte: number) => {
+    const c = byte / 255;
+    return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+  };
+  const [r, g, b] = toRgb(value);
+  return 0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b);
+}
+
+/** WCAG contrast ratio between two hex colors. Always >= 1. */
+export function contrastRatio(a: string, b: string): number {
+  const la = luminance(a);
+  const lb = luminance(b);
+  const [hi, lo] = la >= lb ? [la, lb] : [lb, la];
+  return (hi + 0.05) / (lo + 0.05);
+}
+
+/**
+ * Pick the readable text colour to sit on `surface`.
+ *
+ * This is the one token an officer never chooses. Mid-chroma brand colours are
+ * the trap: UF orange (#FA4616) against white is only 3.0:1 — under the 4.5:1
+ * AA threshold for the button labels it gets used for — while the same orange
+ * against near-black clears it comfortably. Picking the higher-contrast of the
+ * two inks means a club can store any accent hex and still get a legible
+ * button, instead of the branding tab having to police their palette.
+ */
+export function inkOn(surface: string): string {
+  return contrastRatio(surface, INK_LIGHT) >= contrastRatio(surface, INK_DARK)
+    ? INK_LIGHT
+    : INK_DARK;
+}
+
 const hex = (value: unknown, fallback: string): string =>
   typeof value === "string" && HEX.test(value) ? value : fallback;
 
@@ -82,7 +133,14 @@ export function brandingToCssVars(b: Branding): string {
     `--brand-background:${c.background}`,
     `--brand-background-secondary:${c.backgroundSecondary}`,
     `--brand-action:${c.accent}`,
+    // Derived, never stored: the readable ink for text sitting ON the action
+    // colour. See inkOn() for why this can't be a fixed white.
+    `--brand-action-ink:${inkOn(c.accent)}`,
     `--text-main:${c.text}`,
+    // Same derivation for the branded surface. A club whose text token is dark
+    // is really asking for a light public surface, and the check-in card's
+    // hairlines/muted text have to flip with it rather than staying white-alpha.
+    `--surface-ink:${inkOn(c.background)}`,
     `--particle-color:${b.particleColor}`,
   ].join(";");
 }

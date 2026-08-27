@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { ClerkProvider } from "@clerk/nextjs";
 import "./globals.css";
-import ParticlesLayout from "./components/ParticlesLayout";
+import AppBackground from "./components/AppBackground";
 import DeveloperShortcut from "./components/DeveloperShortcut";
 import { clerkAppearance } from "@/lib/clerk-appearance";
 
@@ -43,8 +43,7 @@ export default function RootLayout({
         <body
           className={`${geistSans.variable} ${geistMono.variable} antialiased`}
         >
-          {/* in layout to avoid rerendering during state changes*/}
-          <ParticlesLayout>{children}</ParticlesLayout>
+          <AppBackground>{children}</AppBackground>
           <DeveloperShortcut />
         </body>
       </html>
