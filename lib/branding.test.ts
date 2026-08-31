@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   contrastRatio,
   inkOn,
+  hasLogo,
   resolveBranding,
   brandingToCssVars,
   DEFAULT_BRANDING,
@@ -121,5 +122,53 @@ describe("brandingToCssVars — derived tokens", () => {
     expect(css).toContain("--brand-action-ink:#FFFFFF");
     // A light stored background flips the public surface ink to near-black.
     expect(css).toContain("--surface-ink:#1A0800");
+  });
+});
+
+describe("logo defaults to empty, never another org's crest", () => {
+  // An org that has uploaded no logo must show NO logo. Falling back to
+  // /acm-logo.png made every new club wear ACM's crest.
+
+  it("resolves a missing logo to empty strings", () => {
+    expect(resolveBranding({}).logo).toEqual({ crest: "", wordmark: "" });
+    expect(resolveBranding(null).logo).toEqual({ crest: "", wordmark: "" });
+  });
+
+  it("treats a blank or whitespace logo as absent", () => {
+    const result = resolveBranding({ logo: { crest: "", wordmark: "   " } });
+    expect(result.logo.crest).toBe("");
+    expect(result.logo.wordmark).toBe("");
+  });
+
+  it("keeps a real uploaded URL and trims it", () => {
+    const url = "https://x.supabase.co/storage/v1/object/public/org-logos/acm/crest-1.png";
+    expect(resolveBranding({ logo: { crest: `  ${url}  ` } }).logo.crest).toBe(url);
+  });
+
+  it("resolves each logo slot independently", () => {
+    const result = resolveBranding({ logo: { crest: "/x.png" } });
+    expect(result.logo.crest).toBe("/x.png");
+    expect(result.logo.wordmark).toBe("");
+  });
+
+  it("ships no logo in DEFAULT_BRANDING", () => {
+    expect(DEFAULT_BRANDING.logo.crest).toBe("");
+    expect(DEFAULT_BRANDING.logo.wordmark).toBe("");
+  });
+});
+
+describe("hasLogo", () => {
+  it("is false for empty and whitespace", () => {
+    expect(hasLogo("")).toBe(false);
+    expect(hasLogo("   ")).toBe(false);
+  });
+
+  it("is true for a real path or URL", () => {
+    expect(hasLogo("/acm-logo.png")).toBe(true);
+    expect(hasLogo("https://x.supabase.co/storage/v1/object/public/org-logos/a/b.png")).toBe(true);
+  });
+
+  it("guards the render sites -- an empty src would refetch the page as an image", () => {
+    expect(hasLogo(resolveBranding({}).logo.crest)).toBe(false);
   });
 });

@@ -69,6 +69,8 @@ type View =
   | { kind: "loading" }
   | { kind: "org_not_found" }
   | { kind: "no_meeting" }
+  // Several meetings open at once -- the attendee picks before the form.
+  | { kind: "choose_meeting" }
   | { kind: "form" }
   | { kind: "location_ask" }
   | { kind: "location_denied" }
@@ -136,6 +138,10 @@ export default function CheckinPage({
   } | null>(null);
   const [organization, setOrganization] = useState<Organization | null>(null);
   const [activeMeeting, setActiveMeeting] = useState<ActiveMeeting | null>(null);
+  // Every meeting open right now. Usually one; more when a club runs a workshop
+  // alongside a general body meeting. Kept so the attendee can switch back if
+  // they pick the wrong one.
+  const [openMeetings, setOpenMeetings] = useState<ActiveMeeting[]>([]);
   const [nextMeeting, setNextMeeting] = useState<{
     title: string;
     start_time: string;
@@ -171,6 +177,26 @@ export default function CheckinPage({
       delete next[questionId];
       return next;
     });
+  };
+
+  /**
+   * Commit to one of several open meetings.
+   *
+   * Clears the per-meeting state: each meeting has its own form_schema,
+   * password and geolock, so answers typed against one must not carry into
+   * another. The geolock explainer is reset too -- a different meeting may have
+   * a different radius, or none at all.
+   */
+  const selectMeeting = (meeting: ActiveMeeting) => {
+    setActiveMeeting(meeting);
+    setAnswers({});
+    setAnswerErrors({});
+    setCheckinPassword("");
+    setPasswordError(null);
+    setPasswordAttempts(0);
+    setCheckInError(null);
+    locationExplained.current = false;
+    setView({ kind: "form" });
   };
 
   const validateForm = (): AnswerMap | null => {
@@ -214,8 +240,7 @@ export default function CheckinPage({
       )
       .eq("org_id", org.id)
       .eq("status", true)
-      .order("start_time", { ascending: true })
-      .limit(1);
+      .order("start_time", { ascending: true });
 
     if (meetingError) {
       setView({
@@ -226,16 +251,21 @@ export default function CheckinPage({
       return;
     }
 
-    const meeting = meetings?.[0];
-    setActiveMeeting(
-      meeting
-        ? { ...meeting, form_schema: parseSchema(meeting.form_schema) }
-        : null,
-    );
+    const parsed = (meetings ?? []).map((m) => ({
+      ...m,
+      form_schema: parseSchema(m.form_schema),
+    }));
+    setOpenMeetings(parsed);
+
+    // Auto-select only when there is no ambiguity. With two meetings open,
+    // picking one for the attendee would quietly record them against a meeting
+    // they never chose -- so the picker below asks instead.
+    const meeting = parsed.length === 1 ? parsed[0] : undefined;
+    setActiveMeeting(meeting ?? null);
 
     // Nothing open: find what's next, so "arrived early" is a real screen with
     // a time on it rather than a shrug.
-    if (!meeting) {
+    if (parsed.length === 0) {
       const { data: upcoming } = await supabase
         .from("meetings")
         .select("title, start_time, description")
@@ -279,7 +309,13 @@ export default function CheckinPage({
       }
     }
 
-    setView(meeting ? { kind: "form" } : { kind: "no_meeting" });
+    setView(
+      parsed.length > 1
+        ? { kind: "choose_meeting" }
+        : meeting
+          ? { kind: "form" }
+          : { kind: "no_meeting" },
+    );
   }, [orgSlug, supabase, user]);
 
   useEffect(() => {
@@ -390,6 +426,9 @@ export default function CheckinPage({
         orgSlug,
         answers: validated,
         password: checkinPassword,
+        // Named explicitly so the server records the meeting the attendee
+        // actually chose, rather than re-deriving "the earliest open one".
+        meetingId: activeMeeting?.id,
       });
 
       if (!result.ok) {
@@ -432,6 +471,7 @@ export default function CheckinPage({
         email,
         answers: validated,
         password: checkinPassword,
+        meetingId: activeMeeting?.id,
         ...(withProfile ? { firstName, lastName, gradYear } : {}),
       });
 
@@ -510,6 +550,53 @@ export default function CheckinPage({
         onRetry={organization ? retry : () => window.location.reload()}
         busy={busy}
       />,
+    );
+
+  // Several meetings open at once. Ask rather than guess: recording someone
+  // against a meeting they did not pick is worse than one extra tap, and it is
+  // invisible to them when it goes wrong.
+  if (view.kind === "choose_meeting")
+    return shell(
+      <CheckinCard>
+        <Eyebrow>Choose a meeting</Eyebrow>
+        <p
+          className="m-0 mb-1 text-[14px] leading-relaxed"
+          style={{ color: ink(72) }}
+        >
+          {openMeetings.length} meetings are open right now. Pick the one
+          you&apos;re attending.
+        </p>
+        <div className="flex flex-col gap-2">
+          {openMeetings.map((m) => (
+            <button
+              key={m.id}
+              type="button"
+              onClick={() => selectMeeting(m)}
+              className="cursor-pointer rounded-xl border p-3 text-left transition-colors"
+              style={{ borderColor: ink(18) }}
+            >
+              <span className="block text-[15px] font-bold">{m.title}</span>
+              <span className="block text-[13px]" style={{ color: ink(66) }}>
+                {fmtTime(m.start_time)} – {fmtTime(m.end_time)}
+                {m.description ? ` · ${m.description}` : ""}
+              </span>
+              {(m.is_geo_locked || m.requires_checkin_password) && (
+                <span
+                  className="mt-1 block text-[12px]"
+                  style={{ color: ink(55) }}
+                >
+                  {[
+                    m.is_geo_locked ? "Location required" : null,
+                    m.requires_checkin_password ? "Password required" : null,
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+      </CheckinCard>,
     );
 
   if (view.kind === "no_meeting")
@@ -638,12 +725,27 @@ export default function CheckinPage({
   );
 
   const strip = (
-    <MeetingStrip
-      title={meeting.title}
-      when={`${fmtTime(meeting.start_time)} – ${fmtTime(meeting.end_time)}`}
-      where={meeting.description ?? undefined}
-      status={{ label: "Open now", tone: "live" }}
-    />
+    <>
+      <MeetingStrip
+        title={meeting.title}
+        when={`${fmtTime(meeting.start_time)} – ${fmtTime(meeting.end_time)}`}
+        where={meeting.description ?? undefined}
+        status={{ label: "Open now", tone: "live" }}
+      />
+      {/* Only when the choice was real. A wrong pick is otherwise a dead end:
+          the attendee would have to reload to get back to the list. */}
+      {openMeetings.length > 1 && (
+        <button
+          type="button"
+          onClick={() => setView({ kind: "choose_meeting" })}
+          disabled={busy}
+          className="-mt-1 mb-1 cursor-pointer self-start bg-transparent p-0 text-[13px] underline disabled:opacity-50"
+          style={{ color: ink(66) }}
+        >
+          Not this one? Choose a different meeting
+        </button>
+      )}
+    </>
   );
 
   const errorNotice = checkInError && (

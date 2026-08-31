@@ -1,4 +1,4 @@
-import { createClient } from "@/app/utils/supabase/client";
+import { createAnonSupabaseClient } from "@/app/utils/supabase/server";
 import { resolveBranding, brandingToCssVars } from "@/lib/branding";
 import { BrandingProvider } from "@/app/components/BrandingProvider";
 
@@ -6,8 +6,14 @@ import { BrandingProvider } from "@/app/components/BrandingProvider";
 // resolved colors as :root CSS variables (so the ancestor AppBackground
 // picks them up), and provides name/logo to client descendants via context.
 //
-// Branding is public (RLS is disabled), so the anon supabase-js client is
-// sufficient and no auth/cookies are needed for this read.
+// Uses the SERVER anon client. The browser client in utils/supabase/client.ts
+// is a module-level singleton whose accessToken callback returns null when
+// there is no window -- so on the server it carried no identity anyway, while
+// being shared across every concurrent request.
+//
+// Anon is still the right level: organizations are readable by anon under RLS
+// (orgs_public_read), which is required for the signed-out guest check-in page
+// to render an org's branding at all.
 export default async function OrgTheme({
   slug,
   children,
@@ -15,7 +21,7 @@ export default async function OrgTheme({
   slug: string;
   children: React.ReactNode;
 }) {
-  const supabase = createClient();
+  const supabase = createAnonSupabaseClient();
   const result = await supabase
     .from("organizations")
     .select("name, branding")

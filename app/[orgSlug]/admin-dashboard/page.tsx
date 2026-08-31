@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
 import { createClient } from "../../utils/supabase/client";
 import { useBranding } from "@/app/components/BrandingProvider";
-import { resolveBranding } from "@/lib/branding";
+import { hasLogo, resolveBranding } from "@/lib/branding";
 import AuditLogView from "@/app/components/AuditLogView";
 import MembersTab from "./members-tab";
 import { roleBadgeLabel } from "@/lib/org-roles";
@@ -782,11 +782,23 @@ export default function AdminDashboard({
         }`}
       >
         <div className="mb-5 flex items-center gap-2.5 px-2">
-          <img
-            src={branding.logo.crest}
-            alt={`${branding.name || organization.name} logo`}
-            className="h-9 w-9 flex-none rounded-[10px] bg-white/10 object-contain p-1"
-          />
+          {/* The sidebar header is a fixed two-column layout, so unlike the
+              public nav this keeps the slot filled: a monogram of the org name
+              rather than another club's crest. */}
+          {hasLogo(branding.logo.crest) ? (
+            <img
+              src={branding.logo.crest}
+              alt={`${branding.name || organization.name} logo`}
+              className="h-9 w-9 flex-none rounded-[10px] bg-white/10 object-contain p-1"
+            />
+          ) : (
+            <div
+              aria-hidden="true"
+              className="flex h-9 w-9 flex-none items-center justify-center rounded-[10px] bg-white/10 text-[13px] font-bold text-white"
+            >
+              {initials(branding.name || organization.name)}
+            </div>
+          )}
           <div className="min-w-0 leading-tight">
             <div className="truncate text-[15px] font-extrabold tracking-[0.2px]">
               {branding.name || organization.name}

@@ -5,6 +5,7 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
 import { createClient } from "../utils/supabase/client";
+import { hasLogo } from "@/lib/branding";
 import { useBranding } from "@/app/components/BrandingProvider";
 import { membershipThreshold } from "@/lib/membership";
 
@@ -115,15 +116,19 @@ export default function OrgPage({
   return (
     <div className="flex flex-col items-center justify-center min-h-[calc(100dvh-var(--org-nav-h))] px-4 py-8 sm:px-6">
       <div className="text-center mb-6 sm:mb-8">
-        <Image
-          src={logo.crest}
-          alt={`${organization.name} logo`}
-          width={96}
-          height={96}
-          className="mx-auto mb-4 h-20 w-20 object-contain drop-shadow-md sm:h-24 sm:w-24"
-          priority
-          unoptimized
-        />
+        {/* No logo uploaded -> render nothing. An empty src would resolve to
+            the page's own URL and request the HTML document as an image. */}
+        {hasLogo(logo.crest) && (
+          <Image
+            src={logo.crest}
+            alt={`${organization.name} logo`}
+            width={96}
+            height={96}
+            className="mx-auto mb-4 h-20 w-20 object-contain drop-shadow-md sm:h-24 sm:w-24"
+            priority
+            unoptimized
+          />
+        )}
         <h1 className="text-3xl font-bold text-white mb-2 wrap-break-word sm:text-4xl md:text-5xl">
           {organization.name}
         </h1>

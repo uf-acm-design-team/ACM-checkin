@@ -30,9 +30,14 @@ export const DEFAULT_BRANDING: Branding = {
     text: "#FFFFFF", // main text/foreground
   },
   particleColor: "#FFFFFF", // particle dots + connecting lines
+  // Empty by default: an org that has not uploaded a logo shows NO logo, not
+  // ACM's. Falling back to /acm-logo.png meant every new club silently wore
+  // another club's crest on its landing page, nav and admin sidebar -- which
+  // reads as a bug, and misrepresents the org. Callers must treat "" as "no
+  // logo" and render nothing; see hasLogo().
   logo: {
-    crest: "/acm-logo.png",
-    wordmark: "/acm-logo.png",
+    crest: "",
+    wordmark: "",
   },
 };
 
@@ -92,8 +97,10 @@ export function inkOn(surface: string): string {
 const hex = (value: unknown, fallback: string): string =>
   typeof value === "string" && HEX.test(value) ? value : fallback;
 
-const nonEmpty = (value: unknown, fallback: string): string =>
-  typeof value === "string" && value.length > 0 ? value : fallback;
+// A logo URL, or "" when absent. Unlike the colour tokens there is no sensible
+// non-empty default -- see DEFAULT_BRANDING.logo.
+const logoUrl = (value: unknown): string =>
+  typeof value === "string" && value.trim().length > 0 ? value.trim() : "";
 
 const asObject = (value: unknown): Record<string, unknown> =>
   value && typeof value === "object" && !Array.isArray(value)
@@ -119,8 +126,8 @@ export function resolveBranding(raw: unknown): Branding {
     },
     particleColor: hex(root.particleColor, D.particleColor),
     logo: {
-      crest: nonEmpty(logo.crest, D.logo.crest),
-      wordmark: nonEmpty(logo.wordmark, D.logo.wordmark),
+      crest: logoUrl(logo.crest),
+      wordmark: logoUrl(logo.wordmark),
     },
   };
 }
@@ -143,4 +150,9 @@ export function brandingToCssVars(b: Branding): string {
     `--surface-ink:${inkOn(c.background)}`,
     `--particle-color:${b.particleColor}`,
   ].join(";");
+}
+
+/** Whether a resolved logo URL points at an actual image. */
+export function hasLogo(url: string): boolean {
+  return url.trim().length > 0;
 }
