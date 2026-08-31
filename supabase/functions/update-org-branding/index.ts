@@ -23,6 +23,21 @@ const corsHeaders = {
 
 const HEX = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
 
+// Mirrors DEFAULT_BRANDING.colors in lib/branding.ts -- edge functions cannot
+// import from the Next app. Used as the last-resort fallback so a partial or
+// null branding row can never cause an EMPTY STRING to be written into the
+// jsonb: "" fails the app's HEX check on read (so it silently renders as the
+// default anyway) while permanently corrupting the stored value, and the next
+// edit would then treat "" as the "current" colour to keep.
+const DEFAULT_COLORS = {
+  primary: "#FA4616",
+  background: "#0021A5",
+  backgroundSecondary: "#001B87",
+  accent: "#FA4616",
+  text: "#FFFFFF",
+};
+const DEFAULT_PARTICLE_COLOR = "#FFFFFF";
+
 const LOGO_BUCKET = "org-logos";
 const MAX_LOGO_BYTES = 2 * 1024 * 1024; // 2MB, matches the bucket's file_size_limit
 const LOGO_EXTENSION_BY_MIME: Record<string, string> = {
@@ -35,6 +50,26 @@ const LOGO_EXTENSION_BY_MIME: Record<string, string> = {
 function hexOrKeep(raw: FormDataEntryValue | null, current: string) {
   const value = typeof raw === "string" ? raw.trim() : "";
   return HEX.test(value) ? value : current;
+}
+
+// Keep a stored colour only if it is actually a valid hex; otherwise fall back
+// to the platform default rather than propagating a corrupt value.
+function keepOrDefault(current: string | undefined, fallback: string) {
+  return typeof current === "string" && HEX.test(current) ? current : fallback;
+}
+
+// Recover an object path from a public storage URL, which looks like
+//   https://<ref>.supabase.co/storage/v1/object/public/org-logos/<slug>/<file>
+// Returns null for anything that is not a URL in THIS bucket -- notably the
+// legacy "/acm-logo.png" values, which are bundled app assets and must never be
+// passed to storage.remove().
+function storagePathFromPublicUrl(url: string | undefined): string | null {
+  if (typeof url !== "string" || url.length === 0) return null;
+  const marker = `/storage/v1/object/public/${LOGO_BUCKET}/`;
+  const index = url.indexOf(marker);
+  if (index === -1) return null;
+  const path = url.slice(index + marker.length).split("?")[0];
+  return path.length > 0 ? decodeURIComponent(path) : null;
 }
 
 function jsonResponse(body: unknown, status: number) {
@@ -140,16 +175,21 @@ serve(async (req) => {
 
     const branding = {
       colors: {
-        primary: hexOrKeep(form.get("color_primary"), currentColors.primary ?? ""),
-        background: hexOrKeep(form.get("color_background"), currentColors.background ?? ""),
+        primary: hexOrKeep(form.get("color_primary"), keepOrDefault(currentColors.primary, DEFAULT_COLORS.primary)),
+        background: hexOrKeep(form.get("color_background"), keepOrDefault(currentColors.background, DEFAULT_COLORS.background)),
         backgroundSecondary: hexOrKeep(
           form.get("color_background_secondary"),
-          currentColors.backgroundSecondary ?? "",
+          keepOrDefault(currentColors.backgroundSecondary, DEFAULT_COLORS.backgroundSecondary),
         ),
-        accent: hexOrKeep(form.get("color_accent"), currentColors.accent ?? ""),
-        text: hexOrKeep(form.get("color_text"), currentColors.text ?? ""),
+        accent: hexOrKeep(form.get("color_accent"), keepOrDefault(currentColors.accent, DEFAULT_COLORS.accent)),
+        text: hexOrKeep(form.get("color_text"), keepOrDefault(currentColors.text, DEFAULT_COLORS.text)),
       },
-      particleColor: hexOrKeep(form.get("particle_color"), currentBranding.particleColor ?? ""),
+      particleColor: hexOrKeep(
+        form.get("particle_color"),
+        keepOrDefault(currentBranding.particleColor, DEFAULT_PARTICLE_COLOR),
+      ),
+      // Logos are URLs, and "" is a legitimate value meaning "this org has no
+      // logo" -- so unlike the colours these keep the empty string.
       logo: {
         crest: currentLogo.crest ?? "",
         wordmark: currentLogo.wordmark ?? "",
@@ -185,6 +225,21 @@ serve(async (req) => {
       const { data: publicUrlData } = supabaseAdmin.storage
         .from(LOGO_BUCKET)
         .getPublicUrl(path);
+
+      // Replacing a logo orphans the previous file: paths are timestamped (to
+      // bust the CDN cache) and the bucket is public, so without this every
+      // edit leaves a dead object behind forever. Best-effort -- a failed
+      // cleanup must not fail the branding update the officer asked for.
+      const previousUrl = currentLogo[field];
+      const previousPath = storagePathFromPublicUrl(previousUrl);
+      if (previousPath && previousPath !== path) {
+        const { error: removeError } = await supabaseAdmin.storage
+          .from(LOGO_BUCKET)
+          .remove([previousPath]);
+        if (removeError) {
+          console.error(`Failed to remove previous ${field}:`, removeError);
+        }
+      }
 
       branding.logo[field] = publicUrlData.publicUrl;
     }

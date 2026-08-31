@@ -39,9 +39,12 @@ const DEFAULT_BRANDING = {
     text: "#FFFFFF",
   },
   particleColor: "#FFFFFF",
+  // Empty, not the ACM logo: a new org with no upload shows no logo at all
+  // rather than wearing another club's crest. Mirrors DEFAULT_BRANDING in
+  // lib/branding.ts (edge functions cannot import from the Next app).
   logo: {
-    crest: "/acm-logo.png",
-    wordmark: "/acm-logo.png",
+    crest: "",
+    wordmark: "",
   },
 };
 
@@ -200,7 +203,8 @@ serve(async (req) => {
       },
     };
 
-    // Logo uploads are optional -- omitted ones keep the ACM default above.
+    // Logo uploads are optional -- omitted ones stay empty, and the app
+    // renders no logo for the org (see hasLogo() in lib/branding.ts).
     for (const field of ["crest", "wordmark"] as const) {
       const file = form.get(field);
       if (!(file instanceof File) || file.size === 0) continue;

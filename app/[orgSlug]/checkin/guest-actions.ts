@@ -80,6 +80,16 @@ export async function guestCheckIn(input: {
   lastName?: string;
   gradYear?: string;
   password?: string;
+  /**
+   * Which meeting to check into, when the org has more than one open at once.
+   * Optional: omitted (or unmatched) falls back to the single open meeting, so
+   * the common one-meeting case needs no client change.
+   *
+   * Still validated against the set of meetings this caller may check into --
+   * an id is a *choice among* the open, non-officer meetings, never a way to
+   * name an arbitrary one.
+   */
+  meetingId?: string;
 }): Promise<GuestCheckInResult> {
   const email = input.email.trim().toLowerCase();
   if (!email || !email.includes("@")) {
@@ -114,16 +124,34 @@ export async function guestCheckIn(input: {
   // officer-only meetings are excluded outright -- this client runs as
   // service_role and bypasses RLS entirely, so that filter has to happen
   // here rather than relying on meetings_anon_read_active.
-  const { data: meeting } = await supabase
+  // Every meeting this caller is eligible for -- not just the earliest. A club
+  // can legitimately run two at once (e.g. a general body meeting alongside a
+  // workshop), and the old `.limit(1)` silently recorded everyone against
+  // whichever started first.
+  const { data: openMeetings } = await supabase
     .from("meetings")
     .select("id, form_schema, checkin_password")
     .eq("org_id", org.id)
     .eq("status", true)
     .eq("is_officer_only", false)
-    .order("start_time", { ascending: true })
-    .limit(1)
-    .maybeSingle();
-  if (!meeting) return { ok: false, error: "There is no active meeting." };
+    .order("start_time", { ascending: true });
+
+  if (!openMeetings || openMeetings.length === 0) {
+    return { ok: false, error: "There is no active meeting." };
+  }
+
+  // The id only selects among rows already filtered above, so it cannot reach a
+  // closed or officer-only meeting. An unrecognised id with several meetings
+  // open is rejected rather than guessed at -- picking one for them could
+  // record the attendee against a meeting they did not choose.
+  let meeting = openMeetings[0];
+  if (input.meetingId) {
+    const chosen = openMeetings.find((m) => m.id === input.meetingId);
+    if (!chosen && openMeetings.length > 1) {
+      return { ok: false, error: "That meeting is no longer open." };
+    }
+    meeting = chosen ?? meeting;
+  }
 
   if (meeting.checkin_password && meeting.checkin_password !== (input.password ?? "")) {
     return { ok: false, error: "Incorrect meeting password." };

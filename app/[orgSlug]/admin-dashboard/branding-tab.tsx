@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { useAuth } from "@clerk/nextjs";
 import type { Branding } from "@/lib/branding";
 
@@ -26,6 +27,7 @@ interface BrandingTabProps {
 
 export default function BrandingTab({ orgId, branding, onSaved }: BrandingTabProps) {
   const { getToken } = useAuth();
+  const router = useRouter();
 
   const [colors, setColors] = useState(branding.colors);
   const [crestFile, setCrestFile] = useState<File | null>(null);
@@ -105,6 +107,14 @@ export default function BrandingTab({ orgId, branding, onSaved }: BrandingTabPro
       setWordmarkFile(null);
       setSuccess(true);
       onSaved(result.organization.branding as Branding);
+
+      // The colours and the org logo do NOT come from React state: OrgTheme is
+      // a server component that fetches branding and emits
+      // <style>:root{...}</style> plus the BrandingProvider context. A client
+      // setState cannot change either, so without this the page keeps the old
+      // theme until a full reload -- the save appears to have done nothing.
+      // router.refresh() re-runs the server layout and re-emits both.
+      router.refresh();
     } catch (err) {
       console.error("update-org-branding request failed:", err);
       setError("Failed to update branding. See the browser console for details.");

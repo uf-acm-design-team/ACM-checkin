@@ -28,6 +28,13 @@ export async function memberCheckIn(input: {
   orgSlug: string;
   answers: unknown;
   password?: string;
+  /**
+   * Which meeting to check into, when several are open at once. Optional, so
+   * the single-meeting case is unchanged. Validated against the meetings RLS
+   * already lets this member see, so it selects among them rather than naming
+   * one freely.
+   */
+  meetingId?: string;
 }): Promise<MemberCheckInResult> {
   const { userId } = await auth();
   if (!userId) return { ok: false, error: "You need to be signed in." };
@@ -44,15 +51,29 @@ export async function memberCheckIn(input: {
   // RLS (meetings_member_read) already hides officer-only meetings from a
   // non-officer caller, so this naturally only ever resolves to a meeting
   // this member is allowed to see -- no extra filter needed here.
-  const { data: meeting } = await supabase
+  // All open meetings, not just the earliest: a club may run two at once, and
+  // `.limit(1)` recorded every member against whichever started first.
+  const { data: openMeetings } = await supabase
     .from("meetings")
     .select("id, form_schema")
     .eq("org_id", org.id)
     .eq("status", true)
-    .order("start_time", { ascending: true })
-    .limit(1)
-    .maybeSingle();
-  if (!meeting) return { ok: false, error: "There is no active meeting." };
+    .order("start_time", { ascending: true });
+
+  if (!openMeetings || openMeetings.length === 0) {
+    return { ok: false, error: "There is no active meeting." };
+  }
+
+  // Selecting among rows RLS already returned -- an officer-only meeting is
+  // absent here for a non-officer, so it cannot be reached by passing its id.
+  let meeting = openMeetings[0];
+  if (input.meetingId) {
+    const chosen = openMeetings.find((m) => m.id === input.meetingId);
+    if (!chosen && openMeetings.length > 1) {
+      return { ok: false, error: "That meeting is no longer open." };
+    }
+    meeting = chosen ?? meeting;
+  }
 
   // checkin_password is column-locked from direct SELECT (this client runs
   // as `authenticated`, not service_role), so verification goes through a
