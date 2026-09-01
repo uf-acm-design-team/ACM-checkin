@@ -2,7 +2,6 @@ import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { ClerkProvider } from "@clerk/nextjs";
 import "./globals.css";
-import AppBackground from "./components/AppBackground";
 import DeveloperShortcut from "./components/DeveloperShortcut";
 import { clerkAppearance } from "@/lib/clerk-appearance";
 
@@ -22,14 +21,13 @@ export const metadata: Metadata = {
 };
 
 // Declared explicitly rather than relying on the framework default. `themeColor`
-// paints the mobile browser chrome to match the gradient's top edge. Zoom is
-// deliberately left unrestricted -- capping it locks out users who need to
-// magnify.
+// paints the mobile browser chrome to match the app canvas. Zoom is deliberately
+// left unrestricted -- capping it locks out users who need to magnify.
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
-  themeColor: "#0021a5",
+  themeColor: "#fafafa",
 };
 
 export default function RootLayout({
@@ -40,10 +38,11 @@ export default function RootLayout({
   return (
     <ClerkProvider appearance={clerkAppearance}>
       <html lang="en">
-        <body
-          className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-        >
-          <AppBackground>{children}</AppBackground>
+        {/* The canvas is painted on body by globals.css -- the old gradient
+            wrapper component is gone. Routes that need a different ground
+            (the inverted success screen) paint it themselves. */}
+        <body className={`${geistSans.variable} ${geistMono.variable}`}>
+          {children}
           <DeveloperShortcut />
         </body>
       </html>

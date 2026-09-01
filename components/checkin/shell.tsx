@@ -1,84 +1,100 @@
-"use client";
-
 import React from "react";
+import { cn } from "@/lib/utils";
+import { Chip, Eyebrow, buttonClass } from "@/components/ui/primitives";
 
 /**
- * The check-in card's furniture.
+ * The check-in flow's furniture.
  *
- * Every state in the flow renders inside `CheckinCard`, under the same
- * `MeetingStrip`. That constancy is the point: a guest at the door always knows
- * which meeting they are checking into, and a state change (validating, wrong
- * password, too far away) never blanks the context out from under them.
+ * Every state renders inside `CheckinScreen`, under the same `MeetingStrip`.
+ * That constancy is the point: a guest at the door always knows which meeting
+ * they are checking into, and a state change (validating, wrong password, too
+ * far away) never blanks the context out from under them.
  *
- * Colours resolve from the org's tokens -- `--surface-ink` is the derived
- * readable ink for the branded background, so a club that stores a light
- * background gets dark hairlines and muted text here instead of invisible
- * white-on-white ones.
+ * This is the one route where the org's own accent is painted (see
+ * app/[orgSlug]/checkin/layout.tsx), so `--accent` here is the club's colour,
+ * not the product purple. Everything else -- the white surface, the slate text
+ * ramp, the semantic tones -- is fixed, which is what keeps a club's palette
+ * from making its own error states unreadable.
  */
 
-/** Hairline and muted-text alphas, mixed off --surface-ink so they flip with it. */
-export const ink = (pct: number) =>
-  `color-mix(in srgb, var(--surface-ink) ${pct}%, transparent)`;
-
-export function CheckinCard({ children }: { children: React.ReactNode }) {
+/**
+ * The full-height phone screen: a white column with a pinned footer action.
+ *
+ * The footer is separated by a hairline and sits outside the scroll region, so
+ * a long question set scrolls under it rather than pushing the primary button
+ * off the bottom of a phone.
+ */
+export function CheckinScreen({
+  header,
+  footer,
+  children,
+  className,
+}: {
+  header?: React.ReactNode;
+  footer?: React.ReactNode;
+  children: React.ReactNode;
+  className?: string;
+}) {
   return (
-    <div className="mx-auto flex w-full max-w-md flex-1 flex-col px-4 pb-6 pt-4 sm:px-6">
-      <div
-        className="flex flex-1 flex-col gap-4 rounded-[var(--radius-phone)] p-5 backdrop-blur-md sm:p-6"
-        style={{
-          background: ink(10),
-          border: `1px solid ${ink(18)}`,
-          color: "var(--surface-ink)",
-        }}
-      >
+    <div className="mx-auto flex min-h-[calc(100dvh-var(--org-nav-h))] w-full max-w-md flex-col bg-surface">
+      {header && <div className="flex flex-col gap-3.5 px-6 pt-4 pb-4">{header}</div>}
+      <div className={cn("flex flex-1 flex-col gap-5 px-6", className)}>
         {children}
       </div>
+      {footer && (
+        <div className="mt-6 border-t border-line-soft px-6 pt-4 pb-8">{footer}</div>
+      )}
     </div>
   );
 }
 
-/** Small uppercase mono label — the wireframe's 10.5px micro tier. */
-export function Eyebrow({
+/**
+ * A centred single-message screen -- loading, empty, org-not-found.
+ * Vertically centred in the space below the nav rather than the full viewport,
+ * so the bar doesn't push it visually low.
+ */
+export function CenteredScreen({
   children,
-  tone = "muted",
+  className,
 }: {
   children: React.ReactNode;
-  tone?: "muted" | "live" | "warn" | "bad";
+  className?: string;
 }) {
-  // These sit on the branded background, not on the action colour, so they
-  // can't use --brand-action: an org whose accent is close to its background
-  // (the default orange-on-blue included) renders it as unreadable tinted grey
-  // at 10.5px. Live gets full-strength surface ink plus a dot carrying the
-  // brand colour; the semantic tones stay fixed and light enough to read on a
-  // dark surface.
-  const color =
-    tone === "live"
-      ? "var(--surface-ink)"
-      : tone === "warn"
-        ? "#FCD34D"
-        : tone === "bad"
-          ? "#FCA5A5"
-          : ink(55);
   return (
-    <p
-      className="m-0 flex items-center gap-1.5 font-mono text-[10.5px] font-semibold uppercase tracking-[0.08em]"
-      style={{ color }}
-    >
-      {tone === "live" && (
-        <span
-          aria-hidden="true"
-          className="inline-block size-1.5 shrink-0 rounded-full"
-          style={{ background: "var(--brand-action)" }}
-        />
+    <div
+      className={cn(
+        "mx-auto flex min-h-[calc(100dvh-var(--org-nav-h))] w-full max-w-md flex-col justify-center gap-4 bg-surface px-6 py-10",
+        className,
       )}
+    >
       {children}
-    </p>
+    </div>
+  );
+}
+
+/** Org identity line at the top of the flow: crest tile + name. */
+export function OrgMark({
+  name,
+  logo,
+}: {
+  name: string;
+  logo?: React.ReactNode;
+}) {
+  return (
+    <div className="flex items-center gap-2.5">
+      {logo}
+      <span className="text-sm font-semibold text-ink">{name}</span>
+    </div>
   );
 }
 
 /**
  * The constant context strip: which meeting, when, where, and whether check-in
  * is open. Present in every state including the error ones.
+ *
+ * Rendered as plain type rather than a boxed card: on a white surface the
+ * meeting title is the page's heading, and wrapping it in a second border
+ * inside an already-bordered screen was noise.
  */
 export function MeetingStrip({
   title,
@@ -89,77 +105,73 @@ export function MeetingStrip({
   title: string;
   when?: string;
   where?: string;
-  status?: { label: string; tone?: "live" | "muted" | "warn" };
+  status?: { label: string; tone?: "good" | "neutral" | "warn" };
 }) {
+  const meta = [when, where].filter(Boolean).join(" · ");
   return (
-    <div
-      className="flex flex-col gap-1 rounded-[var(--radius-card)] px-4 py-3"
-      style={{ background: ink(8), border: `1px solid ${ink(12)}` }}
-    >
-      {status && (
-        <Eyebrow tone={status.tone === "live" ? "live" : status.tone ?? "muted"}>
-          {status.label}
-        </Eyebrow>
-      )}
-      <h2 className="m-0 text-[18px] font-bold leading-tight wrap-break-word">
+    <div className="flex flex-col gap-1.5">
+      <h1 className="m-0 text-2xl font-bold tracking-[-0.02em] text-ink wrap-break-word">
         {title}
-      </h2>
-      {(when || where) && (
-        <p
-          className="m-0 font-mono text-[11px] leading-relaxed"
-          style={{ color: ink(60) }}
-        >
-          {when}
-          {when && where && <span aria-hidden="true"> · </span>}
-          {where}
-        </p>
-      )}
+      </h1>
+      <p className="m-0 flex flex-wrap items-center gap-2 text-sm text-ink-muted">
+        {meta}
+        {status && (
+          <>
+            {meta && <span aria-hidden="true">·</span>}
+            <span
+              className={cn(
+                "font-medium",
+                status.tone === "good"
+                  ? "text-good"
+                  : status.tone === "warn"
+                    ? "text-warn-ink"
+                    : "text-ink-muted",
+              )}
+            >
+              {status.label}
+            </span>
+          </>
+        )}
+      </p>
     </div>
   );
 }
 
 /**
- * The primary action. 56px min height (72px when `hero`) so it clears a thumb
- * target, and it always uses --brand-action with the derived --brand-action-ink
- * on top rather than assuming white text is readable.
+ * The primary action. Full-width and tall enough to clear a thumb target, in
+ * the org's accent with the derived readable ink on top -- never an assumed
+ * white, which fails on a light accent.
  */
 export function PrimaryButton({
   children,
   hero = false,
+  className,
   ...props
 }: { hero?: boolean } & React.ButtonHTMLAttributes<HTMLButtonElement>) {
   return (
     <button
       {...props}
-      className={`w-full rounded-[var(--radius-control)] font-bold transition-opacity duration-150 disabled:opacity-55 ${
-        hero ? "min-h-[72px] text-[18px]" : "min-h-[56px] text-[15px]"
-      } ${props.className ?? ""}`}
-      style={{
-        background: "var(--brand-action)",
-        color: "var(--brand-action-ink)",
-        ...props.style,
-      }}
+      className={buttonClass(
+        "primary",
+        "lg",
+        cn("w-full", hero ? "py-5 text-base" : "", className),
+      )}
     >
       {children}
     </button>
   );
 }
 
-/** Secondary action — the "ask an officer instead" escape hatch on error states. */
+/** Secondary action -- the "ask an officer instead" escape hatch on error states. */
 export function GhostButton({
   children,
+  className,
   ...props
 }: React.ButtonHTMLAttributes<HTMLButtonElement>) {
   return (
     <button
       {...props}
-      className={`w-full rounded-[var(--radius-control)] px-4 py-3 text-[14px] font-semibold transition-opacity duration-150 disabled:opacity-55 ${props.className ?? ""}`}
-      style={{
-        background: "transparent",
-        border: `1px solid ${ink(28)}`,
-        color: "var(--surface-ink)",
-        ...props.style,
-      }}
+      className={buttonClass("secondary", "md", cn("w-full", className))}
     >
       {children}
     </button>
@@ -175,36 +187,42 @@ export function Notice({
   eyebrow,
   title,
   children,
+  className,
 }: {
   tone?: "bad" | "warn" | "good";
   eyebrow?: string;
   title?: string;
   children?: React.ReactNode;
+  className?: string;
 }) {
-  const accent =
-    tone === "good" ? "#4ADE80" : tone === "warn" ? "#FBBF24" : "#FCA5A5";
+  const surface = {
+    bad: "border-bad-line bg-bad-surface",
+    warn: "border-warn-line bg-warn-surface",
+    good: "border-good-line bg-good-surface",
+  }[tone];
+  const titleInk = {
+    bad: "text-bad-ink",
+    warn: "text-warn-ink",
+    good: "text-good-ink",
+  }[tone];
+
   return (
     <div
       role={tone === "bad" ? "alert" : undefined}
-      className="flex flex-col gap-1.5 rounded-[var(--radius-card)] px-4 py-3"
-      style={{
-        background: `color-mix(in srgb, ${accent} 12%, transparent)`,
-        border: `1px solid color-mix(in srgb, ${accent} 38%, transparent)`,
-      }}
+      className={cn(
+        "flex flex-col gap-2 rounded-card border p-4",
+        surface,
+        className,
+      )}
     >
-      {eyebrow && (
-        <p
-          className="m-0 font-mono text-[10.5px] font-semibold uppercase tracking-[0.08em]"
-          style={{ color: accent }}
-        >
-          {eyebrow}
+      {eyebrow && <Eyebrow tone={tone}>{eyebrow}</Eyebrow>}
+      {title && (
+        <p className={cn("m-0 text-[15px] font-bold leading-snug", titleInk)}>
+          {title}
         </p>
       )}
-      {title && (
-        <p className="m-0 text-[15px] font-semibold leading-snug">{title}</p>
-      )}
       {children && (
-        <div className="text-[13px] leading-relaxed" style={{ color: ink(75) }}>
+        <div className="text-[13.5px] leading-relaxed text-ink-muted">
           {children}
         </div>
       )}
@@ -212,7 +230,7 @@ export function Notice({
   );
 }
 
-/** Skeleton block — shaped like the form, so the page never looks broken. */
+/** Skeleton block -- shaped like the form, so the page never looks broken. */
 export function Skeleton({
   h,
   w = "100%",
@@ -224,8 +242,16 @@ export function Skeleton({
 }) {
   return (
     <div
-      className="animate-pulse"
-      style={{ height: h, width: w, borderRadius: radius, background: ink(12) }}
+      aria-hidden="true"
+      style={{
+        height: h,
+        width: w,
+        borderRadius: radius,
+        background: "var(--surface-sunken)",
+        animation: "pulse 1.4s ease-in-out infinite",
+      }}
     />
   );
 }
+
+export { Chip, Eyebrow };

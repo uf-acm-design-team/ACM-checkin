@@ -119,7 +119,7 @@ export default function AuditLogView({ scope, orgId, emptyMessage }: AuditLogVie
 
   if (loading) {
     return (
-      <div className="p-10 text-center text-sm text-slate-500">
+      <div className="p-10 text-center text-sm text-ink-muted">
         Loading audit log...
       </div>
     );
@@ -127,15 +127,15 @@ export default function AuditLogView({ scope, orgId, emptyMessage }: AuditLogVie
 
   if (error) {
     return (
-      <div className="rounded-[14px] border border-red-200 bg-red-50 p-6 text-sm text-red-700">
+      <div className="rounded-card border border-bad-line bg-bad-surface p-6 text-sm text-bad-ink">
         {error}
       </div>
     );
   }
 
   return (
-    <div className="overflow-hidden rounded-[14px] border border-slate-200 bg-white">
-      <div className="hidden grid-cols-[1.4fr_1.4fr_1.6fr_2.4fr] gap-4 border-b border-slate-200 px-5 py-3.5 text-xs font-bold tracking-wide text-slate-500 uppercase md:grid">
+    <div className="overflow-hidden rounded-card border border-line bg-white">
+      <div className="hidden grid-cols-[1.4fr_1.4fr_1.6fr_2.4fr] gap-4 border-b border-line px-5 py-3.5 text-xs font-bold tracking-wide text-ink-muted uppercase md:grid">
         <div>When</div>
         <div>Who</div>
         <div>Action</div>
@@ -145,24 +145,24 @@ export default function AuditLogView({ scope, orgId, emptyMessage }: AuditLogVie
         rows.map((row) => (
           <div
             key={row.id}
-            className="flex flex-col gap-1.5 border-b border-slate-100 px-4 py-3.5 text-sm last:border-b-0 sm:px-5 md:grid md:grid-cols-[1.4fr_1.4fr_1.6fr_2.4fr] md:items-center md:gap-4"
+            className="flex flex-col gap-1.5 border-b border-line-soft px-4 py-3.5 text-sm last:border-b-0 sm:px-5 md:grid md:grid-cols-[1.4fr_1.4fr_1.6fr_2.4fr] md:items-center md:gap-4"
           >
-            <div className="text-[13px] font-medium text-slate-600">
+            <div className="text-[13px] font-medium text-ink-strong">
               {new Date(row.created_at).toLocaleString()}
             </div>
             <div className="font-bold">{row.actor_name}</div>
             <div>
-              <span className="inline-block rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-bold text-slate-600">
+              <span className="inline-block rounded-full bg-surface-sunken px-2.5 py-1 text-[11px] font-bold text-ink-strong">
                 {ACTION_LABELS[row.action] ?? row.action}
               </span>
             </div>
-            <div className="text-[13px] font-medium wrap-break-word text-slate-600">
+            <div className="text-[13px] font-medium wrap-break-word text-ink-strong">
               {summarize(row.action, row.metadata ?? {})}
             </div>
           </div>
         ))
       ) : (
-        <div className="p-10 text-center text-sm text-slate-500">
+        <div className="p-10 text-center text-sm text-ink-muted">
           {emptyMessage ?? "No activity recorded yet."}
         </div>
       )}

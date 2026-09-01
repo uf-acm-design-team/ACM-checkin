@@ -405,21 +405,21 @@ export default function MeetingEditor({
 
   if (!isLoaded || loading) {
     return (
-      <div className="flex min-h-dvh items-center justify-center bg-slate-50">
-        <div className="text-xl text-slate-500">Loading...</div>
+      <div className="flex min-h-dvh items-center justify-center bg-canvas">
+        <div className="text-xl text-ink-muted">Loading...</div>
       </div>
     );
   }
 
   if (error || !meeting || !settings) {
     return (
-      <div className="flex min-h-dvh flex-col items-center justify-center bg-slate-50 p-4">
-        <div className="w-full max-w-md rounded-[14px] border border-slate-200 bg-white p-8 text-center">
-          <h1 className="mb-2 text-2xl font-extrabold text-slate-900">Meeting</h1>
-          <p className="mb-5 text-slate-500">{error}</p>
+      <div className="flex min-h-dvh flex-col items-center justify-center bg-canvas p-4">
+        <div className="w-full max-w-md rounded-card border border-line bg-white p-8 text-center">
+          <h1 className="mb-2 text-2xl font-extrabold text-ink">Meeting</h1>
+          <p className="mb-5 text-ink-muted">{error}</p>
           <button
             onClick={() => router.push(`/${orgSlug}/admin-dashboard`)}
-            className="cursor-pointer rounded-[9px] border border-slate-200 bg-white px-4 py-2 text-[13px] font-bold text-brand-background hover:bg-slate-50"
+            className="cursor-pointer rounded-control border border-line bg-white px-4 py-2 text-[13px] font-bold text-ink-strong hover:bg-canvas"
           >
             Back to dashboard
           </button>
@@ -429,14 +429,14 @@ export default function MeetingEditor({
   }
 
   return (
-    <div className="min-h-dvh bg-slate-50 text-slate-900">
-      <header className="sticky top-0 z-30 border-b border-slate-200 bg-white">
+    <div className="min-h-dvh bg-canvas text-ink">
+      <header className="sticky top-0 z-30 border-b border-line bg-white">
         <div className="mx-auto flex max-w-4xl flex-col gap-3 px-4 py-3.5 sm:px-6 lg:px-8">
           <div className="flex items-center gap-3">
             <button
               onClick={goBack}
               aria-label="Back to dashboard"
-              className="-ml-2 flex-none cursor-pointer rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-900"
+              className="-ml-2 flex-none cursor-pointer rounded-lg p-2 text-ink-muted hover:bg-surface-sunken hover:text-ink"
             >
               <ArrowLeft className="h-5 w-5" />
             </button>
@@ -444,39 +444,39 @@ export default function MeetingEditor({
               <div className="truncate text-base font-extrabold sm:text-lg">
                 {settings.title.trim() || "Untitled meeting"}
               </div>
-              <div className="text-xs font-semibold text-slate-500">
+              <div className="text-xs font-semibold text-ink-muted">
                 {responseCount} response{responseCount === 1 ? "" : "s"}
                 {dirty && (
-                  <span className="ml-2 text-amber-600">· Unsaved changes</span>
+                  <span className="ml-2 text-warn">· Unsaved changes</span>
                 )}
                 {!dirty && savedLabel && (
-                  <span className="ml-2 text-green-600">· {savedLabel}</span>
+                  <span className="ml-2 text-good">· {savedLabel}</span>
                 )}
               </div>
             </div>
             <button
               onClick={handleSave}
               disabled={saving || !dirty}
-              className="flex-none cursor-pointer rounded-[9px] bg-brand-action px-4 py-2.5 text-sm font-bold text-white transition-all hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+              className="flex-none cursor-pointer rounded-control bg-accent px-4 py-2.5 text-sm font-bold text-accent-ink transition-colors hover:bg-accent-deep disabled:cursor-not-allowed disabled:opacity-50"
             >
               {saving ? "Saving..." : dirty ? "Save" : "Saved"}
             </button>
           </div>
 
-          <nav className="flex gap-1.5 rounded-[10px] bg-slate-100 p-1">
+          <nav className="flex gap-1.5 rounded-control bg-surface-sunken p-1">
             {EDITOR_TABS.map((tab) => (
               <button
                 key={tab.key}
                 onClick={() => setActiveTab(tab.key)}
                 className={`flex-1 cursor-pointer rounded-lg px-3 py-2 text-[13px] font-bold transition-all ${
                   activeTab === tab.key
-                    ? "bg-white text-brand-background shadow-sm"
-                    : "text-slate-500 hover:text-slate-700"
+                    ? "bg-white text-ink-strong shadow-sm"
+                    : "text-ink-muted hover:text-ink-strong"
                 }`}
               >
                 {tab.label}
                 {tab.key === "questions" && schema.length > 0 && (
-                  <span className="ml-1.5 text-slate-400">{schema.length}</span>
+                  <span className="ml-1.5 text-ink-faint">{schema.length}</span>
                 )}
               </button>
             ))}
@@ -486,7 +486,7 @@ export default function MeetingEditor({
 
       <main className="mx-auto max-w-4xl px-4 py-6 sm:px-6 lg:px-8">
         {saveError && (
-          <div className="mb-4 rounded-[10px] border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
+          <div className="mb-4 rounded-control border border-bad-line bg-bad-surface px-4 py-3 text-sm font-semibold text-bad-ink">
             {saveError}
           </div>
         )}
@@ -501,13 +501,13 @@ export default function MeetingEditor({
         )}
 
         {activeTab === "settings" && (
-          <div className="flex flex-col gap-4 rounded-[14px] border border-slate-200 bg-white p-5 sm:p-6">
+          <div className="flex flex-col gap-4 rounded-card border border-line bg-white p-5 sm:p-6">
             <Field label="Title">
               <input
                 type="text"
                 value={settings.title}
                 onChange={(e) => setSettings({ ...settings, title: e.target.value })}
-                className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm"
+                className="w-full rounded-lg border border-line px-3 py-2.5 text-sm"
               />
             </Field>
 
@@ -519,7 +519,7 @@ export default function MeetingEditor({
                   setSettings({ ...settings, description: e.target.value })
                 }
                 placeholder="What's this meeting about?"
-                className="w-full resize-y rounded-lg border border-slate-200 px-3 py-2.5 text-sm"
+                className="w-full resize-y rounded-lg border border-line px-3 py-2.5 text-sm"
               />
             </Field>
 
@@ -531,7 +531,7 @@ export default function MeetingEditor({
                   onChange={(e) =>
                     setSettings({ ...settings, start_time: e.target.value })
                   }
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm"
+                  className="w-full rounded-lg border border-line px-3 py-2.5 text-sm"
                 />
               </Field>
               <Field label="End time">
@@ -541,12 +541,12 @@ export default function MeetingEditor({
                   onChange={(e) =>
                     setSettings({ ...settings, end_time: e.target.value })
                   }
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm"
+                  className="w-full rounded-lg border border-line px-3 py-2.5 text-sm"
                 />
               </Field>
             </div>
 
-            <label className="flex cursor-pointer items-start gap-2.5 rounded-lg border border-slate-200 p-3">
+            <label className="flex cursor-pointer items-start gap-2.5 rounded-lg border border-line p-3">
               <input
                 type="checkbox"
                 checked={settings.status}
@@ -557,13 +557,13 @@ export default function MeetingEditor({
               />
               <span className="text-sm">
                 <span className="font-bold">Open for check-in</span>
-                <span className="block text-xs text-slate-500">
+                <span className="block text-xs text-ink-muted">
                   Members and guests can check in while this is on.
                 </span>
               </span>
             </label>
 
-            <div className="rounded-lg border border-slate-200 p-3">
+            <div className="rounded-lg border border-line p-3">
               <label className="flex cursor-pointer items-start gap-2.5">
                 <input
                   type="checkbox"
@@ -575,19 +575,19 @@ export default function MeetingEditor({
                 />
                 <span className="text-sm">
                   <span className="font-bold">Require being on location</span>
-                  <span className="block text-xs text-slate-500">
+                  <span className="block text-xs text-ink-muted">
                     Check-in is refused beyond the radius below.
                   </span>
                 </span>
               </label>
 
               {settings.is_geo_locked && (
-                <div className="mt-3 flex flex-col gap-2.5 border-t border-slate-100 pt-3">
+                <div className="mt-3 flex flex-col gap-2.5 border-t border-line-soft pt-3">
                   <button
                     type="button"
                     onClick={useCurrentLocation}
                     disabled={locating}
-                    className="cursor-pointer rounded-lg border border-slate-300 px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                    className="cursor-pointer rounded-lg border border-line px-3 py-2 text-xs font-bold text-ink-strong hover:bg-canvas disabled:opacity-50"
                   >
                     {locating ? "Getting location..." : "📍 Use current location"}
                   </button>
@@ -601,7 +601,7 @@ export default function MeetingEditor({
                           setSettings({ ...settings, latitude: e.target.value })
                         }
                         placeholder="29.648"
-                        className="w-full rounded-lg border border-slate-200 px-2.5 py-2 text-sm"
+                        className="w-full rounded-lg border border-line px-2.5 py-2 text-sm"
                       />
                     </Field>
                     <Field label="Longitude" small>
@@ -613,7 +613,7 @@ export default function MeetingEditor({
                           setSettings({ ...settings, longitude: e.target.value })
                         }
                         placeholder="-82.344"
-                        className="w-full rounded-lg border border-slate-200 px-2.5 py-2 text-sm"
+                        className="w-full rounded-lg border border-line px-2.5 py-2 text-sm"
                       />
                     </Field>
                   </div>
@@ -626,10 +626,10 @@ export default function MeetingEditor({
                       onChange={(e) =>
                         setSettings({ ...settings, radius_meters: e.target.value })
                       }
-                      className="w-full rounded-lg border border-slate-200 px-2.5 py-2 text-sm"
+                      className="w-full rounded-lg border border-line px-2.5 py-2 text-sm"
                     />
                   </Field>
-                  <p className="text-[11px] text-slate-500">
+                  <p className="text-[11px] text-ink-muted">
                     200m suits a lecture hall. Phone GPS is only accurate to
                     roughly 10–50m indoors, so avoid going much tighter.
                   </p>
@@ -637,7 +637,7 @@ export default function MeetingEditor({
               )}
             </div>
 
-            <label className="flex cursor-pointer items-start gap-2.5 rounded-lg border border-slate-200 p-3">
+            <label className="flex cursor-pointer items-start gap-2.5 rounded-lg border border-line p-3">
               <input
                 type="checkbox"
                 checked={settings.is_officer_only}
@@ -648,7 +648,7 @@ export default function MeetingEditor({
               />
               <span className="text-sm">
                 <span className="font-bold">Officers only</span>
-                <span className="block text-xs text-slate-500">
+                <span className="block text-xs text-ink-muted">
                   Hidden from regular members entirely -- doesn&apos;t appear on
                   their check-in page or count toward their attendance.
                 </span>
@@ -663,9 +663,9 @@ export default function MeetingEditor({
                   setSettings({ ...settings, checkin_password: e.target.value })
                 }
                 placeholder="Leave blank for no password"
-                className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm"
+                className="w-full rounded-lg border border-line px-3 py-2.5 text-sm"
               />
-              <p className="mt-1 text-[11px] text-slate-500">
+              <p className="mt-1 text-[11px] text-ink-muted">
                 Required from everyone checking in, guest or member.
               </p>
             </Field>
@@ -700,7 +700,7 @@ function Field({
   return (
     <div>
       <label
-        className={`mb-1.5 block font-bold text-slate-500 ${
+        className={`mb-1.5 block font-bold text-ink-muted ${
           small ? "text-[11px]" : "text-xs"
         }`}
       >

@@ -64,7 +64,7 @@ export function ResponsesPanel({
 
   if (loading && !rows) {
     return (
-      <div className="rounded-[14px] border border-slate-200 bg-white p-10 text-center text-sm text-slate-500">
+      <div className="rounded-card border border-line bg-white p-10 text-center text-sm text-ink-muted">
         Loading responses...
       </div>
     );
@@ -72,9 +72,9 @@ export function ResponsesPanel({
 
   if (!rows || rows.length === 0) {
     return (
-      <div className="rounded-[14px] border border-slate-200 bg-white p-10 text-center">
-        <p className="text-sm font-semibold text-slate-600">No check-ins yet.</p>
-        <p className="mt-1 text-xs text-slate-500">
+      <div className="rounded-card border border-line bg-white p-10 text-center">
+        <p className="text-sm font-semibold text-ink-strong">No check-ins yet.</p>
+        <p className="mt-1 text-xs text-ink-muted">
           Responses appear here as attendees check in.
         </p>
       </div>
@@ -84,15 +84,15 @@ export function ResponsesPanel({
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex gap-1.5 rounded-[10px] bg-slate-100 p-1">
+        <div className="flex gap-1.5 rounded-control bg-surface-sunken p-1">
           {(["summary", "individual"] as const).map((m) => (
             <button
               key={m}
               onClick={() => setMode(m)}
               className={`flex-1 cursor-pointer rounded-lg px-4 py-2 text-[13px] font-bold capitalize transition-all sm:flex-none ${
                 mode === m
-                  ? "bg-white text-brand-background shadow-sm"
-                  : "text-slate-500"
+                  ? "bg-white text-ink-strong shadow-sm"
+                  : "text-ink-muted"
               }`}
             >
               {m}
@@ -101,14 +101,14 @@ export function ResponsesPanel({
         </div>
         <button
           onClick={onExport}
-          className="cursor-pointer rounded-[9px] bg-brand-background px-4 py-2.5 text-sm font-bold text-white transition-all hover:opacity-90"
+          className="cursor-pointer rounded-control border border-line bg-surface px-4 py-2.5 text-sm font-semibold text-ink-strong transition-colors hover:bg-surface-sunken"
         >
           ↓ Download CSV
         </button>
       </div>
 
       {schemaDirty && (
-        <div className="rounded-[10px] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+        <div className="rounded-control border border-warn-line bg-warn-surface px-4 py-3 text-sm text-warn-ink">
           You have unsaved question changes. This summary and the CSV use your
           draft, so a question you just added shows no answers until people
           respond to the saved form.
@@ -117,27 +117,27 @@ export function ResponsesPanel({
 
       {mode === "summary" ? (
         <div className="flex flex-col gap-4">
-          <div className="rounded-[14px] border border-slate-200 bg-white p-5">
-            <div className="text-xs font-semibold tracking-wide text-slate-500 uppercase">
+          <div className="rounded-card border border-line bg-white p-5">
+            <div className="text-xs font-semibold tracking-wide text-ink-muted uppercase">
               Total check-ins
             </div>
             <div className="mt-1 text-3xl font-extrabold">{rows.length}</div>
           </div>
 
           {schema.length === 0 ? (
-            <div className="rounded-[14px] border border-slate-200 bg-white p-8 text-center text-sm text-slate-500">
+            <div className="rounded-card border border-line bg-white p-8 text-center text-sm text-ink-muted">
               This meeting has no questions — attendance only.
             </div>
           ) : (
             summaries.map(({ question, answeredCount, tally, texts }) => (
               <div
                 key={question.id}
-                className="rounded-[14px] border border-slate-200 bg-white p-5"
+                className="rounded-card border border-line bg-white p-5"
               >
                 <div className="mb-1 text-sm font-bold wrap-break-word">
                   {question.label || "Untitled question"}
                 </div>
-                <div className="mb-3.5 text-xs font-semibold text-slate-500">
+                <div className="mb-3.5 text-xs font-semibold text-ink-muted">
                   {answeredCount} of {rows.length} answered
                 </div>
 
@@ -152,16 +152,16 @@ export function ResponsesPanel({
                         : 0;
                       return (
                         <div key={option} className="flex items-center gap-3">
-                          <div className="w-32 flex-none truncate text-xs font-semibold text-slate-600">
+                          <div className="w-32 flex-none truncate text-xs font-semibold text-ink-strong">
                             {option}
                           </div>
-                          <div className="h-2 flex-1 overflow-hidden rounded-full bg-slate-100">
+                          <div className="h-2 flex-1 overflow-hidden rounded-full bg-surface-sunken">
                             <div
-                              className="h-full rounded-full bg-brand-action"
+                              className="h-full rounded-full bg-accent"
                               style={{ width: `${pct}%` }}
                             />
                           </div>
-                          <div className="w-16 flex-none text-right text-xs font-bold text-slate-700">
+                          <div className="w-16 flex-none text-right text-xs font-bold text-ink-strong">
                             {count} · {pct}%
                           </div>
                         </div>
@@ -173,24 +173,24 @@ export function ResponsesPanel({
                     {texts.map((text, i) => (
                       <li
                         key={i}
-                        className="rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-700 wrap-break-word"
+                        className="rounded-lg bg-canvas px-3 py-2 text-sm text-ink-strong wrap-break-word"
                       >
                         {text}
                       </li>
                     ))}
                   </ul>
                 ) : (
-                  <p className="text-sm text-slate-400 italic">No answers yet.</p>
+                  <p className="text-sm text-ink-faint italic">No answers yet.</p>
                 )}
               </div>
             ))
           )}
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-[14px] border border-slate-200 bg-white">
+        <div className="overflow-x-auto rounded-card border border-line bg-white">
           <table className="w-full min-w-[640px] border-collapse text-sm">
             <thead>
-              <tr className="border-b border-slate-200 text-left text-xs font-bold tracking-wide text-slate-500 uppercase">
+              <tr className="border-b border-line text-left text-xs font-bold tracking-wide text-ink-muted uppercase">
                 <th className="px-5 py-3.5">Attendee</th>
                 <th className="px-5 py-3.5">Checked In</th>
                 {schema.map((q) => (
@@ -202,18 +202,18 @@ export function ResponsesPanel({
             </thead>
             <tbody>
               {rows.map((row, i) => (
-                <tr key={i} className="border-b border-slate-100 last:border-b-0">
+                <tr key={i} className="border-b border-line-soft last:border-b-0">
                   <td className="px-5 py-3.5">
                     <div className="font-bold">
                       {`${row.first_name} ${row.last_name}`.trim() || "—"}
                     </div>
-                    <div className="text-xs text-slate-500">{row.email}</div>
+                    <div className="text-xs text-ink-muted">{row.email}</div>
                   </td>
-                  <td className="px-5 py-3.5 text-slate-600">
+                  <td className="px-5 py-3.5 text-ink-strong">
                     {new Date(row.checked_in_at).toLocaleString()}
                   </td>
                   {schema.map((q) => (
-                    <td key={q.id} className="px-5 py-3.5 text-slate-600">
+                    <td key={q.id} className="px-5 py-3.5 text-ink-strong">
                       {formatAnswer(row.answers[q.id]) || "—"}
                     </td>
                   ))}

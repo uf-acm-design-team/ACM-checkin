@@ -9,6 +9,7 @@ import { useUser } from "@clerk/nextjs";
 import { createClient } from "@/app/utils/supabase/client";
 import { hasLogo } from "@/lib/branding";
 import { useBranding } from "@/app/components/BrandingProvider";
+import { Identity } from "@/components/ui/primitives";
 import { cn } from "@/lib/utils";
 
 // Persistent per-org navigation. Rendered by app/[orgSlug]/layout.tsx for every
@@ -102,8 +103,11 @@ export default function OrgNav() {
 
   const isActive = (href: string) => pathname === href;
 
+  // Stand-in crest for an org with no uploaded logo.
+  const initial = (name || slug || "?").charAt(0).toUpperCase();
+
   return (
-    <header className="sticky top-0 z-40 border-b border-white/15 bg-brand-background/80 backdrop-blur-md">
+    <header className="sticky top-0 z-40 border-b border-line bg-surface/85 backdrop-blur-md">
       <nav
         aria-label={`${name || "Club"} navigation`}
         className="mx-auto flex w-full max-w-5xl items-center gap-2 px-3 py-2.5 sm:gap-4 sm:px-6 sm:py-3"
@@ -117,7 +121,7 @@ export default function OrgNav() {
           <Link
             href="/dashboard"
             aria-label="All clubs"
-            className="-ml-1 flex flex-none items-center gap-1.5 rounded-lg px-1.5 py-2 text-white/70 transition-colors hover:bg-white/10 hover:text-white focus-visible:ring-2 focus-visible:ring-white/40 focus-visible:outline-none"
+            className="-ml-1 flex flex-none items-center gap-1.5 rounded-control px-1.5 py-2 text-ink-faint transition-colors hover:bg-surface-sunken hover:text-ink"
           >
             <svg
               className="h-4 w-4 flex-none"
@@ -143,26 +147,28 @@ export default function OrgNav() {
           </Link>
         )}
 
-        {/* Crest + name → the club home. */}
+        {/* Crest + name -> the club home. The crest is one of the three jobs
+            the accent is allowed to do; when the org has no logo, the initial
+            tile stands in rather than leaving a hole. */}
         <Link
           href={`/${slug}`}
-          className="flex min-w-0 items-center gap-2 rounded-lg py-1 pr-2 transition-opacity hover:opacity-80 focus-visible:ring-2 focus-visible:ring-white/40 focus-visible:outline-none"
+          className="flex min-w-0 items-center gap-2 rounded-control py-1 pr-2 transition-opacity hover:opacity-80"
         >
-          {/* Omitted entirely when the org has no logo -- the name beside it
-              is the real label, so there is nothing to stand in for. */}
-          {hasLogo(logo.crest) && (
+          {hasLogo(logo.crest) ? (
             <Image
               src={logo.crest}
               alt=""
               width={32}
               height={32}
-              className="h-7 w-7 flex-none object-contain sm:h-8 sm:w-8"
+              className="h-7 w-7 flex-none rounded-md object-contain sm:h-8 sm:w-8"
               unoptimized
             />
+          ) : (
+            <Identity label={initial} size="sm" className="h-7 w-7 sm:h-8 sm:w-8" />
           )}
           {/* The name is the first thing to go when space is tight -- the tabs
               are the functional part of this bar. */}
-          <span className="hidden truncate text-sm font-bold text-white xs:inline sm:text-base">
+          <span className="hidden truncate text-sm font-bold text-ink xs:inline sm:text-base">
             {name || "Club"}
           </span>
         </Link>
@@ -176,10 +182,10 @@ export default function OrgNav() {
               href={tab.href}
               aria-current={isActive(tab.href) ? "page" : undefined}
               className={cn(
-                "flex-none rounded-full px-3 py-2 text-xs font-semibold whitespace-nowrap transition-colors focus-visible:ring-2 focus-visible:ring-white/40 focus-visible:outline-none sm:px-4 sm:text-sm",
+                "flex-none rounded-pill px-3 py-2 text-xs font-semibold whitespace-nowrap transition-colors sm:px-4 sm:text-[13px]",
                 isActive(tab.href)
-                  ? "bg-white text-brand-background"
-                  : "text-white/75 hover:bg-white/10 hover:text-white",
+                  ? "bg-accent-soft text-accent-on-soft"
+                  : "text-ink-muted hover:bg-surface-sunken hover:text-ink",
               )}
             >
               {tab.label}

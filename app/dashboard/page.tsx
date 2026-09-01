@@ -3,7 +3,17 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { SignOutButton, useUser } from "@clerk/nextjs";
+import Link from "next/link";
 import { createClient } from "../utils/supabase/client";
+import {
+  Card,
+  Chip,
+  EmptyState,
+  Identity,
+  Skeleton,
+  Spinner,
+  buttonClass,
+} from "@/components/ui/primitives";
 
 // Shape of the memberships rows joined to organizations. PostgREST types the
 // embedded relation loosely, so this is asserted at the call site.
@@ -134,178 +144,165 @@ export default function Dashboard() {
     fetchMemberships();
   }, [user, loading, supabase]);
 
+  const displayName =
+    user?.fullName || user?.primaryEmailAddress?.emailAddress || "Profile";
+  const initials = (user?.firstName?.[0] || user?.fullName?.[0] || "U").toUpperCase();
+
   if (!isLoaded || loading) {
     return (
-      <div className="flex items-center justify-center min-h-dvh">
-        <div className="text-white text-xl">Loading...</div>
+      <div className="flex min-h-dvh items-center justify-center gap-3">
+        <Spinner size={26} />
+        <span className="text-sm text-ink-faint">Loading…</span>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-dvh px-4 py-8 sm:px-6">
-      <div className="text-center mb-6 sm:mb-8">
-        <h1 className="text-3xl font-bold text-white mb-2 sm:text-4xl md:text-5xl">
-          UF Check-In
+    <div className="mx-auto flex min-h-dvh w-full max-w-2xl flex-col px-5 py-6 sm:px-6">
+      {/* Heading + account menu. The wireframe leads with "Your orgs" rather
+          than a product title: someone who is signed in already knows what app
+          they are in, and the list is what they came for. */}
+      <div className="mb-6 flex items-center justify-between gap-3">
+        <h1 className="m-0 text-[22px] font-bold tracking-[-0.02em] text-ink">
+          Your orgs
         </h1>
-        <p className="text-white/90 text-base sm:text-lg">Powered by ACM</p>
-      </div>
 
-      <div className="bg-white/10 backdrop-blur-md rounded-2xl shadow-2xl p-5 sm:p-8 w-full max-w-2xl border border-white/20">
-        <div className="flex items-start justify-between gap-3 mb-6 sm:mb-8">
-          <div className="min-w-0">
-            <h2 className="text-xl font-bold text-white mb-1.5 sm:text-2xl md:text-3xl sm:mb-2">
-              Welcome to your Dashboard!
-            </h2>
-            <p className="text-white/80 text-sm sm:text-base">
-              You're logged in as{" "}
-              <span className="font-semibold break-all">
-                {user?.fullName || user?.primaryEmailAddress?.emailAddress}
-              </span>
-            </p>
-          </div>
-          <div className="relative flex-none">
-            <button
-              type="button"
-              onClick={() => setProfileMenuOpen((open) => !open)}
-              className="flex items-center gap-3 rounded-full border border-white/20 bg-white/10 px-2.5 py-2 text-left text-white shadow-lg transition hover:bg-white/15"
+        <div className="relative flex-none">
+          <button
+            type="button"
+            onClick={() => setProfileMenuOpen((open) => !open)}
+            aria-haspopup="menu"
+            aria-expanded={profileMenuOpen}
+            aria-label={`Account menu for ${displayName}`}
+            className="flex size-[34px] cursor-pointer items-center justify-center rounded-full bg-accent-soft text-[13px] font-bold text-accent-on-soft transition-colors hover:bg-accent-soft/70"
+          >
+            {initials}
+          </button>
+
+          {profileMenuOpen && (
+            <div
+              role="menu"
+              className="absolute right-0 z-20 mt-2 w-48 overflow-hidden rounded-card border border-line bg-surface shadow-[var(--shadow-card)]"
             >
-              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-action text-sm font-bold text-white">
-                {(user?.firstName?.[0] || user?.fullName?.[0] || "U").toUpperCase()}
-              </div>
-              <span className="max-w-32 truncate text-sm font-semibold sm:max-w-48">
-                {user?.fullName || user?.primaryEmailAddress?.emailAddress || "Profile"}
-              </span>
-              <svg
-                viewBox="0 0 20 20"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.8"
-                className={`h-4 w-4 transition-transform ${profileMenuOpen ? "rotate-180" : ""}`}
-                aria-hidden="true"
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setProfileMenuOpen(false);
+                  router.push("/settings");
+                }}
+                className="flex w-full cursor-pointer items-center justify-between px-4 py-3 text-left text-sm font-medium text-ink-strong transition-colors hover:bg-surface-sunken"
               >
-                <path d="M5 7.5L10 12.5L15 7.5" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            </button>
-
-            {profileMenuOpen && (
-              <div className="absolute right-0 z-20 mt-2 w-48 overflow-hidden rounded-xl border border-white/20 bg-slate-900/95 shadow-2xl backdrop-blur-md">
+                <span>Settings</span>
+                <span aria-hidden="true">→</span>
+              </button>
+              {isGlobalAdmin && (
                 <button
                   type="button"
+                  role="menuitem"
                   onClick={() => {
                     setProfileMenuOpen(false);
-                    router.push("/settings");
+                    router.push("/developer");
                   }}
-                  className="flex w-full items-center justify-between px-4 py-3 text-left text-sm font-medium text-white transition hover:bg-white/10"
+                  className="flex w-full cursor-pointer items-center justify-between px-4 py-3 text-left text-sm font-medium text-ink-strong transition-colors hover:bg-surface-sunken"
                 >
-                  <span>Settings</span>
+                  <span>Developer</span>
                   <span aria-hidden="true">→</span>
                 </button>
-                {isGlobalAdmin && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setProfileMenuOpen(false);
-                      router.push("/developer");
-                    }}
-                    className="flex w-full items-center justify-between px-4 py-3 text-left text-sm font-medium text-white transition hover:bg-white/10"
-                  >
-                    <span>Developer</span>
-                    <span aria-hidden="true">→</span>
-                  </button>
-                )}
-                <div className="h-px bg-white/10" />
-                <SignOutButton signOutOptions={{ redirectUrl: "/sign-in" }}>
-                  <button
-                    type="button"
-                    className="flex w-full items-center justify-between px-4 py-3 text-left text-sm font-medium text-red-200 transition hover:bg-red-500/10"
-                  >
-                    <span>Log out</span>
-                    <span aria-hidden="true">↩</span>
-                  </button>
-                </SignOutButton>
-              </div>
-            )}
-          </div>
-        </div>
-
-        <div className="space-y-6">
-          <div className="bg-white/10 rounded-lg p-4 sm:p-6 border border-white/20">
-            <h3 className="text-xl font-semibold text-white mb-4">
-              Your Organizations
-            </h3>
-            {orgsLoading ? (
-              <p className="text-white/70">Loading organizations...</p>
-            ) : organizations.length > 0 ? (
-              <div className="space-y-3">
-                {organizations.map((org) => (
-                  <div
-                    key={org.id}
-                    onClick={() => router.push(`/${org.slug}`)}
-                    className="bg-white/10 rounded-lg p-4 border border-white/20 hover:bg-white/20 transition-all cursor-pointer"
-                  >
-                    {/* Stacks on mobile: three side-by-side buttons in a
-                        right-aligned column overflow a phone's width. */}
-                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
-                      <div className="min-w-0">
-                        <h4 className="text-lg font-semibold text-white wrap-break-word">
-                          {org.name}
-                        </h4>
-                        <p className="text-white/60 text-sm">@{org.slug}</p>
-                      </div>
-                      <div className="flex flex-col gap-2 sm:items-end">
-                        <p className="text-white/70 text-sm sm:whitespace-nowrap sm:text-right">
-                          Attended {attendanceByOrg[org.id] || 0}{" "}
-                          {(attendanceByOrg[org.id] || 0) === 1
-                            ? "meeting"
-                            : "meetings"}
-                        </p>
-                        <div className="flex flex-wrap gap-2 sm:justify-end">
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              router.push(`/${org.slug}/checkin`);
-                            }}
-                            className="flex-1 bg-white text-black font-semibold py-2 px-4 rounded-lg hover:bg-white/90 transition-all cursor-pointer sm:flex-none"
-                          >
-                            Check In
-                          </button>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              router.push(`/${org.slug}/stats`);
-                            }}
-                            className="flex-1 bg-white/15 hover:bg-white/25 text-white font-semibold py-2 px-4 rounded-lg transition-all border border-white/20 cursor-pointer sm:flex-none"
-                          >
-                            Stats
-                          </button>
-                          {/* Officers/owners/admins only -- the dashboard is
-                              gated on membership anyway, but a plain member has
-                              nothing to do there. */}
-                          {roleByOrg[org.id] &&
-                            roleByOrg[org.id].toLowerCase() !== "member" && (
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  router.push(`/${org.slug}/admin-dashboard`);
-                                }}
-                                className="flex-1 bg-brand-action hover:opacity-90 text-white font-semibold py-2 px-4 rounded-lg transition-opacity cursor-pointer sm:flex-none"
-                              >
-                                Admin
-                              </button>
-                            )}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-white/70">No organizations found.</p>
-            )}
-          </div>
+              )}
+              <div className="h-px bg-line-soft" />
+              <SignOutButton signOutOptions={{ redirectUrl: "/sign-in" }}>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="flex w-full cursor-pointer items-center justify-between px-4 py-3 text-left text-sm font-medium text-bad transition-colors hover:bg-bad-surface"
+                >
+                  <span>Log out</span>
+                  <span aria-hidden="true">↩</span>
+                </button>
+              </SignOutButton>
+            </div>
+          )}
         </div>
       </div>
+
+      {orgsLoading ? (
+        <div className="flex flex-col gap-3">
+          {[0, 1].map((i) => (
+            <Card key={i} className="flex flex-col gap-3.5 p-4">
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-11 w-full" />
+            </Card>
+          ))}
+        </div>
+      ) : organizations.length > 0 ? (
+        <div className="flex flex-col gap-3">
+          {organizations.map((org) => {
+            const attended = attendanceByOrg[org.id] || 0;
+            const role = roleByOrg[org.id]?.toLowerCase();
+            const isOfficer = Boolean(role && role !== "member");
+
+            return (
+              <Card key={org.id} className="flex flex-col gap-3.5 p-4">
+                <div className="flex items-center gap-3">
+                  <Identity label={org.name.charAt(0).toUpperCase()} size="md" />
+                  <div className="flex min-w-0 flex-1 flex-col">
+                    <span className="truncate text-base font-bold text-ink">
+                      {org.name}
+                    </span>
+                    <span className="text-[13px] text-ink-faint">
+                      {attended} {attended === 1 ? "meeting" : "meetings"} attended
+                    </span>
+                  </div>
+                  {/* The role chip is identity, not status -- an officer wants
+                      to see at a glance which clubs they run. */}
+                  {isOfficer && <Chip tone="accent">{role}</Chip>}
+                </div>
+
+                <div className="flex gap-2">
+                  <Link
+                    href={`/${org.slug}/checkin`}
+                    className={buttonClass("primary", "sm", "flex-1")}
+                  >
+                    Check in
+                  </Link>
+                  <Link
+                    href={`/${org.slug}/stats`}
+                    className={buttonClass("secondary", "sm")}
+                  >
+                    Stats
+                  </Link>
+                  {/* Officers/owners/admins only -- a plain member has nothing
+                      to do there. */}
+                  {isOfficer && (
+                    <Link
+                      href={`/${org.slug}/admin-dashboard`}
+                      className={buttonClass("secondary", "sm")}
+                    >
+                      Admin
+                    </Link>
+                  )}
+                </div>
+              </Card>
+            );
+          })}
+        </div>
+      ) : (
+        /* First run. The wireframe's argument: this is not an error and not a
+           dead end -- say how orgs get here, and offer the one action that
+           does it. */
+        <EmptyState
+          title="You'll see orgs here after your first check-in"
+          action={
+            <Link href="/" className={buttonClass("primary", "md")}>
+              Find an org
+            </Link>
+          }
+        >
+          Scan the QR at a meeting, or open the link an officer sent you.
+          Membership and stats start counting from that moment.
+        </EmptyState>
+      )}
     </div>
   );
 }

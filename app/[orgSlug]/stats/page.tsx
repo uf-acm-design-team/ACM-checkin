@@ -24,9 +24,17 @@ export default async function StatsPage({
       return (
         // Matches the error panel on the org home page -- a bare centred <p>
         // on the gradient read as a broken page rather than a handled state.
-        <main className="flex min-h-[calc(100dvh-var(--org-nav-h))] flex-col items-center justify-center px-4 py-8 sm:px-6">
-          <div className="w-full max-w-sm rounded-2xl border border-white/20 bg-white/10 p-5 text-center shadow-2xl backdrop-blur-md sm:p-8">
-            <p className="text-lg text-white sm:text-xl">Club does not exist</p>
+        <main className="mx-auto flex min-h-[calc(100dvh-var(--org-nav-h))] w-full max-w-md flex-col justify-center px-5 py-8">
+          <div className="flex flex-col gap-2 rounded-panel border border-line bg-surface p-6">
+            <p className="m-0 font-mono text-[10px] font-semibold tracking-[0.08em] text-ink-faint uppercase">
+              Org not found
+            </p>
+            <p className="m-0 text-[17px] font-bold text-ink">
+              No org at /{orgSlug}
+            </p>
+            <p className="m-0 text-[13.5px] leading-relaxed text-ink-muted">
+              Check the link or scan the QR again.
+            </p>
           </div>
         </main>
       );
@@ -38,7 +46,7 @@ export default async function StatsPage({
   const initialPage = await getMeetingsPage(stats.orgId, initialScope, "attended", 1);
 
   return (
-    <main className="mx-auto w-full max-w-4xl">
+    <main className="w-full">
       <StatsView stats={stats} initialScope={initialScope} initialPage={initialPage} />
     </main>
   );

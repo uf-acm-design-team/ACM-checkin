@@ -3,6 +3,14 @@
 import { cn } from "@/lib/utils";
 import type { Scope, TermSummary } from "@/lib/stats-terms";
 
+/**
+ * The semester switch. Equal-width segments in a single row -- the wireframe's
+ * treatment, which reads as one control rather than a row of loose pills.
+ *
+ * The active segment is solid ink, not the accent: the accent is already
+ * carrying the membership card directly above, and two accent fields stacked
+ * make neither one read as primary.
+ */
 export function TermTabs({
   terms,
   activeScope,
@@ -12,20 +20,16 @@ export function TermTabs({
   activeScope: Scope;
   onSelect: (scope: Scope) => void;
 }) {
-  const tabs: { key: Scope; label: string; count: string }[] = [
-    ...terms.map((t) => ({
-      key: t.key as Scope,
-      label: t.label,
-      count: `${t.attended}/${t.total}`,
-    })),
-    { key: "all" as Scope, label: "All semesters", count: "" },
+  const tabs: { key: Scope; label: string }[] = [
+    ...terms.map((t) => ({ key: t.key as Scope, label: t.label })),
+    { key: "all" as Scope, label: "All" },
   ];
 
   return (
     <div
       role="tablist"
       aria-label="Semester"
-      className="flex gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      className="flex gap-2 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
     >
       {tabs.map((tab) => {
         const isActive = tab.key === activeScope;
@@ -37,18 +41,13 @@ export function TermTabs({
             aria-selected={isActive}
             onClick={() => onSelect(tab.key)}
             className={cn(
-              "shrink-0 rounded-full px-4 py-1.5 text-sm font-medium transition-colors",
-              "focus-visible:ring-2 focus-visible:ring-white/40 focus-visible:outline-none",
+              "flex-1 shrink-0 cursor-pointer rounded-control px-3 py-2.5 text-[13px] font-semibold whitespace-nowrap transition-colors",
               isActive
-                // The glow was a hardcoded red rgba(), which stayed red no
-                // matter what accent an org picked. Derive it from the live
-                // --brand-action instead so it tints with the club's color.
-                ? "bg-brand-action text-white shadow-[0_4px_12px_color-mix(in_srgb,var(--brand-action)_45%,transparent)]"
-                : "bg-white/10 text-white/70 hover:bg-white/15 hover:text-white",
+                ? "bg-ink text-white"
+                : "border border-line bg-surface text-ink-muted hover:bg-surface-sunken",
             )}
           >
             {tab.label}
-            {tab.count && <span className="ml-1.5 text-xs opacity-70">{tab.count}</span>}
           </button>
         );
       })}

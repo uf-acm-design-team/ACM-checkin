@@ -5,6 +5,13 @@ import { useRouter } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
 import { createClient } from "../utils/supabase/client";
 import { completeOnboarding, syncOnboardingStatus } from "./actions";
+import {
+  Button,
+  Field,
+  Notice,
+  Spinner,
+  FIELD_CLASS,
+} from "@/components/ui/primitives";
 
 const MAX_NAME_LENGTH = 50;
 
@@ -71,8 +78,9 @@ export default function OnboardingPage() {
 
   if (!isLoaded || checkingExisting) {
     return (
-      <div className="flex items-center justify-center min-h-dvh">
-        <div className="text-white text-xl">Loading...</div>
+      <div className="flex min-h-dvh items-center justify-center gap-3">
+        <Spinner size={26} />
+        <span className="text-sm text-ink-faint">Loading…</span>
       </div>
     );
   }
@@ -171,74 +179,77 @@ export default function OnboardingPage() {
   };
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-dvh px-4 py-8 sm:px-6">
-      <div className="text-center mb-6 sm:mb-8">
-        <h1 className="text-3xl font-bold text-white mb-2 sm:text-4xl md:text-5xl">
-          UF Check-In
+    <div className="mx-auto flex min-h-dvh w-full max-w-md flex-col justify-center px-5 py-10">
+      <div className="flex flex-col gap-1.5">
+        <h1 className="m-0 text-2xl font-bold tracking-[-0.02em] text-ink">
+          Complete your profile
         </h1>
-        <p className="text-white/90 text-base sm:text-lg">Powered by ACM</p>
+        <p className="m-0 text-[15px] leading-relaxed text-ink-muted">
+          Three fields and you&apos;re set — this is the only time we&apos;ll ask.
+        </p>
       </div>
 
-      <div className="bg-white/10 backdrop-blur-md rounded-2xl shadow-2xl p-5 sm:p-8 w-full max-w-md border border-white/20">
-        <div className="text-center mb-6 sm:mb-8">
-          <h2 className="text-xl font-bold text-white mb-2 sm:text-2xl">
-            Complete Your Profile
-          </h2>
-          <p className="text-white/80 text-sm sm:text-base">
-            Just a few more details to get started
-          </p>
-        </div>
+      {error && (
+        <Notice tone="bad" className="mt-5">
+          {error}
+        </Notice>
+      )}
 
-        {error && (
-          <div className="mb-4 p-3 bg-red-500/20 border border-red-500 rounded-lg text-red-200 text-sm">
-            {error}
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
+      <form onSubmit={handleSubmit} className="mt-6 flex flex-col gap-4">
+        {/* First and last sit side by side: two half-width fields read as one
+            unit, which is what a name is. */}
+        <div className="flex gap-3">
+          <Field label="First name" htmlFor="onboarding-first" className="flex-1">
             <input
+              id="onboarding-first"
               type="text"
-              placeholder="First Name"
+              placeholder="Maya"
               value={firstName}
               onChange={(e) => setFirstName(e.target.value)}
               required
+              autoFocus
+              autoComplete="given-name"
               maxLength={MAX_NAME_LENGTH}
-              className="w-full bg-white/20 placeholder-white/70 text-white font-semibold py-3 px-4 rounded-lg focus:outline-none focus:ring-2 focus:ring-white/50 transition-all duration-200 backdrop-blur-sm border border-white/30"
+              className={FIELD_CLASS}
             />
-          </div>
-          <div>
+          </Field>
+          <Field label="Last name" htmlFor="onboarding-last" className="flex-1">
             <input
+              id="onboarding-last"
               type="text"
-              placeholder="Last Name"
+              placeholder="Rivera"
               value={lastName}
               onChange={(e) => setLastName(e.target.value)}
               required
+              autoComplete="family-name"
               maxLength={MAX_NAME_LENGTH}
-              className="w-full bg-white/20 placeholder-white/70 text-white font-semibold py-3 px-4 rounded-lg focus:outline-none focus:ring-2 focus:ring-white/50 transition-all duration-200 backdrop-blur-sm border border-white/30"
+              className={FIELD_CLASS}
             />
-          </div>
-          <div>
-            <input
-              type="text"
-              inputMode="numeric"
-              placeholder="Grad Year (e.g., 2027)"
-              value={gradYear}
-              onChange={(e) => setGradYear(e.target.value.replace(/\D/g, ""))}
-              required
-              maxLength={4}
-              className="w-full bg-white/20 placeholder-white/70 text-white font-semibold py-3 px-4 rounded-lg focus:outline-none focus:ring-2 focus:ring-white/50 transition-all duration-200 backdrop-blur-sm border border-white/30"
-            />
-          </div>
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-brand-action hover:opacity-90 text-white font-semibold py-3 px-4 rounded-lg transition-opacity duration-200 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {loading ? "Saving..." : "Continue"}
-          </button>
-        </form>
-      </div>
+          </Field>
+        </div>
+
+        <Field
+          label="Graduation year"
+          htmlFor="onboarding-grad"
+          hint="Four digits, e.g. 2027."
+        >
+          <input
+            id="onboarding-grad"
+            type="text"
+            inputMode="numeric"
+            placeholder="2027"
+            value={gradYear}
+            onChange={(e) => setGradYear(e.target.value.replace(/\D/g, ""))}
+            required
+            maxLength={4}
+            className={FIELD_CLASS}
+          />
+        </Field>
+
+        <Button type="submit" disabled={loading} fullWidth size="lg" className="mt-1">
+          {loading ? "Saving…" : "Continue"}
+        </Button>
+      </form>
     </div>
   );
 }

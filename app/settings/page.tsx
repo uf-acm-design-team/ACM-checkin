@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
 import { createClient } from "../utils/supabase/client";
+import { Spinner } from "@/components/ui/primitives";
 
 const MAX_NAME_LENGTH = 50;
 
@@ -112,38 +113,38 @@ export default function SettingsPage() {
   if (!isLoaded || !isInitialized) {
     return (
       <div className="flex min-h-dvh items-center justify-center">
-        <div className="text-xl text-white">Loading...</div>
+        <div className="flex items-center gap-3"><Spinner size={26} /><span className="text-sm text-ink-faint">Loading…</span></div>
       </div>
     );
   }
 
   return (
     <div className="flex min-h-dvh flex-col items-center justify-center px-4 py-8 sm:px-6">
-      <div className="w-full max-w-md rounded-2xl border border-white/20 bg-white/10 p-5 shadow-2xl backdrop-blur-md sm:p-8">
+      <div className="w-full max-w-md rounded-panel border border-line bg-surface p-5 shadow-[var(--shadow-card)] sm:p-8">
         <div className="mb-6 text-center">
-          <h1 className="mb-2 text-2xl font-bold text-white sm:text-3xl">
+          <h1 className="mb-2 text-2xl font-bold tracking-[-0.02em] text-ink sm:text-3xl">
             Profile Settings
           </h1>
-          <p className="text-sm text-white/80">
+          <p className="text-sm text-ink-muted">
             Update your name and graduation year.
           </p>
         </div>
 
         {error && (
-          <div className="mb-4 rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-200">
+          <div className="mb-4 rounded-card border border-bad-line bg-bad-surface p-3 text-sm text-bad-ink">
             {error}
           </div>
         )}
 
         {success && (
-          <div className="mb-4 rounded-lg border border-emerald-500/40 bg-emerald-500/10 p-3 text-sm text-emerald-200">
+          <div className="mb-4 rounded-card border border-good-line bg-good-surface p-3 text-sm text-good-ink">
             {success}
           </div>
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="mb-1 block text-sm font-medium text-white/90">
+            <label className="mb-1.5 block text-[13px] font-semibold text-ink-strong">
               First name
             </label>
             <input
@@ -151,13 +152,13 @@ export default function SettingsPage() {
               value={firstName}
               onChange={(e) => setFirstName(e.target.value)}
               maxLength={MAX_NAME_LENGTH}
-              className="w-full rounded-lg border border-white/30 bg-white/10 px-4 py-3 text-white placeholder:text-white/60 focus:outline-none focus:ring-2 focus:ring-white/50"
+              className="w-full rounded-control border border-line bg-surface px-4 py-3 text-ink placeholder:text-ink-faint transition-colors focus:border-accent focus:outline-none"
               placeholder="First Name"
             />
           </div>
 
           <div>
-            <label className="mb-1 block text-sm font-medium text-white/90">
+            <label className="mb-1.5 block text-[13px] font-semibold text-ink-strong">
               Last name
             </label>
             <input
@@ -165,13 +166,13 @@ export default function SettingsPage() {
               value={lastName}
               onChange={(e) => setLastName(e.target.value)}
               maxLength={MAX_NAME_LENGTH}
-              className="w-full rounded-lg border border-white/30 bg-white/10 px-4 py-3 text-white placeholder:text-white/60 focus:outline-none focus:ring-2 focus:ring-white/50"
+              className="w-full rounded-control border border-line bg-surface px-4 py-3 text-ink placeholder:text-ink-faint transition-colors focus:border-accent focus:outline-none"
               placeholder="Last Name"
             />
           </div>
 
           <div>
-            <label className="mb-1 block text-sm font-medium text-white/90">
+            <label className="mb-1.5 block text-[13px] font-semibold text-ink-strong">
               Grad year
             </label>
             <input
@@ -180,7 +181,7 @@ export default function SettingsPage() {
               value={gradYear}
               onChange={(e) => setGradYear(e.target.value.replace(/\D/g, ""))}
               maxLength={4}
-              className="w-full rounded-lg border border-white/30 bg-white/10 px-4 py-3 text-white placeholder:text-white/60 focus:outline-none focus:ring-2 focus:ring-white/50"
+              className="w-full rounded-control border border-line bg-surface px-4 py-3 text-ink placeholder:text-ink-faint transition-colors focus:border-accent focus:outline-none"
               placeholder="2027"
             />
           </div>
@@ -189,14 +190,14 @@ export default function SettingsPage() {
             <button
               type="button"
               onClick={() => router.push("/dashboard")}
-              className="flex-1 rounded-lg border border-white/30 bg-white/5 px-4 py-3 font-semibold text-white transition hover:bg-white/10"
+              className="flex-1 cursor-pointer rounded-control border border-line bg-surface px-4 py-3 font-semibold text-ink-strong transition-colors hover:bg-surface-sunken"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={loading}
-              className="flex-1 rounded-lg bg-brand-action px-4 py-3 font-semibold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+              className="flex-1 cursor-pointer rounded-control bg-accent px-4 py-3 font-semibold text-accent-ink transition-colors hover:bg-accent-deep disabled:cursor-not-allowed disabled:opacity-50"
             >
               {loading ? "Saving..." : "Save"}
             </button>

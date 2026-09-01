@@ -7,7 +7,15 @@ import { useUser } from "@clerk/nextjs";
 import { createClient } from "../utils/supabase/client";
 import { hasLogo } from "@/lib/branding";
 import { useBranding } from "@/app/components/BrandingProvider";
+import Link from "next/link";
 import { membershipThreshold } from "@/lib/membership";
+import {
+  Eyebrow,
+  Identity,
+  Meter,
+  Spinner,
+  buttonClass,
+} from "@/components/ui/primitives";
 
 interface Organization {
   id: string;
@@ -91,99 +99,112 @@ export default function OrgPage({
 
   if (!isLoaded || loading) {
     return (
-      <div className="flex items-center justify-center min-h-[calc(100dvh-var(--org-nav-h))]">
-        <div className="text-white text-xl">Loading...</div>
+      <div className="flex min-h-[calc(100dvh-var(--org-nav-h))] items-center justify-center gap-3">
+        <Spinner size={26} />
+        <span className="text-sm text-ink-faint">Loading…</span>
       </div>
     );
   }
 
   if (error || !organization) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[calc(100dvh-var(--org-nav-h))] px-4 py-8 sm:px-6">
-        <div className="text-center mb-6 sm:mb-8">
-          <h1 className="text-3xl font-bold text-white mb-2 sm:text-4xl md:text-5xl">
-            Club
-          </h1>
-          <p className="text-white/90 text-base sm:text-lg">Powered by ACM</p>
-        </div>
-        <div className="bg-white/10 backdrop-blur-md rounded-2xl shadow-2xl p-5 sm:p-8 w-full max-w-sm border border-white/20">
-          <p className="text-white text-center text-lg sm:text-xl">{error}</p>
+      <div className="mx-auto flex min-h-[calc(100dvh-var(--org-nav-h))] w-full max-w-md flex-col justify-center px-5 py-8">
+        <div className="flex flex-col gap-2 rounded-panel border border-line bg-surface p-6">
+          <Eyebrow>Org not found</Eyebrow>
+          <p className="m-0 text-[17px] font-bold text-ink">No org at /{orgSlug}</p>
+          <p className="m-0 text-[13.5px] leading-relaxed text-ink-muted">
+            {error ?? "Check the link or scan the QR again."}
+          </p>
         </div>
       </div>
     );
   }
 
+  const isMember = threshold !== null && attendanceCount >= threshold;
+
   return (
-    <div className="flex flex-col items-center justify-center min-h-[calc(100dvh-var(--org-nav-h))] px-4 py-8 sm:px-6">
-      <div className="text-center mb-6 sm:mb-8">
-        {/* No logo uploaded -> render nothing. An empty src would resolve to
-            the page's own URL and request the HTML document as an image. */}
-        {hasLogo(logo.crest) && (
+    <div className="mx-auto w-full max-w-md">
+      {/* Identity block. The crest, name and description are the club; the two
+          actions sit directly under them because this page's only job is to
+          send someone onward. */}
+      <div className="flex flex-col gap-4 border-b border-line-soft px-6 pt-5 pb-6">
+        {/* No logo uploaded -> the initial tile stands in. An empty src would
+            resolve to the page's own URL and request the HTML as an image. */}
+        {hasLogo(logo.crest) ? (
           <Image
             src={logo.crest}
             alt={`${organization.name} logo`}
             width={96}
             height={96}
-            className="mx-auto mb-4 h-20 w-20 object-contain drop-shadow-md sm:h-24 sm:w-24"
+            className="size-[54px] rounded-lg object-contain"
             priority
             unoptimized
           />
+        ) : (
+          <Identity
+            label={organization.name.charAt(0).toUpperCase()}
+            size="lg"
+            solid
+          />
         )}
-        <h1 className="text-3xl font-bold text-white mb-2 wrap-break-word sm:text-4xl md:text-5xl">
-          {organization.name}
-        </h1>
-        <p className="text-white/90 text-base sm:text-lg">Powered by ACM</p>
+
+        <div className="flex flex-col gap-1.5">
+          <h1 className="m-0 text-[27px] font-bold tracking-[-0.025em] text-ink wrap-break-word">
+            {organization.name}
+          </h1>
+          <p className="m-0 text-[14.5px] leading-relaxed text-ink-muted">
+            Powered by ACM
+          </p>
+        </div>
+
+        <div className="flex gap-2">
+          <Link
+            href={`/${orgSlug}/checkin`}
+            className={buttonClass("primary", "md", "flex-1")}
+          >
+            Check in
+          </Link>
+          <Link
+            href={`/${orgSlug}/stats`}
+            className={buttonClass("secondary", "md")}
+          >
+            My stats
+          </Link>
+        </div>
       </div>
 
-      {/* Status panel. Check In / Stats used to live here as buttons, but the
-          OrgNav bar now carries them on every page -- duplicating them here
-          just gave the same two destinations twice on one screen. */}
-      <div className="bg-white/10 backdrop-blur-md rounded-2xl shadow-2xl p-5 sm:p-8 w-full max-w-sm border border-white/20">
-        <p className="text-center text-xs font-semibold tracking-widest text-white/50 uppercase">
-          Your attendance
-        </p>
-        <p className="mt-3 text-center">
-          <span className="text-4xl font-bold text-white sm:text-5xl">
-            {attendanceCount}
-          </span>
-          <span className="ml-2 text-sm text-white/60">
-            {attendanceCount === 1 ? "meeting" : "meetings"}
-          </span>
-        </p>
+      <div className="flex flex-col gap-4 px-6 py-6">
+        <Eyebrow>Your attendance</Eyebrow>
 
         {/* Progress toward membership, when the org actually has a threshold.
             membershipThreshold returns null for unconfigured orgs -- those get
-            the plain count above and nothing else. */}
-        {threshold !== null && (
-          <div className="mt-5">
-            <div
-              className="h-1.5 w-full overflow-hidden rounded-full bg-white/15"
-              role="progressbar"
-              aria-valuenow={Math.min(attendanceCount, threshold)}
-              aria-valuemin={0}
-              aria-valuemax={threshold}
-              aria-label="Progress toward membership"
-            >
-              <div
-                className="h-full rounded-full bg-brand-action transition-[width] duration-500"
-                style={{
-                  width: `${Math.min(100, (attendanceCount / threshold) * 100)}%`,
-                }}
-              />
-            </div>
-            <p className="mt-2.5 text-center text-sm text-white/70">
-              {attendanceCount >= threshold ? (
-                <span className="font-semibold text-emerald-200">
-                  You're a member
+            the plain count and nothing else. */}
+        {threshold !== null ? (
+          <div className="flex flex-col gap-2.5 rounded-card border border-line p-5">
+            <p className="m-0 text-base font-bold text-ink">
+              {attendanceCount} of {threshold} meetings
+            </p>
+            <Meter value={attendanceCount} max={threshold} />
+            <p className="m-0 text-[13.5px] leading-relaxed text-ink-muted">
+              {isMember ? (
+                <span className="font-semibold text-good-ink">
+                  Threshold met — you&apos;re a member.
                 </span>
               ) : (
                 <>
-                  <span className="font-semibold text-white">
-                    {threshold - attendanceCount} more
-                  </span>{" "}
-                  to become a member
+                  Attend {threshold - attendanceCount} more this term to become a
+                  member and get voting rights.
                 </>
               )}
+            </p>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-1 rounded-card border border-line p-5">
+            <p className="m-0 text-[26px] font-bold tracking-[-0.02em] text-ink tabular-nums">
+              {attendanceCount}
+            </p>
+            <p className="m-0 text-[13.5px] text-ink-muted">
+              {attendanceCount === 1 ? "meeting" : "meetings"} attended
             </p>
           </div>
         )}

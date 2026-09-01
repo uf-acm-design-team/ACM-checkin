@@ -1,76 +1,133 @@
 @import "tailwindcss";
 
+/*
+  The design system, per the ACM Check-In wireframes.
+
+  One system across public and admin: white surfaces, a slate text ramp, and a
+  single accent reserved for three jobs only -- the primary action, the active
+  state, and identity (crest tiles, avatars). Everything else is neutral. That
+  restraint is what makes the accent mean something; when the whole background
+  was branded, the primary button had nothing left to be louder than.
+
+  Per-org branding is NOT applied globally. The accent below is the product's
+  own purple everywhere except /[orgSlug]/checkin, where OrgTheme overrides the
+  three --accent-* tokens with the club's stored colour. Rationale: an officer
+  moving between orgs should see one consistent console, while an attendee at a
+  club's door sees that club. See app/components/OrgTheme.tsx.
+*/
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-  /* Default ACM theme — fallback for non-org pages and missing branding.
-     Mirrors DEFAULT_BRANDING in lib/branding.ts. Overridden per-org at :root
-     by OrgTheme's injected <style>. */
-  /* Height of the sticky OrgNav bar. Pages under app/[orgSlug] that vertically
-     center their content subtract this from the viewport (min-h-[calc(100dvh-var(--org-nav-h))])
-     so the card stays optically centred in the space left below the bar
-     instead of being pushed down by it. Matches the py + content height of
-     the nav in app/components/OrgNav.tsx. */
-  --org-nav-h: 3.25rem;
-  --brand-primary: #fa4616;
-  --brand-background: #0021a5;
-  --brand-background-secondary: #001b87;
-  --brand-action: #fa4616;
-  --text-main: #ffffff;
-  --particle-color: #ffffff;
-  /* Derived by inkOn() in lib/branding.ts, mirrored here for the default theme.
-     Text that sits ON --brand-action: near-black, because the default orange
-     only makes 3.0:1 against white. */
-  --brand-action-ink: #1a0800;
-  /* Text that sits ON --brand-background. White for the default blue; flips to
-     near-black for orgs that store a light background. */
-  --surface-ink: #ffffff;
+  /* --- Accent (the only chromatic tier) --------------------------------- */
+  /* Overridden per-org on the check-in route only. */
+  --accent: #7c3aed;
+  --accent-deep: #6d28d9; /* pressed/hover, and the inverted success surface */
+  --accent-soft: #f5f3ff; /* tinted chips, identity tiles, active nav */
+  /* Readable ink for text sitting ON --accent. Derived by inkOn() for org
+     accents; white for the default purple. */
+  --accent-ink: #ffffff;
+  /* Ink for text on --accent-soft. */
+  --accent-on-soft: #6d28d9;
 
-  /* The officer console (option 1b: split system with a shared spine). A
-     neutral light surface, deliberately NOT branded -- seven-column tables stay
-     legible on any org's palette, with brand held in the rail and primary
-     button only. Fixed, so org branding never reaches these. */
-  --console-canvas: #fafaf9;
-  --console-ink: #18181b;
+  /* --- Surfaces --------------------------------------------------------- */
+  --canvas: #fafafa; /* app background behind cards */
+  --surface: #ffffff; /* cards, tables, panels */
+  --surface-sunken: #f4f4f5; /* skeletons, track fills, inert chips */
 
-  /* Shared spine. The two surfaces differ in colour and density, never in type
-     scale or geometry, so a component's anatomy is the same on both sides. */
+  /* --- Slate text ramp -------------------------------------------------- */
+  --ink: #09090b; /* headings, primary values */
+  --ink-strong: #3f3f46; /* labels, secondary buttons */
+  --ink-muted: #71717a; /* body copy, descriptions */
+  --ink-faint: #a1a1aa; /* metadata, placeholders, captions */
+
+  /* --- Lines ------------------------------------------------------------ */
+  --line: #e4e4e7; /* default hairline */
+  --line-soft: #f4f4f5; /* internal dividers, table row rules */
+
+  /* --- Semantic tones --------------------------------------------------- */
+  /* Fixed, never branded: a warning must not turn purple because a club
+     picked purple. Each carries a surface, a border and an ink. */
+  --good: #16a34a;
+  --good-ink: #15803d;
+  --good-surface: #f0fdf4;
+  --good-line: #bbf7d0;
+
+  --warn: #d97706;
+  --warn-ink: #b45309;
+  --warn-surface: #fffbeb;
+  --warn-line: #fde68a;
+
+  --bad: #dc2626;
+  --bad-ink: #b91c1c;
+  --bad-surface: #fef2f2;
+  --bad-line: #fecaca;
+
+  /* --- Geometry --------------------------------------------------------- */
+  /* The wireframe's radii: controls and cards are near-square; only the
+     phone frame and pills round hard. */
+  --radius-control: 6px;
+  --radius-card: 8px;
+  --radius-panel: 10px;
   --radius-phone: 22px;
-  --radius-card: 12px;
-  --radius-control: 8px;
   --radius-pill: 99px;
+
+  /* The single elevation in the system. Cards lift off the canvas by one
+     hairline of shadow -- no second, larger shadow tier exists. */
+  --shadow-card: 0 1px 2px rgba(9, 9, 11, 0.05);
+  --shadow-raised: 0 1px 2px rgba(9, 9, 11, 0.06);
+
+  /* Height of the sticky OrgNav bar. Pages that vertically centre their
+     content subtract this from the viewport so the card stays optically
+     centred in the space below the bar. Matches OrgNav's py + content. */
+  --org-nav-h: 3.25rem;
 }
 
 @theme inline {
-  /* Extra-small breakpoint for the sub-400px phones (iPhone SE et al) where
-     the org nav has to drop its wordmark to keep the tabs on one line.
-     Tailwind ships nothing below `sm` (640px). */
+  /* Extra-small breakpoint for sub-400px phones (iPhone SE et al), where the
+     org nav drops its wordmark to keep the tabs on one line. Tailwind ships
+     nothing below `sm` (640px). */
   --breakpoint-xs: 25rem;
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --color-brand-primary: var(--brand-primary);
-  --color-brand-background: var(--brand-background);
-  --color-brand-background-secondary: var(--brand-background-secondary);
-  --color-brand-action: var(--brand-action);
-  --color-brand-action-ink: var(--brand-action-ink);
-  --color-surface-ink: var(--surface-ink);
-  --color-text-main: var(--text-main);
-  --color-console-canvas: var(--console-canvas);
-  --color-console-ink: var(--console-ink);
+
+  --color-accent: var(--accent);
+  --color-accent-deep: var(--accent-deep);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-ink: var(--accent-ink);
+  --color-accent-on-soft: var(--accent-on-soft);
+
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface);
+  --color-surface-sunken: var(--surface-sunken);
+
+  --color-ink: var(--ink);
+  --color-ink-strong: var(--ink-strong);
+  --color-ink-muted: var(--ink-muted);
+  --color-ink-faint: var(--ink-faint);
+
+  --color-line: var(--line);
+  --color-line-soft: var(--line-soft);
+
+  --color-good: var(--good);
+  --color-good-ink: var(--good-ink);
+  --color-good-surface: var(--good-surface);
+  --color-good-line: var(--good-line);
+  --color-warn: var(--warn);
+  --color-warn-ink: var(--warn-ink);
+  --color-warn-surface: var(--warn-surface);
+  --color-warn-line: var(--warn-line);
+  --color-bad: var(--bad);
+  --color-bad-ink: var(--bad-ink);
+  --color-bad-surface: var(--bad-surface);
+  --color-bad-line: var(--bad-line);
+
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 
-  --radius-phone: var(--radius-phone);
-  --radius-card: var(--radius-card);
   --radius-control: var(--radius-control);
+  --radius-card: var(--radius-card);
+  --radius-panel: var(--radius-panel);
+  --radius-phone: var(--radius-phone);
   --radius-pill: var(--radius-pill);
-}
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --shadow-card: var(--shadow-card);
+  --shadow-raised: var(--shadow-raised);
 }
 
 html {
@@ -79,8 +136,8 @@ html {
   -webkit-text-size-adjust: 100%;
 }
 
-/* The nav grows at sm (py-2.5 → py-3, 28px → 32px crest). Keep --org-nav-h in
-   step so centred pages don't drift. */
+/* The nav grows at sm (py-2.5 -> py-3). Keep --org-nav-h in step so centred
+   pages don't drift. */
 @media (min-width: 40rem) {
   :root {
     --org-nav-h: 3.5rem;
@@ -88,18 +145,27 @@ html {
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
+  background: var(--canvas);
+  color: var(--ink);
   font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+  -webkit-font-smoothing: antialiased;
   /* A single wide child (a table, a long unbroken email) must not make the
      whole page pan sideways on a phone -- wide content scrolls in its own
      container instead. */
   overflow-x: hidden;
 }
 
-/* iOS Safari zooms the viewport when a focused input's font-size is under 16px.
-   The design uses 13-14px inputs in the admin console, so pin the *rendered*
-   size to 16px on small screens and let it shrink back at sm and up. */
+/* The system is committed to a light surface. A dark-mode auto-flip would
+   invert white cards while the accent, semantic tones and shadows stayed put,
+   which reads as broken rather than themed. Declared so browsers render form
+   controls and scrollbars light instead of guessing. */
+:root {
+  color-scheme: light;
+}
+
+/* iOS Safari zooms the viewport when a focused input's font-size is under
+   16px. The console uses 13-14px inputs, so pin the *rendered* size to 16px on
+   small screens and let it shrink back at sm and up. */
 @media (max-width: 639px) {
   input,
   select,
@@ -108,9 +174,9 @@ body {
   }
 }
 
-/* Comfortable touch targets for the controls that are small by design
-   (icon-only and compact table-row buttons). Pointer-precision-gated so it
-   applies to touch devices only and leaves mouse layouts untouched. */
+/* Comfortable touch targets for controls that are small by design (icon-only
+   and compact table-row buttons). Pointer-gated so it applies to touch devices
+   and leaves mouse layouts untouched. */
 @media (pointer: coarse) {
   button,
   [role="tab"],
@@ -119,8 +185,34 @@ body {
   }
 }
 
-/* Respect users who ask for less motion; the particle field and transitions
-   are decorative. */
+/* One focus treatment for the whole system: a 3px accent halo, matching the
+   wireframe's focused-input spec. */
+@media (prefers-reduced-motion: no-preference) {
+  :where(a, button, input, select, textarea, [tabindex]):focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
+    border-color: var(--accent);
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 0.8;
+  }
+}
+
+/* Respect users who ask for less motion; spinners and skeletons are the only
+   animation in the system and both have a static reading. */
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;

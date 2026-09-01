@@ -132,24 +132,91 @@ export function resolveBranding(raw: unknown): Branding {
   };
 }
 
-/** Render a Branding's colors as a `;`-joined :root CSS-variable string. */
+/** Expand a validated 3- or 6-digit hex to the canonical 6-digit form. */
+function normalizeHex(value: string): string {
+  const [r, g, b] = toRgb(value);
+  return `#${[r, g, b].map((c) => c.toString(16).padStart(2, "0")).join("")}`;
+}
+
+/**
+ * Darken a hex colour toward black by `amount` (0..1).
+ *
+ * Used to derive the pressed/hover tier (--accent-deep) from an org's stored
+ * accent. Orgs store one accent, not a ramp, so the second stop has to be
+ * computed -- and computing it by mixing toward black keeps hue and lets any
+ * stored colour produce a usable hover state.
+ */
+function darken(value: string, amount: number): string {
+  const [r, g, b] = toRgb(value);
+  const mix = (c: number) =>
+    Math.round(c * (1 - amount))
+      .toString(16)
+      .padStart(2, "0");
+  return `#${mix(r)}${mix(g)}${mix(b)}`;
+}
+
+/**
+ * Lighten a hex colour toward white by `amount` (0..1).
+ *
+ * Derives --accent-soft, the tinted field behind chips and identity tiles. A
+ * heavy mix (the caller passes ~0.92) is deliberate: the wireframe's soft tier
+ * is nearly white, so text at --accent-on-soft stays readable on it.
+ */
+function lighten(value: string, amount: number): string {
+  const [r, g, b] = toRgb(value);
+  const mix = (c: number) =>
+    Math.round(c + (255 - c) * amount)
+      .toString(16)
+      .padStart(2, "0");
+  return `#${mix(r)}${mix(g)}${mix(b)}`;
+}
+
+/**
+ * Render a Branding's accent as a `;`-joined CSS-variable string.
+ *
+ * Only the accent tier is emitted. The surfaces, text ramp and semantic tones
+ * are fixed by the design system (app/globals.css) and are NOT per-org: an
+ * officer moving between clubs should get one consistent console, and a
+ * warning must not turn purple because a club stored purple. A club's identity
+ * lives in the accent, the crest, and the name.
+ *
+ * These are applied on the check-in route only -- see OrgTheme.
+ */
 export function brandingToCssVars(b: Branding): string {
-  const c = b.colors;
+  const accent = b.colors.accent;
+  const soft = lighten(accent, 0.92);
   return [
-    `--brand-primary:${c.primary}`,
-    `--brand-background:${c.background}`,
-    `--brand-background-secondary:${c.backgroundSecondary}`,
-    `--brand-action:${c.accent}`,
-    // Derived, never stored: the readable ink for text sitting ON the action
-    // colour. See inkOn() for why this can't be a fixed white.
-    `--brand-action-ink:${inkOn(c.accent)}`,
-    `--text-main:${c.text}`,
-    // Same derivation for the branded surface. A club whose text token is dark
-    // is really asking for a light public surface, and the check-in card's
-    // hairlines/muted text have to flip with it rather than staying white-alpha.
-    `--surface-ink:${inkOn(c.background)}`,
-    `--particle-color:${b.particleColor}`,
+    `--accent:${accent}`,
+    `--accent-deep:${darken(accent, 0.18)}`,
+    `--accent-soft:${soft}`,
+    // Derived, never stored: the readable ink for text sitting ON the accent.
+    // See inkOn() for why this can't be a fixed white.
+    `--accent-ink:${inkOn(accent)}`,
+    // Text on the soft tint, darkened until it actually clears AA against it.
+    `--accent-on-soft:${readableOn(soft, accent)}`,
   ].join(";");
+}
+
+/**
+ * Darken `color` until it clears 4.5:1 against `surface`.
+ *
+ * A fixed darkening ratio is not enough: --accent-soft is a 92%-white mix, so a
+ * bright accent (lime, cyan, mid-green) is still too light against it after a
+ * flat 30% cut, and the chip label lands somewhere around 4.1:1. Stepping down
+ * until the ratio is actually met means any stored accent yields a legible
+ * label instead of the branding tab having to police the palette.
+ *
+ * Terminates: each step darkens by 8% of the remaining distance to black, and
+ * black clears 4.5:1 against a near-white surface well before the cap.
+ */
+function readableOn(surface: string, color: string): string {
+  // Normalized up front so the emitted token is always 6-digit, even when the
+  // stored accent was written as #abc and already clears the threshold.
+  let candidate = normalizeHex(color);
+  for (let i = 0; i < 24 && contrastRatio(surface, candidate) < 4.5; i++) {
+    candidate = darken(candidate, 0.08);
+  }
+  return candidate;
 }
 
 /** Whether a resolved logo URL points at an actual image. */
