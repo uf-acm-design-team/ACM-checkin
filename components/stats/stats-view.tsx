@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 
 import { useBranding } from "@/app/components/BrandingProvider";
 import { getMeetingsPage } from "@/lib/stats-data";
@@ -38,6 +38,38 @@ export function StatsView({
   // getMeetingsPage calls and whichever RESOLVES last wins — which can be a
   // stale request, leaving the list out of sync with the active tab/view.
   const requestId = useRef(0);
+
+  // Re-sync when the server hands down genuinely new data.
+  //
+  // The useState calls above only run their initializers on MOUNT. On a soft
+  // navigation back to this route, or a router.refresh() after a check-in, the
+  // server sends a fresh initialPage but the component stays mounted -- so it
+  // kept rendering the list it was already holding and the page looked frozen
+  // at its pre-check-in state.
+  //
+  // The dependency is a SIGNATURE of the server payload, not initialPage
+  // itself: that prop is a new object on every server render, so depending on
+  // it would re-run this on renders where nothing actually changed and yank a
+  // user out of the term/view they had picked. Comparing content means the
+  // reset happens only when the server's answer really did change.
+  //
+  // Bumping requestId also cancels any in-flight refetch, so a response for
+  // the pre-refresh scope/view cannot land afterwards and re-stale the list.
+  const serverSignature = `${initialScope}|${initialPage.total}|${initialPage.items
+    .map((m) => m.id)
+    .join(",")}`;
+  const lastSignature = useRef(serverSignature);
+  useEffect(() => {
+    if (lastSignature.current === serverSignature) return;
+    lastSignature.current = serverSignature;
+    requestId.current++;
+    setScope(initialScope);
+    setView("attended");
+    setPage(initialPage);
+    setItems(initialPage.items);
+    // initialScope/initialPage are read through the signature they produce.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [serverSignature]);
 
   function refetch(nextScope: Scope, nextView: MeetingView) {
     const id = ++requestId.current;
