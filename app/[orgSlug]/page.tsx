@@ -1,11 +1,9 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
 import { createClient } from "../utils/supabase/client";
-import { hasLogo } from "@/lib/branding";
 import { useBranding } from "@/app/components/BrandingProvider";
 import Link from "next/link";
 import { membershipThreshold } from "@/lib/membership";
@@ -111,7 +109,9 @@ export default function OrgPage({
       <div className="mx-auto flex min-h-[calc(100dvh-var(--org-nav-h))] w-full max-w-md flex-col justify-center px-5 py-8">
         <div className="flex flex-col gap-2 rounded-panel border border-line bg-surface p-6">
           <Eyebrow>Org not found</Eyebrow>
-          <p className="m-0 text-[17px] font-bold text-ink">No org at /{orgSlug}</p>
+          <p className="m-0 text-[17px] font-bold text-ink">
+            No org at /{orgSlug}
+          </p>
           <p className="m-0 text-[13.5px] leading-relaxed text-ink-muted">
             {error ?? "Check the link or scan the QR again."}
           </p>
@@ -130,23 +130,12 @@ export default function OrgPage({
       <div className="flex flex-col gap-4 border-b border-line-soft px-6 pt-5 pb-6">
         {/* No logo uploaded -> the initial tile stands in. An empty src would
             resolve to the page's own URL and request the HTML as an image. */}
-        {hasLogo(logo.crest) ? (
-          <Image
-            src={logo.crest}
-            alt={`${organization.name} logo`}
-            width={96}
-            height={96}
-            className="size-[54px] rounded-lg object-contain"
-            priority
-            unoptimized
-          />
-        ) : (
-          <Identity
-            label={organization.name.charAt(0).toUpperCase()}
-            size="lg"
-            solid
-          />
-        )}
+        <Identity
+          label={organization.name.charAt(0).toUpperCase()}
+          src={logo.crest}
+          size="lg"
+          solid
+        />
 
         <div className="flex flex-col gap-1.5">
           <h1 className="m-0 text-[27px] font-bold tracking-[-0.025em] text-ink wrap-break-word">
@@ -192,8 +181,8 @@ export default function OrgPage({
                 </span>
               ) : (
                 <>
-                  Attend {threshold - attendanceCount} more this term to become a
-                  member and get voting rights.
+                  Attend {threshold - attendanceCount} more this term to become
+                  a member and get voting rights.
                 </>
               )}
             </p>

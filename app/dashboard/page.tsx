@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { SignOutButton, useUser } from "@clerk/nextjs";
 import Link from "next/link";
+import { brandingToCssVars, cssVarsToStyle, resolveBranding } from "@/lib/branding";
 import { createClient } from "../utils/supabase/client";
 import {
   Card,
@@ -27,6 +28,9 @@ interface Organization {
   name: string;
   slug: string;
   created_at: string;
+  // Raw jsonb. Run it through resolveBranding before reading -- it may be
+  // null, partial, or malformed for an org that never set branding.
+  branding: unknown;
 }
 
 export default function Dashboard() {
@@ -79,7 +83,7 @@ export default function Dashboard() {
       try {
         const { data, error } = await supabase
           .from("memberships")
-          .select("role, organizations:org_id(id, name, slug, created_at)")
+          .select("role, organizations:org_id(id, name, slug, created_at, branding)")
           .eq("user_id", user.id);
 
         if (error) {
@@ -241,11 +245,24 @@ export default function Dashboard() {
             const attended = attendanceByOrg[org.id] || 0;
             const role = roleByOrg[org.id]?.toLowerCase();
             const isOfficer = Boolean(role && role !== "member");
+            const branding = resolveBranding(org.branding);
 
             return (
-              <Card key={org.id} className="flex flex-col gap-3.5 p-4">
+              <Card
+                key={org.id}
+                className="flex flex-col gap-3.5 p-4"
+                // Scope the accent tier to this card. Several orgs are listed on
+                // one page, so the tokens cannot live on :root the way they do
+                // inside /[orgSlug] -- each card carries its own club's colour,
+                // and every accent-consuming child below resolves against it.
+                style={cssVarsToStyle(brandingToCssVars(branding))}
+              >
                 <div className="flex items-center gap-3">
-                  <Identity label={org.name.charAt(0).toUpperCase()} size="md" />
+                  <Identity
+                    label={org.name.charAt(0).toUpperCase()}
+                    src={branding.logo.crest}
+                    size="md"
+                  />
                   <div className="flex min-w-0 flex-1 flex-col">
                     <span className="truncate text-base font-bold text-ink">
                       {org.name}
@@ -288,17 +305,11 @@ export default function Dashboard() {
           })}
         </div>
       ) : (
-        /* First run. The wireframe's argument: this is not an error and not a
-           dead end -- say how orgs get here, and offer the one action that
-           does it. */
-        <EmptyState
-          title="You'll see orgs here after your first check-in"
-          action={
-            <Link href="/" className={buttonClass("primary", "md")}>
-              Find an org
-            </Link>
-          }
-        >
+        /* First run. This is not an error and not a dead end -- it says how
+           orgs get here. There is deliberately no action button: joining an org
+           happens by scanning the QR at a meeting or opening an officer's link,
+           neither of which is something this page can do for you. */
+        <EmptyState title="You'll see orgs here after your first check-in">
           Scan the QR at a meeting, or open the link an officer sent you.
           Membership and stats start counting from that moment.
         </EmptyState>

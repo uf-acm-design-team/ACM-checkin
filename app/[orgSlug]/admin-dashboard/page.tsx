@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
 import { createClient } from "../../utils/supabase/client";
 import { useBranding } from "@/app/components/BrandingProvider";
-import { hasLogo, resolveBranding } from "@/lib/branding";
+import { resolveBranding } from "@/lib/branding";
 import AuditLogView from "@/app/components/AuditLogView";
 import MembersTab from "./members-tab";
 import { roleBadgeLabel } from "@/lib/org-roles";
@@ -787,23 +787,15 @@ export default function AdminDashboard({
         }`}
       >
         <div className="mb-5 flex items-center gap-2.5 px-2">
-          {/* The sidebar header is a fixed two-column layout, so unlike the
-              public nav this keeps the slot filled: a monogram of the org name
-              rather than another club's crest. */}
-          {hasLogo(branding.logo.crest) ? (
-            <img
-              src={branding.logo.crest}
-              alt={`${branding.name || organization.name} logo`}
-              className="h-8 w-8 flex-none rounded-md object-contain"
-            />
-          ) : (
-            <Identity
-              label={initials(branding.name || organization.name)}
-              size="sm"
-              solid
-              className="h-8 w-8"
-            />
-          )}
+          {/* The slot is always filled: the org's crest when it has one, a
+              monogram of its name when it doesn't -- never another club's. */}
+          <Identity
+            label={initials(branding.name || organization.name)}
+            src={branding.logo.crest}
+            size="sm"
+            solid
+            className="h-8 w-8"
+          />
           <div className="min-w-0 leading-tight">
             <div className="truncate text-sm font-bold text-ink">
               {branding.name || organization.name}

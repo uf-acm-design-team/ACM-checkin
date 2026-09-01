@@ -5,6 +5,7 @@ import {
   hasLogo,
   resolveBranding,
   brandingToCssVars,
+  cssVarsToStyle,
   DEFAULT_BRANDING,
 } from "./branding";
 
@@ -170,6 +171,44 @@ describe("brandingToCssVars — the accent tier", () => {
       const value = new RegExp(`${token}:(#[0-9a-fA-F]{6})`).exec(css);
       expect(value, `${token} should be a 6-digit hex`).not.toBeNull();
     }
+  });
+});
+
+describe("cssVarsToStyle", () => {
+  // Used where several orgs render on ONE page (the dashboard cards, the
+  // developer org list), so the accent can't live on :root.
+
+  it("round-trips every token brandingToCssVars emits", () => {
+    const style = cssVarsToStyle(brandingToCssVars(DEFAULT_BRANDING)) as Record<
+      string,
+      string
+    >;
+    expect(style["--accent"]).toBe(DEFAULT_BRANDING.colors.accent);
+    for (const token of [
+      "--accent-deep",
+      "--accent-soft",
+      "--accent-ink",
+      "--accent-on-soft",
+    ]) {
+      expect(style[token]).toMatch(/^#[0-9a-fA-F]{3,6}$/);
+    }
+  });
+
+  it("keeps hex values intact rather than splitting on their colon-free parts", () => {
+    // A naive split(":") would work here, but guard the shape explicitly: the
+    // value must survive whole, '#' included.
+    const style = cssVarsToStyle("--accent:#123456") as Record<string, string>;
+    expect(style["--accent"]).toBe("#123456");
+  });
+
+  it("ignores malformed declarations instead of producing empty keys", () => {
+    const style = cssVarsToStyle("--accent:#fff;;garbage;--accent-ink:#000") as Record<
+      string,
+      string
+    >;
+    expect(style["--accent"]).toBe("#fff");
+    expect(style["--accent-ink"]).toBe("#000");
+    expect(Object.keys(style)).toHaveLength(2);
   });
 });
 

@@ -1,3 +1,5 @@
+import type { CSSProperties } from "react";
+
 // Per-organization branding template.
 //
 // Each org row carries a `branding` jsonb column shaped like `Branding`. Any
@@ -198,6 +200,26 @@ export function brandingToCssVars(b: Branding): string {
 }
 
 /**
+ * Turn a `brandingToCssVars` string into a React inline-style object.
+ *
+ * The `;`-joined form is what a <style> tag wants; a React `style` prop wants
+ * `{ "--accent": "#..." }`. Needed wherever several orgs appear on ONE page
+ * (the dashboard's card list), since the tokens can't sit on :root there --
+ * each element scopes its own club's accent to its own subtree.
+ *
+ * Values are validated hex from resolveBranding, so nothing here can inject.
+ */
+export function cssVarsToStyle(vars: string): CSSProperties {
+  const style: Record<string, string> = {};
+  for (const decl of vars.split(";")) {
+    const at = decl.indexOf(":");
+    if (at === -1) continue;
+    style[decl.slice(0, at)] = decl.slice(at + 1);
+  }
+  return style as CSSProperties;
+}
+
+/**
  * Darken `color` until it clears 4.5:1 against `surface`.
  *
  * A fixed darkening ratio is not enough: --accent-soft is a 92%-white mix, so a
@@ -219,7 +241,14 @@ function readableOn(surface: string, color: string): string {
   return candidate;
 }
 
-/** Whether a resolved logo URL points at an actual image. */
+/**
+ * Whether a resolved logo URL points at an actual image.
+ *
+ * The same empty-string contract is applied by the `Identity` tile in
+ * components/ui/primitives.tsx, which every crest now renders through: an empty
+ * crest falls back to the org's monogram rather than showing a broken image or
+ * another club's logo.
+ */
 export function hasLogo(url: string): boolean {
   return url.trim().length > 0;
 }

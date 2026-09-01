@@ -1,13 +1,11 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useUser } from "@clerk/nextjs";
 
 import { createClient } from "@/app/utils/supabase/client";
-import { hasLogo } from "@/lib/branding";
 import { useBranding } from "@/app/components/BrandingProvider";
 import { Identity } from "@/components/ui/primitives";
 import { cn } from "@/lib/utils";
@@ -154,18 +152,12 @@ export default function OrgNav() {
           href={`/${slug}`}
           className="flex min-w-0 items-center gap-2 rounded-control py-1 pr-2 transition-opacity hover:opacity-80"
         >
-          {hasLogo(logo.crest) ? (
-            <Image
-              src={logo.crest}
-              alt=""
-              width={32}
-              height={32}
-              className="h-7 w-7 flex-none rounded-md object-contain sm:h-8 sm:w-8"
-              unoptimized
-            />
-          ) : (
-            <Identity label={initial} size="sm" className="h-7 w-7 sm:h-8 sm:w-8" />
-          )}
+          <Identity
+            label={initial}
+            src={logo.crest}
+            size="sm"
+            className="h-7 w-7 sm:h-8 sm:w-8"
+          />
           {/* The name is the first thing to go when space is tight -- the tabs
               are the functional part of this bar. */}
           <span className="hidden truncate text-sm font-bold text-ink xs:inline sm:text-base">

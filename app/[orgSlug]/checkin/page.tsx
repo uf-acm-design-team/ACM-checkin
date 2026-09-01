@@ -15,7 +15,6 @@ import {
   CheckinScreen,
   MeetingStrip,
   Notice,
-  OrgMark,
   PrimaryButton,
 } from "@/components/checkin/shell";
 import {
@@ -524,20 +523,6 @@ export default function CheckinPage({
 
   const busy = checkingIn || locating;
 
-  // The org identity line that heads every form screen. The crest is one of
-  // the three jobs the accent is allowed to do.
-  const orgMark = (
-    <OrgMark
-      name={organization?.name ?? orgSlug}
-      logo={
-        <Identity
-          label={(organization?.name ?? orgSlug).charAt(0).toUpperCase()}
-          size="sm"
-        />
-      }
-    />
-  );
-
   if (!isLoaded || view.kind === "loading") return <LoadingState />;
 
   if (view.kind === "org_not_found") return <OrgNotFoundState slug={orgSlug} />;
@@ -558,7 +543,6 @@ export default function CheckinPage({
   if (view.kind === "choose_meeting")
     return (
       <CenteredScreen>
-        {orgMark}
         <div className="flex flex-col gap-1.5">
           <h1 className="m-0 text-2xl font-bold tracking-[-0.02em] text-ink">
             Choose a meeting
@@ -753,7 +737,6 @@ export default function CheckinPage({
   if (isMemberPath) {
     return (
       <CheckinScreen
-        header={orgMark}
         footer={
           <div className="flex flex-col gap-2.5">
             {errorNotice}
@@ -806,12 +789,7 @@ export default function CheckinPage({
         }}
       >
         <CheckinScreen
-          header={
-            <>
-              {orgMark}
-              <StepBar total={hasQuestions ? 3 : 2} current={1} />
-            </>
-          }
+          header={<StepBar total={hasQuestions ? 3 : 2} current={1} />}
           footer={
             <div className="flex flex-col gap-2.5">
               {errorNotice}

@@ -5,7 +5,13 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth, useUser } from "@clerk/nextjs";
 import { createClient } from "../utils/supabase/client";
-import { DEFAULT_BRANDING } from "@/lib/branding";
+import {
+  DEFAULT_BRANDING,
+  brandingToCssVars,
+  cssVarsToStyle,
+  resolveBranding,
+} from "@/lib/branding";
+import { Identity } from "@/components/ui/primitives";
 import AuditLogView from "@/app/components/AuditLogView";
 
 // Platform-admin console: organization creation (moved out of the
@@ -21,6 +27,8 @@ interface Organization {
   id: string;
   name: string;
   slug: string;
+  // Raw jsonb -- run through resolveBranding before reading.
+  branding: unknown;
 }
 
 const EMPTY_ORG_DRAFT = {
@@ -106,7 +114,7 @@ export default function DeveloperPage() {
     try {
       const { data, error } = await supabase
         .from("organizations")
-        .select("id, name, slug")
+        .select("id, name, slug, branding")
         .order("name");
       if (error) {
         console.error("Error fetching organizations:", error);
@@ -252,23 +260,43 @@ export default function DeveloperPage() {
                   Loading organizations...
                 </div>
               ) : orgs.length > 0 ? (
-                orgs.map((org) => (
-                  <div
-                    key={org.id}
-                    className="flex flex-col gap-2 border-b border-line-soft px-4 py-4 text-sm last:border-b-0 sm:grid sm:grid-cols-[2.6fr_1.6fr_120px] sm:items-center sm:gap-4 sm:px-5"
-                  >
-                    <div className="font-bold wrap-break-word">{org.name}</div>
-                    <div className="font-semibold text-ink-strong">@{org.slug}</div>
-                    <div className="flex sm:justify-end">
-                      <button
-                        onClick={() => router.push(`/${org.slug}/admin-dashboard`)}
-                        className="cursor-pointer rounded-lg border border-line bg-white px-3.5 py-2 text-xs font-bold text-ink-strong transition-all hover:bg-canvas"
-                      >
-                        Open
-                      </button>
+                orgs.map((org) => {
+                  const branding = resolveBranding(org.branding);
+                  return (
+                    <div
+                      key={org.id}
+                      // Each row scopes its own club's accent, the same way the
+                      // dashboard cards do -- this list shows every org at once,
+                      // so the tokens cannot live on :root.
+                      style={cssVarsToStyle(brandingToCssVars(branding))}
+                      className="flex flex-col gap-2 border-b border-line-soft px-4 py-4 text-sm last:border-b-0 sm:grid sm:grid-cols-[2.6fr_1.6fr_120px] sm:items-center sm:gap-4 sm:px-5"
+                    >
+                      <div className="flex min-w-0 items-center gap-2.5">
+                        <Identity
+                          label={org.name.charAt(0).toUpperCase()}
+                          src={branding.logo.crest}
+                          size="sm"
+                        />
+                        <span className="font-bold wrap-break-word">
+                          {org.name}
+                        </span>
+                      </div>
+                      <div className="font-semibold text-ink-strong">
+                        @{org.slug}
+                      </div>
+                      <div className="flex sm:justify-end">
+                        <button
+                          onClick={() =>
+                            router.push(`/${org.slug}/admin-dashboard`)
+                          }
+                          className="cursor-pointer rounded-control bg-accent px-3.5 py-2 text-xs font-semibold text-accent-ink transition-colors hover:bg-accent-deep"
+                        >
+                          Open
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                ))
+                  );
+                })
               ) : (
                 <div className="p-10 text-center text-sm text-ink-muted">
                   No organizations yet.
