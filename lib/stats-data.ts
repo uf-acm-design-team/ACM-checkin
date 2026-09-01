@@ -1,7 +1,6 @@
 "use server";
 
 import { auth } from "@clerk/nextjs/server";
-import { unstable_cache } from "next/cache";
 // NOTE: We query with the service-role client, not the anon or Clerk-token
 // client. RLS is ON (20260813000100_enable_rls_clerk.sql) and its anon
 // policies only expose organizations and *active* meetings -- nowhere near
@@ -14,6 +13,7 @@ import { unstable_cache } from "next/cache";
 import { createServiceSupabaseClient } from "@/app/utils/supabase/server";
 import { resolveMembership } from "@/lib/membership";
 import { parseAnswers, parseSchema, type AnswerMap } from "@/lib/form-schema";
+import { orgWallClock } from "@/lib/meeting-time";
 import {
   academicYearTerms,
   buildTermSummaries,
@@ -28,22 +28,31 @@ import {
   type View,
 } from "@/lib/stats-terms";
 
-// Current time as EST wall-clock parts + an ISO string usable for tz-less
-// `start_time` comparisons (meetings.start_time is timestamp WITHOUT time zone,
-// and all club times are EST).
-function nowEst(): { year: number; month: number; iso: string } {
-  const fmt = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "America/New_York",
-    year: "numeric", month: "2-digit", day: "2-digit",
-    hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23",
-  });
-  const p = Object.fromEntries(
-    fmt.formatToParts(new Date()).map((x) => [x.type, x.value]),
-  ) as Record<string, string>;
+// "Now" as a real instant, plus the org-local year/month used to pick which
+// academic year's terms to show.
+//
+// This used to return a bare Eastern wall-clock string ("2026-09-01T14:30:00")
+// for comparison against `start_time`. That was correct while the column was
+// `timestamp without time zone`, but 20260827000000 converted it to timestamptz
+// and PostgREST now returns "2026-09-01T18:30:00+00:00". Comparing the two as
+// STRINGS (which is what the occurred-meetings filter did) comes out backwards:
+// the UTC form's hour digits run 4-5 hours ahead, so every meeting held within
+// the last offset-width dropped out of the totals -- a member's check-in landed
+// but their count didn't move until hours later.
+//
+// Both halves are now true instants, so the comparison is an instant
+// comparison and holds across DST. The year/month still come from the ORG's
+// zone, never the server's, so a late-December meeting files under the right
+// term.
+function nowInstant(): { year: number; month: number; iso: string } {
+  const now = new Date();
+  const wc = orgWallClock(now.toISOString());
   return {
-    year: Number(p.year),
-    month: Number(p.month),
-    iso: `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}:${p.second}`,
+    // orgWallClock only returns null for an unparseable string, which
+    // toISOString() cannot produce; the fallback keeps the type honest.
+    year: wc?.year ?? now.getUTCFullYear(),
+    month: wc?.month ?? now.getUTCMonth() + 1,
+    iso: now.toISOString(),
   };
 }
 
@@ -74,31 +83,38 @@ export async function getMemberStats(orgSlug: string): Promise<MemberStats> {
     status = membership?.status ?? null;
   }
 
-  const now = nowEst();
+  const now = nowInstant();
 
-  // Cached: org meeting totals change only when officers add/edit meetings.
-  // Keyed on orgId (NOT on now — that would defeat the cache). We fetch all org
-  // meetings and filter "occurred" in JS below. Invalidate on meeting
-  // create/update via revalidateTag(`org-meetings:${org.id}`).
-  // Uses the service-role client (not the Clerk client): unstable_cache forbids
-  // reading request headers, and the Clerk client's accessToken callback calls
-  // auth(). The anon client can't substitute -- its RLS policy only exposes
-  // *active* (status = true) meetings, which would silently drop every past
-  // meeting from the term totals.
-  const loadOrgMeetings = unstable_cache(
-    async () => {
-      const service = createServiceSupabaseClient();
-      const { data } = await service
-        .from("meetings")
-        .select("id, start_time")
-        .eq("org_id", org.id);
-      return data ?? [];
-    },
-    ["org-meetings", org.id],
-    { tags: [`org-meetings:${org.id}`], revalidate: 300 },
-  );
-  const orgMeetings = (await loadOrgMeetings()).filter(
-    (m) => m.start_time <= now.iso,
+  // Read the org's meetings live rather than through unstable_cache.
+  //
+  // This used to be wrapped in unstable_cache({ revalidate: 300 }) whose
+  // comment promised invalidation via revalidateTag(`org-meetings:<id>`) on
+  // meeting create/update. That call was never written, and it could not be:
+  // officers create, toggle and delete meetings with the BROWSER supabase
+  // client in app/[orgSlug]/admin-dashboard/page.tsx, so there is no server
+  // action in the write path to revalidate from. The tag was therefore dead
+  // and every officer edit took up to five minutes to reach the stats page.
+  //
+  // Worse, the list below it (get_member_meetings_page) was never cached, so
+  // the header counts and the meeting list were served from two different
+  // points in time and could disagree on screen.
+  //
+  // The query is one indexed `select id, start_time where org_id = ?`. That is
+  // cheap enough that caching it is not worth a five-minute skew between the
+  // two halves of the same page. If this ever needs a cache again, move the
+  // meeting writes into server actions FIRST so the tag can actually be
+  // invalidated.
+  const { data: allOrgMeetings } = await supabase
+    .from("meetings")
+    .select("id, start_time")
+    .eq("org_id", org.id);
+
+  // Occurred meetings only. Both sides are real instants (start_time is
+  // timestamptz; now.iso is toISOString()), so this is an instant comparison,
+  // not the string comparison that used to silently drop the last few hours.
+  const nowMs = Date.parse(now.iso);
+  const orgMeetings = (allOrgMeetings ?? []).filter(
+    (m) => Date.parse(m.start_time) <= nowMs,
   );
 
   let attendedIds = new Set<string>();
@@ -145,15 +161,25 @@ export async function getMeetingsPage(
 ): Promise<Page<StatsMeeting>> {
   const { userId } = await auth();
   const supabase = createServiceSupabaseClient();
-  const now = nowEst();
+  const now = nowInstant();
 
-  // Window (always capped at now — occurred meetings only).
-  let startIso = "0001-01-01T00:00:00";
+  // Window (always capped at now -- occurred meetings only).
+  //
+  // Every bound here is a real instant: termBounds() returns them via
+  // fromDateTimeLocal, and now.iso is toISOString(). The cap used to compare
+  // an offset-bearing bound against a bare wall-clock string, which is not a
+  // meaningful ordering; it is now a numeric instant comparison.
+  const nowMs = Date.parse(now.iso);
+  // A "before any meeting" sentinel, as an instant rather than the old bare
+  // "0001-01-01T00:00:00" -- p_start is timestamptz now, and this keeps the
+  // unbounded lower edge genuinely unbounded instead of quietly starting at
+  // the epoch.
+  let startIso = new Date(Date.UTC(1, 0, 1)).toISOString();
   let endIso = now.iso;
   if (scope !== "all") {
     const b = termBounds(scope);
     startIso = b.startIso;
-    endIso = b.endIso < now.iso ? b.endIso : now.iso;
+    endIso = Date.parse(b.endIso) < nowMs ? b.endIso : now.iso;
   }
 
   // Resolve the attendee server-side so the DB can compute the attended/missed

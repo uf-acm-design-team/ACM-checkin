@@ -418,6 +418,16 @@ export default function CheckinPage({
       at: fmtTime(new Date().toISOString()),
       membership,
     });
+
+    // Drop the client Router Cache entry for this org's server-rendered routes.
+    //
+    // The check-in just changed data the stats page reads. Without this, the
+    // "View stats" button below is a soft navigation, which React serves from
+    // the cached RSC payload fetched BEFORE the check-in -- the member lands on
+    // stats and sees their old count, the exact staleness this flow creates.
+    // The stats route is force-dynamic, so once the cache entry is gone the
+    // navigation re-renders against live data.
+    router.refresh();
   };
 
   const handleMemberCheckIn = async () => {

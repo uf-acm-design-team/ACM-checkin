@@ -5,6 +5,13 @@ import { StatsView } from "@/components/stats/stats-view";
 import { getMemberStats, getMeetingsPage } from "@/lib/stats-data";
 import type { Scope } from "@/lib/stats-terms";
 
+// Never serve this route from the full-route cache. It is per-user (attendance,
+// membership) and it must reflect a check-in the moment it lands -- a member
+// who just checked in and opened stats seeing their old count is the exact
+// symptom this page is meant not to have. auth() already opts the route out in
+// practice; stating it means a future refactor cannot quietly re-cache it.
+export const dynamic = "force-dynamic";
+
 export default async function StatsPage({
   params,
 }: {

@@ -144,3 +144,55 @@ describe("termBounds emits real instants", () => {
     expect(lateDec).toBeLessThanOrEqual(new Date(fall.endIso).getTime());
   });
 });
+
+describe("occurred-meeting filter (timestamptz regression)", () => {
+  // lib/stats-data.ts used to decide "has this meeting happened yet" with a
+  // STRING comparison between a timestamptz value from PostgREST
+  // ("2026-09-01T22:00:00+00:00") and a bare Eastern wall clock built locally
+  // ("2026-09-01T18:00:00"). The UTC form's hour digits run 4-5 hours ahead, so
+  // a meeting that had already happened compared as still in the future and
+  // dropped out of the totals -- a member's check-in landed but their count did
+  // not move for hours. Both sides are parsed as instants now.
+  //
+  // These assertions pin the arithmetic that filter depends on rather than the
+  // filter itself (which lives behind a Supabase call in stats-data.ts).
+  const occurred = (startTime: string, nowIso: string) =>
+    Date.parse(startTime) <= Date.parse(nowIso);
+
+  it("counts a meeting that started an hour ago as occurred", () => {
+    // 6 PM EDT = 22:00 UTC; "now" is 7 PM EDT = 23:00 UTC.
+    const start = "2026-09-01T22:00:00+00:00";
+    const now = "2026-09-01T23:00:00.000Z";
+    expect(occurred(start, now)).toBe(true);
+    // The old string comparison got this exactly backwards.
+    expect(start <= "2026-09-01T19:00:00").toBe(false);
+  });
+
+  it("still excludes a genuinely future meeting", () => {
+    expect(occurred("2026-09-02T22:00:00+00:00", "2026-09-01T23:00:00.000Z"))
+      .toBe(false);
+  });
+
+  it("is correct across the EST/EDT boundary", () => {
+    // 7 PM EST on Jan 15 = 00:00 UTC Jan 16 -- the UTC date has already rolled
+    // over, which is what broke naive character-slicing comparisons.
+    expect(occurred("2026-01-16T00:00:00+00:00", "2026-01-16T00:30:00.000Z"))
+      .toBe(true);
+  });
+});
+
+describe("getTerm with timestamptz values", () => {
+  it("files a late-December Eastern meeting under Fall, not next Spring", () => {
+    // 11 PM EST on Dec 31 2026 = 04:00 UTC on Jan 1 2027. Reading the leading
+    // characters would say "2027-Spring"; the org's wall clock says Fall 2026.
+    expect(getTerm("2027-01-01T04:00:00+00:00")).toMatchObject({
+      key: "2026-Fall", season: "Fall", year: 2026,
+    });
+  });
+
+  it("files an early-August Eastern meeting under Fall", () => {
+    // 8 PM EDT Aug 1 = 00:00 UTC Aug 2 -- same term either way, but confirms
+    // the conversion does not shift a boundary meeting out of Fall.
+    expect(getTerm("2026-08-02T00:00:00+00:00").key).toBe("2026-Fall");
+  });
+});
