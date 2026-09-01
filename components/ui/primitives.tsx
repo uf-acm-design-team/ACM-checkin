@@ -212,14 +212,31 @@ export function Chip({
  * The identity tile -- an org crest or a person's initials. This is one of the
  * three jobs the accent is allowed to do, which is why it is a component and
  * not an ad-hoc div: it keeps "identity" visually distinct from "action".
+ *
+ * Pass `src` to render an uploaded logo; it falls back to `label` when the URL
+ * is empty. Both cases live here on purpose -- when each call site rolled its
+ * own crest-or-initial branch, some of them (the dashboard, the check-in
+ * header) simply never checked for a logo and always drew the initial, so an
+ * org that had uploaded a crest saw it in some places and not others.
+ *
+ * Uses a plain <img>, not next/image: these are remote Supabase storage URLs on
+ * an arbitrary host, they are tiny and already sized by the surrounding layout,
+ * and next/image would need per-host remotePatterns config to render them at
+ * all.
  */
 export function Identity({
   label,
+  src,
+  alt = "",
   size = "md",
   solid = false,
   className,
 }: {
   label: string;
+  /** Uploaded crest URL. Empty/absent falls back to the initial tile. */
+  src?: string;
+  /** Only set this when the tile is the sole carrier of the org's name. */
+  alt?: string;
   size?: "sm" | "md" | "lg";
   /** Solid accent field instead of the soft tint -- for the primary org crest. */
   solid?: boolean;
@@ -231,9 +248,22 @@ export function Identity({
     lg: "size-[54px] text-xl rounded-lg",
   }[size];
 
+  if (src && src.trim().length > 0) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={src}
+        alt={alt}
+        className={cn("flex-none bg-surface object-contain", dims, className)}
+      />
+    );
+  }
+
   return (
     <span
-      aria-hidden="true"
+      aria-hidden={alt ? undefined : "true"}
+      role={alt ? "img" : undefined}
+      aria-label={alt || undefined}
       className={cn(
         "inline-flex flex-none items-center justify-center font-mono font-semibold",
         dims,

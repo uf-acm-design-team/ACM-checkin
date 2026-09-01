@@ -72,22 +72,6 @@ export function CenteredScreen({
   );
 }
 
-/** Org identity line at the top of the flow: crest tile + name. */
-export function OrgMark({
-  name,
-  logo,
-}: {
-  name: string;
-  logo?: React.ReactNode;
-}) {
-  return (
-    <div className="flex items-center gap-2.5">
-      {logo}
-      <span className="text-sm font-semibold text-ink">{name}</span>
-    </div>
-  );
-}
-
 /**
  * The constant context strip: which meeting, when, where, and whether check-in
  * is open. Present in every state including the error ones.

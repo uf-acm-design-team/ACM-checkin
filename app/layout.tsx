@@ -21,13 +21,15 @@ export const metadata: Metadata = {
 };
 
 // Declared explicitly rather than relying on the framework default. `themeColor`
-// paints the mobile browser chrome to match the app canvas. Zoom is deliberately
-// left unrestricted -- capping it locks out users who need to magnify.
+// paints the mobile browser chrome; it matches the purple ground of the app
+// icon (app/icon.png) so the tab, the installed icon and the chrome read as one
+// thing. Zoom is deliberately left unrestricted -- capping it locks out users
+// who need to magnify.
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
-  themeColor: "#fafafa",
+  themeColor: "#580FBE",
 };
 
 export default function RootLayout({

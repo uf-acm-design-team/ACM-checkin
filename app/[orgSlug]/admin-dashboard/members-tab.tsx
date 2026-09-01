@@ -70,7 +70,9 @@ export default function MembersTab({
   const [inviting, setInviting] = useState(false);
   const [inviteError, setInviteError] = useState<string | null>(null);
 
-  const [checkinTargetUserId, setCheckinTargetUserId] = useState<string | null>(null);
+  const [checkinTargetUserId, setCheckinTargetUserId] = useState<string | null>(
+    null,
+  );
   const [checkinMeetingId, setCheckinMeetingId] = useState("");
   const [checkinSubmitting, setCheckinSubmitting] = useState(false);
   const [checkinError, setCheckinError] = useState<string | null>(null);
@@ -96,7 +98,13 @@ export default function MembersTab({
       const userIds = (memberships || []).map((m) => m.user_id).filter(Boolean);
       let attendeesById: Record<
         string,
-        { id: string; first_name: string; last_name: string; email: string; grad_year: string }
+        {
+          id: string;
+          first_name: string;
+          last_name: string;
+          email: string;
+          grad_year: string;
+        }
       > = {};
       const countsByAttendee: Record<string, number> = {};
 
@@ -239,7 +247,8 @@ export default function MembersTab({
   // actually own, which isn't what "transfer ownership" means for them.
   const hasOwner = members.some((m) => m.role === "owner");
   const canShowTransfer =
-    !membersLoading && (membershipRole === "owner" || (isGlobalAdmin && !hasOwner));
+    !membersLoading &&
+    (membershipRole === "owner" || (isGlobalAdmin && !hasOwner));
 
   const handleTransfer = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -323,7 +332,7 @@ export default function MembersTab({
               }}
               className="cursor-pointer rounded-control bg-accent px-4 py-2 text-sm font-bold text-accent-ink transition-colors hover:bg-accent-deep"
             >
-              + Invite by email
+              + Add by email
             </button>
           )}
         </div>
@@ -376,7 +385,9 @@ export default function MembersTab({
                   </span>
                 </div>
                 <div>
-                  <span className="text-xs font-bold">{mem.attendance_count}</span>
+                  <span className="text-xs font-bold">
+                    {mem.attendance_count}
+                  </span>
                 </div>
                 <div className="flex flex-wrap gap-1.5 md:justify-end">
                   {level >= 1 && meetings.length > 0 && (
@@ -513,10 +524,12 @@ export default function MembersTab({
             onClick={(e) => e.stopPropagation()}
             className="max-h-[92dvh] w-full overflow-y-auto rounded-t-2xl bg-white p-5 sm:w-100 sm:max-w-[92vw] sm:rounded-2xl sm:p-7"
           >
-            <div className="mb-1 text-lg font-extrabold">Transfer ownership</div>
+            <div className="mb-1 text-lg font-extrabold">
+              Transfer ownership
+            </div>
             <p className="mb-4 text-xs text-ink-muted">
-              You&apos;ll step down to co-owner. The person you pick must already
-              be a co-owner or officer.
+              You&apos;ll step down to co-owner. The person you pick must
+              already be a co-owner or officer.
             </p>
             <div className="flex flex-col gap-3.5">
               <div>
@@ -545,7 +558,9 @@ export default function MembersTab({
                   </p>
                 )}
               </div>
-              {transferError && <p className="text-sm text-bad">{transferError}</p>}
+              {transferError && (
+                <p className="text-sm text-bad">{transferError}</p>
+              )}
             </div>
             <div className="mt-5 flex flex-col-reverse gap-2.5 sm:flex-row sm:justify-end">
               <button
@@ -601,7 +616,9 @@ export default function MembersTab({
                   ))}
                 </select>
               </div>
-              {checkinError && <p className="text-sm text-bad">{checkinError}</p>}
+              {checkinError && (
+                <p className="text-sm text-bad">{checkinError}</p>
+              )}
             </div>
             <div className="mt-5 flex flex-col-reverse gap-2.5 sm:flex-row sm:justify-end">
               <button
