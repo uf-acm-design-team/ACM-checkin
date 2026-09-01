@@ -6,14 +6,18 @@ import {
   type AnswerValue,
   type FormSchema,
 } from "@/lib/form-schema";
+import { cn } from "@/lib/utils";
+import { FIELD_CLASS, Label } from "@/components/ui/primitives";
 
 /**
  * The attendee-facing check-in form.
  *
- * Styled for the check-in page's translucent-on-brand-background treatment
- * rather than the admin dashboard's white cards. Controls use py-3 and a >=44px
- * hit area for the same reason the rest of that page does: this is used on a
- * phone, standing in a doorway.
+ * Choice options are whole selectable cards rather than a native control with a
+ * label beside it: this is used on a phone, standing in a doorway, so the tap
+ * target is the entire row and the selected state is carried by the card's own
+ * border and tint, not by a 13px dot. The native input stays in the DOM (visually
+ * hidden via `peer` + `sr-only`) so keyboard and screen-reader semantics are the
+ * real ones.
  *
  * Errors are passed in from the parent, which gets them from validateAnswers --
  * the same function the server re-runs before persisting.
@@ -34,7 +38,7 @@ export function FormRenderer({
   if (schema.length === 0) return null;
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-5">
       {schema.map((question) => {
         const value = answers[question.id];
         const error = errors[question.id];
@@ -43,59 +47,58 @@ export function FormRenderer({
         const labelId = `q-label-${question.id}`;
 
         return (
-          <fieldset key={question.id} className="border-0 p-0">
-            <legend id={labelId} className="mb-2 text-sm font-medium text-white">
-              {question.label}
-              {question.required && (
-                <span className="ml-1 text-red-300" aria-hidden="true">
-                  *
-                </span>
-              )}
+          <fieldset key={question.id} className="flex flex-col gap-2 border-0 p-0">
+            <legend id={labelId} className="mb-1">
+              <Label>
+                {question.label}
+                {question.required && (
+                  <span className="ml-1 text-bad" aria-hidden="true">
+                    *
+                  </span>
+                )}
+              </Label>
             </legend>
 
-            {(question.type === "short_text" || question.type === "long_text") &&
-              (question.type === "short_text" ? (
-                <input
-                  type="text"
-                  value={typeof value === "string" ? value : ""}
-                  disabled={disabled}
-                  required={question.required}
-                  aria-labelledby={labelId}
-                  aria-invalid={Boolean(error)}
-                  onChange={(e) => onChange(question.id, e.target.value)}
-                  className={inputClass(error)}
-                />
-              ) : (
-                <textarea
-                  rows={3}
-                  value={typeof value === "string" ? value : ""}
-                  disabled={disabled}
-                  required={question.required}
-                  aria-labelledby={labelId}
-                  aria-invalid={Boolean(error)}
-                  onChange={(e) => onChange(question.id, e.target.value)}
-                  className={`${inputClass(error)} resize-y`}
-                />
-              ))}
+            {question.type === "short_text" && (
+              <input
+                type="text"
+                value={typeof value === "string" ? value : ""}
+                disabled={disabled}
+                required={question.required}
+                aria-labelledby={labelId}
+                aria-invalid={Boolean(error)}
+                placeholder="Short answer"
+                onChange={(e) => onChange(question.id, e.target.value)}
+                className={cn(FIELD_CLASS, error && "border-bad")}
+              />
+            )}
+
+            {question.type === "long_text" && (
+              <textarea
+                rows={3}
+                value={typeof value === "string" ? value : ""}
+                disabled={disabled}
+                required={question.required}
+                aria-labelledby={labelId}
+                aria-invalid={Boolean(error)}
+                placeholder="Your answer"
+                onChange={(e) => onChange(question.id, e.target.value)}
+                className={cn(FIELD_CLASS, "resize-y", error && "border-bad")}
+              />
+            )}
 
             {question.type === "multiple_choice" && (
               <div className="flex flex-col gap-2">
                 {options.map((option) => (
-                  <label
+                  <OptionCard
                     key={option}
-                    className="flex cursor-pointer items-center gap-3 rounded-lg border border-white/20 bg-white/10 px-4 py-3 text-sm text-white transition-colors hover:bg-white/15"
-                  >
-                    <input
-                      type="radio"
-                      name={question.id}
-                      value={option}
-                      checked={value === option}
-                      disabled={disabled}
-                      onChange={() => onChange(question.id, option)}
-                      className="flex-none"
-                    />
-                    <span className="min-w-0 wrap-break-word">{option}</span>
-                  </label>
+                    type="radio"
+                    name={question.id}
+                    label={option}
+                    checked={value === option}
+                    disabled={disabled}
+                    onSelect={() => onChange(question.id, option)}
+                  />
                 ))}
               </div>
             )}
@@ -106,27 +109,22 @@ export function FormRenderer({
                   const selected = Array.isArray(value) ? value : [];
                   const checked = selected.includes(option);
                   return (
-                    <label
+                    <OptionCard
                       key={option}
-                      className="flex cursor-pointer items-center gap-3 rounded-lg border border-white/20 bg-white/10 px-4 py-3 text-sm text-white transition-colors hover:bg-white/15"
-                    >
-                      <input
-                        type="checkbox"
-                        value={option}
-                        checked={checked}
-                        disabled={disabled}
-                        onChange={() =>
-                          onChange(
-                            question.id,
-                            checked
-                              ? selected.filter((s) => s !== option)
-                              : [...selected, option],
-                          )
-                        }
-                        className="flex-none"
-                      />
-                      <span className="min-w-0 wrap-break-word">{option}</span>
-                    </label>
+                      type="checkbox"
+                      name={question.id}
+                      label={option}
+                      checked={checked}
+                      disabled={disabled}
+                      onSelect={() =>
+                        onChange(
+                          question.id,
+                          checked
+                            ? selected.filter((s) => s !== option)
+                            : [...selected, option],
+                        )
+                      }
+                    />
                   );
                 })}
               </div>
@@ -140,13 +138,11 @@ export function FormRenderer({
                 aria-labelledby={labelId}
                 aria-invalid={Boolean(error)}
                 onChange={(e) => onChange(question.id, e.target.value)}
-                className={`${inputClass(error)} cursor-pointer`}
+                className={cn(FIELD_CLASS, "cursor-pointer", error && "border-bad")}
               >
-                <option value="" className="text-slate-900">
-                  Choose…
-                </option>
+                <option value="">Choose…</option>
                 {options.map((option) => (
-                  <option key={option} value={option} className="text-slate-900">
+                  <option key={option} value={option}>
                     {option}
                   </option>
                 ))}
@@ -154,8 +150,10 @@ export function FormRenderer({
             )}
 
             {question.type === "scale" && (
-              <div>
-                <div className="flex flex-wrap items-center gap-2">
+              <div className="flex flex-col gap-1.5">
+                {/* Equal-width points across the full row -- a 1-5 scale reads
+                    as a scale only when the steps are evenly weighted. */}
+                <div className="flex gap-1.5">
                   {scalePoints(scale.min, scale.max).map((point) => (
                     <button
                       key={point}
@@ -163,18 +161,19 @@ export function FormRenderer({
                       disabled={disabled}
                       aria-pressed={value === point}
                       onClick={() => onChange(question.id, point)}
-                      className={`h-11 min-w-11 rounded-lg border px-3 text-sm font-bold transition-colors ${
+                      className={cn(
+                        "min-h-11 flex-1 cursor-pointer rounded-control border text-sm font-medium transition-colors",
                         value === point
-                          ? "border-white/60 bg-white/30 text-white"
-                          : "border-white/20 bg-white/10 text-white/70 hover:bg-white/15"
-                      }`}
+                          ? "border-accent bg-accent text-accent-ink"
+                          : "border-line bg-surface text-ink-muted hover:bg-surface-sunken",
+                      )}
                     >
                       {point}
                     </button>
                   ))}
                 </div>
                 {(scale.min_label || scale.max_label) && (
-                  <div className="mt-1.5 flex justify-between text-xs text-white/50">
+                  <div className="flex justify-between text-xs text-ink-faint">
                     <span>{scale.min_label ?? ""}</span>
                     <span>{scale.max_label ?? ""}</span>
                   </div>
@@ -182,7 +181,7 @@ export function FormRenderer({
               </div>
             )}
 
-            {error && <p className="mt-1.5 text-xs text-red-300">{error}</p>}
+            {error && <p className="m-0 text-xs text-bad">{error}</p>}
           </fieldset>
         );
       })}
@@ -190,10 +189,86 @@ export function FormRenderer({
   );
 }
 
-function inputClass(error?: string): string {
-  return `w-full rounded-lg border bg-white/10 px-4 py-3 text-white placeholder-white/40 focus:outline-none ${
-    error ? "border-red-400/70" : "border-white/20 focus:border-white/50"
-  }`;
+/**
+ * One selectable option rendered as a full-width card.
+ *
+ * The real input is kept and only visually hidden, so the control stays
+ * focusable and announces correctly; `peer-focus-visible` puts the focus ring on
+ * the card the user can actually see.
+ */
+function OptionCard({
+  type,
+  name,
+  label,
+  checked,
+  disabled,
+  onSelect,
+}: {
+  type: "radio" | "checkbox";
+  name: string;
+  label: string;
+  checked: boolean;
+  disabled?: boolean;
+  onSelect: () => void;
+}) {
+  return (
+    <label
+      className={cn(
+        "flex cursor-pointer items-center gap-3 rounded-control border px-4 py-3.5 transition-colors",
+        "peer-focus-visible:border-accent",
+        checked
+          ? "border-accent bg-accent-soft"
+          : "border-line bg-surface hover:bg-surface-sunken",
+        disabled && "cursor-not-allowed opacity-60",
+      )}
+    >
+      <input
+        type={type}
+        name={name}
+        value={label}
+        checked={checked}
+        disabled={disabled}
+        onChange={onSelect}
+        className="peer sr-only"
+      />
+      {/* The indicator. A radio fills as a ring, a checkbox as a tick -- the
+          shape difference is what tells someone whether they may pick more
+          than one. */}
+      <span
+        aria-hidden="true"
+        className={cn(
+          "flex size-4.5 flex-none items-center justify-center border-[1.5px] transition-colors",
+          type === "radio" ? "rounded-full" : "rounded-sm",
+          checked ? "border-accent bg-accent" : "border-ink-faint bg-surface",
+        )}
+      >
+        {checked &&
+          (type === "radio" ? (
+            <span className="size-1.5 rounded-full bg-accent-ink" />
+          ) : (
+            <svg
+              viewBox="0 0 12 12"
+              className="size-3 text-accent-ink"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={2.5}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M2.5 6.5l2.5 2.5 4.5-5" />
+            </svg>
+          ))}
+      </span>
+      <span
+        className={cn(
+          "min-w-0 text-[15px] wrap-break-word",
+          checked ? "font-semibold text-accent-on-soft" : "text-ink-strong",
+        )}
+      >
+        {label}
+      </span>
+    </label>
+  );
 }
 
 function scalePoints(min: number, max: number): number[] {

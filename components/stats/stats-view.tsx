@@ -15,6 +15,7 @@ import { MembershipBadge } from "./membership-badge";
 import { MeetingsList } from "./meetings-list";
 import { TermTabs } from "./term-tabs";
 import { ViewToggle, type MeetingView } from "./view-toggle";
+import { Meter } from "@/components/ui/primitives";
 
 export function StatsView({
   stats,
@@ -73,95 +74,103 @@ export function StatsView({
   const total = scope === "all" ? stats.totalAllTime : activeTerm?.total ?? 0;
   const pct = percentage(attended, total);
 
+  // The empty state is almost always a filter, not an absence -- so it names
+  // the filter that produced it and points at the way out.
+  const emptyTitle =
+    view === "attended"
+      ? `Nothing in ${scopeLabel} yet`
+      : view === "missed"
+        ? "No missed meetings"
+        : `No meetings in ${scopeLabel}`;
+
   const emptyMessage =
     view === "attended"
-      ? `No meetings attended yet. Check in at the next ${name} event!`
+      ? `Check in at the next ${name} event and it shows up here. Your other terms are still there — switch terms above.`
       : view === "missed"
-        ? "No missed meetings here."
-        : "No club meetings yet. Check back soon!";
+        ? "You haven't missed a meeting in this term."
+        : "No club meetings have been held in this term yet.";
 
   return (
-    <section className="flex flex-1 flex-col gap-5 px-4 py-8 sm:px-6 md:gap-6 md:px-10 md:py-12">
-      {/* The summary now sits in the same glass panel the club home and
-          check-in pages use. Previously these lines floated straight on the
-          gradient, so the page had no anchoring surface and the particle field
-          ran directly behind the numbers. */}
-      <header className="rounded-2xl border border-white/20 bg-white/10 p-5 shadow-2xl backdrop-blur-md sm:p-6">
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-          {/* NOT text-brand-primary: this panel sits at the top of the page
-              where the gradient is still showing --brand-primary itself, so an
-              accent-colored eyebrow renders orange-on-orange (and green-on-green
-              for an org themed that way). White at reduced opacity keeps it
-              legible against every org palette. */}
-          <p className="text-xs font-semibold uppercase tracking-widest text-white/70">
-            Your Activity
-          </p>
-          <MembershipBadge isMember={stats.isMember} orgName={name} role={stats.role} />
-          {/* Pushed to the row's end so it reads as a control, not a third label. */}
-          <div className="ml-auto">
-            <ViewToggle value={view} onChange={onChangeView} />
-          </div>
+    <section className="mx-auto flex w-full max-w-md flex-1 flex-col gap-4 px-5 py-5 sm:px-6 md:max-w-3xl">
+      {/*
+        The membership card. The one inverted surface on this page: it is the
+        answer to the question someone opened stats to ask, so it gets the
+        accent field while everything below it stays neutral.
+      */}
+      <div className="flex flex-col gap-3 rounded-panel bg-accent-deep p-5 text-white">
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-[13px] text-white/75">Membership</span>
+          <MembershipBadge
+            isMember={stats.isMember}
+            orgName={name}
+            role={stats.role}
+            onAccent
+          />
         </div>
 
-        <h1 className="mt-2 text-xl font-bold text-white sm:text-2xl md:text-3xl">
-          Your Attendance
-        </h1>
-
-        {/* The scoped ratio as a figure rather than prose -- it is the number
-            the page exists to show, and the old single grey line buried it. */}
-        <p className="mt-2 flex items-baseline gap-2">
-          <span className="text-3xl font-bold text-white sm:text-4xl">{attended}</span>
-          <span className="text-sm text-white/60">
-            of {total} {total === 1 ? "meeting" : "meetings"}
-            {total > 0 && ` · ${pct}%`}
-          </span>
+        <p className="m-0 text-[30px] font-bold tracking-[-0.02em] tabular-nums">
+          {attended} {attended === 1 ? "meeting" : "meetings"}
         </p>
 
         {total > 0 && (
-          <div
-            className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-white/15"
-            role="progressbar"
-            aria-valuenow={pct}
-            aria-valuemin={0}
-            aria-valuemax={100}
-            aria-label={`Attendance for ${scopeLabel}`}
-          >
-            <div
-              className="h-full rounded-full bg-brand-action transition-[width] duration-500"
-              style={{ width: `${pct}%` }}
-            />
-          </div>
+          <Meter
+            value={attended}
+            max={total}
+            tone="inverted"
+            label={`Attendance for ${scopeLabel}`}
+          />
         )}
 
         {/* Membership progress is all-time and independent of the active tab,
-            so it is labelled separately rather than folded into the bar above. */}
-        {!stats.isMember && stats.threshold !== null && (
-          <p className="mt-3 text-sm text-white/70">
-            <span className="font-semibold text-white">{stats.remaining} more</span>{" "}
-            {stats.remaining === 1 ? "meeting" : "meetings"} to become a member
-            <span className="text-white/50">
-              {" "}
+            so it is stated separately rather than folded into the bar above. */}
+        <p className="m-0 text-[13px] text-white/75">
+          {stats.isMember ? (
+            <>
+              Threshold met
+              {stats.threshold !== null &&
+                ` — ${stats.attendedAllTime} of ${stats.threshold} all time`}
+            </>
+          ) : stats.threshold !== null ? (
+            <>
+              {stats.remaining} more{" "}
+              {stats.remaining === 1 ? "meeting" : "meetings"} to become a member
               ({stats.attendedAllTime}/{stats.threshold} all time)
-            </span>
-          </p>
-        )}
-      </header>
+            </>
+          ) : (
+            <>
+              {total > 0
+                ? `${pct}% of ${total} ${total === 1 ? "meeting" : "meetings"} in ${scopeLabel}`
+                : `No meetings in ${scopeLabel} yet`}
+            </>
+          )}
+        </p>
+      </div>
 
       <TermTabs terms={stats.terms} activeScope={scope} onSelect={onSelectScope} />
 
-      {/* On a phone the viewport is already short, so a nested 60vh scroller
-          leaves a cramped window inside a scrollable page. Let the list flow
-          with the page on mobile and cap it only once there's height to spare. */}
-      <div
-        className={`pr-1 md:max-h-[60vh] md:overflow-y-auto ${pending ? "opacity-60" : ""}`}
-      >
-        <MeetingsList meetings={items} emptyMessage={emptyMessage} />
+      {/* The view switch sits on a hairline directly above the list it filters,
+          which is what makes the counts legible as "what you'd see if you
+          tapped this". */}
+      <div className="border-b border-line">
+        <ViewToggle
+          value={view}
+          counts={{ attended, missed: Math.max(0, total - attended), all: total }}
+          onChange={onChangeView}
+        />
+      </div>
+
+      <div className={pending ? "opacity-60" : undefined}>
+        <MeetingsList
+          meetings={items}
+          emptyTitle={emptyTitle}
+          emptyMessage={emptyMessage}
+        />
         {page.hasMore && (
           <button
             type="button"
             onClick={onLoadMore}
             disabled={pending}
-            className="mt-4 w-full rounded-full border border-white/25 bg-white/5 py-2 text-sm font-medium text-white transition-colors hover:bg-white/10 focus-visible:ring-2 focus-visible:ring-white/40 focus-visible:outline-none disabled:opacity-50"
+            className="mt-3 w-full cursor-pointer rounded-control border border-line bg-surface py-2.5 text-sm font-semibold text-ink-strong transition-colors hover:bg-surface-sunken disabled:opacity-50"
           >
             {pending ? "Loading…" : "Load more"}
           </button>

@@ -297,10 +297,10 @@ export default function MembersTab({
           placeholder="Search members..."
           value={memberSearch}
           onChange={(e) => setMemberSearch(e.target.value)}
-          className="w-full rounded-[9px] border border-slate-200 bg-white px-4 py-2.5 text-sm sm:w-auto sm:min-w-65"
+          className="w-full rounded-control border border-line bg-white px-4 py-2.5 text-sm sm:w-auto sm:min-w-65"
         />
         <div className="flex items-center gap-3">
-          <div className="text-[13px] font-semibold text-slate-500">
+          <div className="text-[13px] font-semibold text-ink-muted">
             {members.length} member{members.length === 1 ? "" : "s"}
           </div>
           {canShowTransfer && (
@@ -310,7 +310,7 @@ export default function MembersTab({
                 setTransferTargetUserId("");
                 setShowTransferModal(true);
               }}
-              className="cursor-pointer rounded-[9px] border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-brand-background transition-all hover:bg-slate-50"
+              className="cursor-pointer rounded-control border border-line bg-white px-4 py-2 text-sm font-bold text-ink-strong transition-all hover:bg-canvas"
             >
               Transfer ownership
             </button>
@@ -321,7 +321,7 @@ export default function MembersTab({
                 setInviteError(null);
                 setShowInviteModal(true);
               }}
-              className="cursor-pointer rounded-[9px] bg-brand-action px-4 py-2 text-sm font-bold text-white transition-all hover:opacity-90"
+              className="cursor-pointer rounded-control bg-accent px-4 py-2 text-sm font-bold text-accent-ink transition-colors hover:bg-accent-deep"
             >
               + Invite by email
             </button>
@@ -330,13 +330,13 @@ export default function MembersTab({
       </div>
 
       {actionError && (
-        <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <div className="mb-4 rounded-lg border border-bad-line bg-bad-surface px-4 py-3 text-sm text-bad-ink">
           {actionError}
         </div>
       )}
 
-      <div className="overflow-hidden rounded-[14px] border border-slate-200 bg-white">
-        <div className="hidden grid-cols-[1.6fr_1.8fr_1fr_1fr_1.6fr] gap-4 border-b border-slate-200 px-5 py-3.5 text-xs font-bold tracking-wide text-slate-500 uppercase md:grid">
+      <div className="overflow-hidden rounded-card border border-line bg-white">
+        <div className="hidden grid-cols-[1.6fr_1.8fr_1fr_1fr_1.6fr] gap-4 border-b border-line px-5 py-3.5 text-xs font-bold tracking-wide text-ink-muted uppercase md:grid">
           <div>Name</div>
           <div>Contact</div>
           <div>Role</div>
@@ -344,7 +344,7 @@ export default function MembersTab({
           <div className="text-right">Actions</div>
         </div>
         {membersLoading ? (
-          <div className="p-10 text-center text-sm text-slate-500">
+          <div className="p-10 text-center text-sm text-ink-muted">
             Loading members...
           </div>
         ) : filteredMembers.length > 0 ? (
@@ -357,21 +357,21 @@ export default function MembersTab({
             return (
               <div
                 key={mem.user_id}
-                className="flex flex-col gap-2.5 border-b border-slate-100 px-4 py-3.5 text-sm last:border-b-0 sm:px-5 md:grid md:grid-cols-[1.6fr_1.8fr_1fr_1fr_1.6fr] md:items-center md:gap-4"
+                className="flex flex-col gap-2.5 border-b border-line-soft px-4 py-3.5 text-sm last:border-b-0 sm:px-5 md:grid md:grid-cols-[1.6fr_1.8fr_1fr_1fr_1.6fr] md:items-center md:gap-4"
               >
                 <div className="flex min-w-0 items-center gap-2.5 font-bold">
-                  <div className="flex h-8 w-8 flex-none items-center justify-center rounded-full bg-brand-primary/10 text-[11px] font-bold text-brand-primary">
+                  <div className="flex h-8 w-8 flex-none items-center justify-center rounded-full bg-accent-soft text-[11px] font-bold text-accent">
                     {initials(`${mem.first_name} ${mem.last_name}`)}
                   </div>
                   <span className="min-w-0 wrap-break-word">
                     {mem.first_name} {mem.last_name}
                   </span>
                 </div>
-                <div className="text-[13px] font-medium break-all text-slate-600 md:truncate md:break-normal">
+                <div className="text-[13px] font-medium break-all text-ink-strong md:truncate md:break-normal">
                   {mem.email}
                 </div>
                 <div>
-                  <span className="inline-block rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-bold text-slate-600 capitalize">
+                  <span className="inline-block rounded-full bg-surface-sunken px-2.5 py-1 text-[11px] font-bold text-ink-strong capitalize">
                     {ROLE_LABEL[mem.role] ?? mem.role}
                   </span>
                 </div>
@@ -382,7 +382,7 @@ export default function MembersTab({
                   {level >= 1 && meetings.length > 0 && (
                     <button
                       onClick={() => openCheckinModal(mem.user_id)}
-                      className="cursor-pointer rounded-md border border-slate-200 px-2 py-1 text-[11px] font-bold text-slate-600 hover:bg-slate-100"
+                      className="cursor-pointer rounded-md border border-line px-2 py-1 text-[11px] font-bold text-ink-strong hover:bg-surface-sunken"
                     >
                       Add to meeting
                     </button>
@@ -391,7 +391,7 @@ export default function MembersTab({
                     <button
                       disabled={busy}
                       onClick={() => handleRoleChange(mem.user_id, promoteRole)}
-                      className="cursor-pointer rounded-md border border-slate-200 px-2 py-1 text-[11px] font-bold text-slate-600 hover:bg-slate-100 disabled:opacity-50"
+                      className="cursor-pointer rounded-md border border-line px-2 py-1 text-[11px] font-bold text-ink-strong hover:bg-surface-sunken disabled:opacity-50"
                     >
                       Promote
                     </button>
@@ -400,7 +400,7 @@ export default function MembersTab({
                     <button
                       disabled={busy}
                       onClick={() => handleRoleChange(mem.user_id, demoteRole)}
-                      className="cursor-pointer rounded-md border border-slate-200 px-2 py-1 text-[11px] font-bold text-slate-600 hover:bg-slate-100 disabled:opacity-50"
+                      className="cursor-pointer rounded-md border border-line px-2 py-1 text-[11px] font-bold text-ink-strong hover:bg-surface-sunken disabled:opacity-50"
                     >
                       Demote
                     </button>
@@ -409,7 +409,7 @@ export default function MembersTab({
                     <button
                       disabled={busy}
                       onClick={() => handleRemove(mem)}
-                      className="cursor-pointer rounded-md border border-red-200 px-2 py-1 text-[11px] font-bold text-red-600 hover:bg-red-50 disabled:opacity-50"
+                      className="cursor-pointer rounded-md border border-bad-line px-2 py-1 text-[11px] font-bold text-bad hover:bg-bad-surface disabled:opacity-50"
                     >
                       Remove
                     </button>
@@ -419,7 +419,7 @@ export default function MembersTab({
             );
           })
         ) : (
-          <div className="p-10 text-center text-sm text-slate-500">
+          <div className="p-10 text-center text-sm text-ink-muted">
             No members match your search.
           </div>
         )}
@@ -428,7 +428,7 @@ export default function MembersTab({
       {/* INVITE MODAL */}
       {showInviteModal && (
         <div
-          className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/45 p-0 sm:items-center sm:p-4"
+          className="fixed inset-0 z-50 flex items-end justify-center bg-ink/45 p-0 sm:items-center sm:p-4"
           onClick={() => setShowInviteModal(false)}
         >
           <form
@@ -437,13 +437,13 @@ export default function MembersTab({
             className="max-h-[92dvh] w-full overflow-y-auto rounded-t-2xl bg-white p-5 sm:w-100 sm:max-w-[92vw] sm:rounded-2xl sm:p-7"
           >
             <div className="mb-1 text-lg font-extrabold">Invite by email</div>
-            <p className="mb-4 text-xs text-slate-500">
+            <p className="mb-4 text-xs text-ink-muted">
               The email must already belong to a registered account -- they need
               to have signed in at least once.
             </p>
             <div className="flex flex-col gap-3.5">
               <div>
-                <label className="mb-1.5 block text-xs font-bold text-slate-500">
+                <label className="mb-1.5 block text-xs font-bold text-ink-muted">
                   Email
                 </label>
                 <input
@@ -452,17 +452,17 @@ export default function MembersTab({
                   value={inviteEmail}
                   onChange={(e) => setInviteEmail(e.target.value)}
                   placeholder="member@ufl.edu"
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm"
+                  className="w-full rounded-lg border border-line px-3 py-2.5 text-sm"
                 />
               </div>
               <div>
-                <label className="mb-1.5 block text-xs font-bold text-slate-500">
+                <label className="mb-1.5 block text-xs font-bold text-ink-muted">
                   Role
                 </label>
                 <select
                   value={inviteRole}
                   onChange={(e) => setInviteRole(e.target.value)}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm capitalize"
+                  className="w-full rounded-lg border border-line px-3 py-2.5 text-sm capitalize"
                 >
                   {invitableRoles.map((role) => (
                     <option key={role} value={role}>
@@ -473,27 +473,27 @@ export default function MembersTab({
                 {/* Say why the higher roles are absent. Without this the
                     select just silently lacks them and reads as a bug. */}
                 {ceiling < ROLE_LEVEL["co-owner"] && (
-                  <p className="mt-1.5 text-[11px] text-slate-500">
+                  <p className="mt-1.5 text-[11px] text-ink-muted">
                     {ceiling < ROLE_LEVEL.officer
                       ? "Only the owner can appoint officers, and only a global admin can appoint co-owners."
                       : "Only a global admin can appoint co-owners."}
                   </p>
                 )}
               </div>
-              {inviteError && <p className="text-sm text-red-600">{inviteError}</p>}
+              {inviteError && <p className="text-sm text-bad">{inviteError}</p>}
             </div>
             <div className="mt-5 flex flex-col-reverse gap-2.5 sm:flex-row sm:justify-end">
               <button
                 type="button"
                 onClick={() => setShowInviteModal(false)}
-                className="cursor-pointer rounded-[9px] border border-slate-200 bg-white px-4.5 py-2.5 text-[13px] font-bold"
+                className="cursor-pointer rounded-control border border-line bg-white px-4 py-2.5 text-[13px] font-bold"
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 disabled={inviting}
-                className="cursor-pointer rounded-[9px] bg-brand-action px-4.5 py-2.5 text-[13px] font-bold text-white disabled:opacity-50"
+                className="cursor-pointer rounded-control bg-accent px-4 py-2.5 text-[13px] font-bold text-accent-ink disabled:opacity-50"
               >
                 {inviting ? "Inviting..." : "Invite"}
               </button>
@@ -505,7 +505,7 @@ export default function MembersTab({
       {/* TRANSFER OWNERSHIP MODAL */}
       {showTransferModal && (
         <div
-          className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/45 p-0 sm:items-center sm:p-4"
+          className="fixed inset-0 z-50 flex items-end justify-center bg-ink/45 p-0 sm:items-center sm:p-4"
           onClick={() => setShowTransferModal(false)}
         >
           <form
@@ -514,20 +514,20 @@ export default function MembersTab({
             className="max-h-[92dvh] w-full overflow-y-auto rounded-t-2xl bg-white p-5 sm:w-100 sm:max-w-[92vw] sm:rounded-2xl sm:p-7"
           >
             <div className="mb-1 text-lg font-extrabold">Transfer ownership</div>
-            <p className="mb-4 text-xs text-slate-500">
+            <p className="mb-4 text-xs text-ink-muted">
               You&apos;ll step down to co-owner. The person you pick must already
               be a co-owner or officer.
             </p>
             <div className="flex flex-col gap-3.5">
               <div>
-                <label className="mb-1.5 block text-xs font-bold text-slate-500">
+                <label className="mb-1.5 block text-xs font-bold text-ink-muted">
                   New owner
                 </label>
                 <select
                   required
                   value={transferTargetUserId}
                   onChange={(e) => setTransferTargetUserId(e.target.value)}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm"
+                  className="w-full rounded-lg border border-line px-3 py-2.5 text-sm"
                 >
                   <option value="" disabled>
                     Select a member
@@ -539,26 +539,26 @@ export default function MembersTab({
                   ))}
                 </select>
                 {transferCandidates.length === 0 && (
-                  <p className="mt-1.5 text-[11px] text-slate-400">
+                  <p className="mt-1.5 text-[11px] text-ink-faint">
                     No eligible co-owners or officers yet -- promote someone
                     first.
                   </p>
                 )}
               </div>
-              {transferError && <p className="text-sm text-red-600">{transferError}</p>}
+              {transferError && <p className="text-sm text-bad">{transferError}</p>}
             </div>
             <div className="mt-5 flex flex-col-reverse gap-2.5 sm:flex-row sm:justify-end">
               <button
                 type="button"
                 onClick={() => setShowTransferModal(false)}
-                className="cursor-pointer rounded-[9px] border border-slate-200 bg-white px-4.5 py-2.5 text-[13px] font-bold"
+                className="cursor-pointer rounded-control border border-line bg-white px-4 py-2.5 text-[13px] font-bold"
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 disabled={transferring || !transferTargetUserId}
-                className="cursor-pointer rounded-[9px] bg-brand-action px-4.5 py-2.5 text-[13px] font-bold text-white disabled:opacity-50"
+                className="cursor-pointer rounded-control bg-accent px-4 py-2.5 text-[13px] font-bold text-accent-ink disabled:opacity-50"
               >
                 {transferring ? "Transferring..." : "Transfer"}
               </button>
@@ -570,7 +570,7 @@ export default function MembersTab({
       {/* MANUAL CHECK-IN MODAL */}
       {checkinTargetUserId && (
         <div
-          className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/45 p-0 sm:items-center sm:p-4"
+          className="fixed inset-0 z-50 flex items-end justify-center bg-ink/45 p-0 sm:items-center sm:p-4"
           onClick={() => setCheckinTargetUserId(null)}
         >
           <form
@@ -579,20 +579,20 @@ export default function MembersTab({
             className="max-h-[92dvh] w-full overflow-y-auto rounded-t-2xl bg-white p-5 sm:w-100 sm:max-w-[92vw] sm:rounded-2xl sm:p-7"
           >
             <div className="mb-1 text-lg font-extrabold">Add to meeting</div>
-            <p className="mb-4 text-xs text-slate-500">
+            <p className="mb-4 text-xs text-ink-muted">
               Marks this member as checked in without them going through the
               check-in flow. No form answers are recorded and location is not
               checked.
             </p>
             <div className="flex flex-col gap-3.5">
               <div>
-                <label className="mb-1.5 block text-xs font-bold text-slate-500">
+                <label className="mb-1.5 block text-xs font-bold text-ink-muted">
                   Meeting
                 </label>
                 <select
                   value={checkinMeetingId}
                   onChange={(e) => setCheckinMeetingId(e.target.value)}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm"
+                  className="w-full rounded-lg border border-line px-3 py-2.5 text-sm"
                 >
                   {meetings.map((m) => (
                     <option key={m.id} value={m.id}>
@@ -601,20 +601,20 @@ export default function MembersTab({
                   ))}
                 </select>
               </div>
-              {checkinError && <p className="text-sm text-red-600">{checkinError}</p>}
+              {checkinError && <p className="text-sm text-bad">{checkinError}</p>}
             </div>
             <div className="mt-5 flex flex-col-reverse gap-2.5 sm:flex-row sm:justify-end">
               <button
                 type="button"
                 onClick={() => setCheckinTargetUserId(null)}
-                className="cursor-pointer rounded-[9px] border border-slate-200 bg-white px-4.5 py-2.5 text-[13px] font-bold"
+                className="cursor-pointer rounded-control border border-line bg-white px-4 py-2.5 text-[13px] font-bold"
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 disabled={checkinSubmitting}
-                className="cursor-pointer rounded-[9px] bg-brand-action px-4.5 py-2.5 text-[13px] font-bold text-white disabled:opacity-50"
+                className="cursor-pointer rounded-control bg-accent px-4 py-2.5 text-[13px] font-bold text-accent-ink disabled:opacity-50"
               >
                 {checkinSubmitting ? "Saving..." : "Mark checked in"}
               </button>

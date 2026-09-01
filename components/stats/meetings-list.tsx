@@ -1,23 +1,22 @@
 import { MeetingListItem } from "./meeting-list-item";
 import type { StatsMeeting } from "@/lib/stats-terms";
+import { EmptyState } from "@/components/ui/primitives";
 
 export function MeetingsList({
   meetings,
   emptyMessage = "No meetings yet.",
+  emptyTitle = "Nothing here yet",
 }: {
   meetings: StatsMeeting[];
   emptyMessage?: string;
+  emptyTitle?: string;
 }) {
   if (meetings.length === 0) {
-    return (
-      <div className="rounded-2xl border border-dashed border-white/20 bg-white/5 px-6 py-10 text-center">
-        <p className="text-sm text-white/70">{emptyMessage}</p>
-      </div>
-    );
+    return <EmptyState title={emptyTitle}>{emptyMessage}</EmptyState>;
   }
 
   return (
-    <ul className="flex flex-col gap-3 md:grid md:grid-cols-2">
+    <ul className="flex list-none flex-col gap-2 p-0">
       {meetings.map((meeting) => (
         <MeetingListItem key={meeting.id} meeting={meeting} />
       ))}

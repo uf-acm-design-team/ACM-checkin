@@ -52,35 +52,48 @@ describe("resolveBranding", () => {
 });
 
 describe("brandingToCssVars", () => {
-  it("emits all six CSS variables", () => {
+  it("emits the five accent-tier variables", () => {
     const css = brandingToCssVars(DEFAULT_BRANDING);
     for (const v of [
-      "--brand-primary",
-      "--brand-background",
-      "--brand-background-secondary",
-      "--brand-action",
-      "--text-main",
-      "--particle-color",
+      "--accent",
+      "--accent-deep",
+      "--accent-soft",
+      "--accent-ink",
+      "--accent-on-soft",
     ]) {
       expect(css).toContain(v);
     }
   });
 
   it("only emits sanitized values (injection-safe)", () => {
+    // The output is interpolated into a <style> tag by OrgTheme, so a stored
+    // value that escaped validation would be script injection. resolveBranding
+    // rejects the non-hex accent and the default is emitted instead.
     const b = resolveBranding({
       colors: { primary: "#abcdef", accent: "}</style><script>alert(1)" },
     });
     const css = brandingToCssVars(b);
-    expect(css).toContain("--brand-primary:#abcdef");
-    expect(css).toContain(`--brand-action:${DEFAULT_BRANDING.colors.accent}`);
+    expect(css).toContain(`--accent:${DEFAULT_BRANDING.colors.accent}`);
     expect(css).not.toContain("<script>");
     expect(css).not.toContain("</style>");
+  });
+
+  it("emits nothing but hex values and token names", () => {
+    // Belt and braces: every emitted value must be a hex literal, whatever was
+    // stored. Anything else means a validation gap upstream.
+    const css = brandingToCssVars(
+      resolveBranding({ colors: { accent: "url(evil)" } }),
+    );
+    for (const decl of css.split(";")) {
+      const [, value] = decl.split(":");
+      expect(value).toMatch(/^#[0-9a-fA-F]{3,6}$/);
+    }
   });
 });
 
 describe("inkOn", () => {
   it("picks near-black on the default orange, which fails white at 3.0:1", () => {
-    // The whole reason --brand-action-ink exists.
+    // The whole reason --accent-ink exists.
     expect(contrastRatio("#FA4616", "#FFFFFF")).toBeLessThan(4.5);
     expect(inkOn("#FA4616")).toBe("#1A0800");
   });
@@ -107,21 +120,56 @@ describe("inkOn", () => {
   });
 });
 
-describe("brandingToCssVars — derived tokens", () => {
-  it("emits action-ink and surface-ink", () => {
+describe("brandingToCssVars — the accent tier", () => {
+  // Only the accent is emitted. Surfaces, the text ramp and the semantic tones
+  // are fixed by the design system, so a club cannot make its own error states
+  // unreadable -- and an officer sees one consistent console across orgs.
+
+  it("emits the accent tier and nothing else", () => {
     const css = brandingToCssVars(DEFAULT_BRANDING);
-    expect(css).toContain("--brand-action-ink:#1A0800");
-    expect(css).toContain("--surface-ink:#FFFFFF");
+    expect(css).toContain("--accent:#FA4616");
+    expect(css).toContain("--accent-deep:");
+    expect(css).toContain("--accent-soft:");
+    expect(css).toContain("--accent-on-soft:");
+    // The surface/background tokens are no longer per-org.
+    expect(css).not.toContain("--brand-background");
+    expect(css).not.toContain("--surface-ink");
+    expect(css).not.toContain("--particle-color");
   });
 
-  it("derives from the org's stored accent, not the default", () => {
-    const b = resolveBranding({
-      colors: { accent: "#4C1D95", background: "#FFFFFF" },
-    });
-    const css = brandingToCssVars(b);
-    expect(css).toContain("--brand-action-ink:#FFFFFF");
-    // A light stored background flips the public surface ink to near-black.
-    expect(css).toContain("--surface-ink:#1A0800");
+  it("derives a readable ink for text sitting on the accent", () => {
+    // Mid-chroma orange only makes 3.0:1 against white, so it gets near-black.
+    expect(brandingToCssVars(DEFAULT_BRANDING)).toContain("--accent-ink:#1A0800");
+
+    // A deep purple gets white.
+    const purple = resolveBranding({ colors: { accent: "#4C1D95" } });
+    expect(brandingToCssVars(purple)).toContain("--accent-ink:#FFFFFF");
+  });
+
+  it("derives deep and soft tiers from the stored accent", () => {
+    const css = brandingToCssVars(resolveBranding({ colors: { accent: "#4C1D95" } }));
+    // Deep is darker than the accent; soft is nearly white.
+    expect(css).toContain("--accent-deep:#3e187a");
+    expect(css).toContain("--accent-soft:#f1edf7");
+  });
+
+  it("keeps --accent-on-soft readable against the soft tint it pairs with", () => {
+    // The soft tier is a 92%-white mix, so text at the raw accent often fails
+    // on it. --accent-on-soft is darkened until it clears AA.
+    for (const accent of ["#FA4616", "#4C1D95", "#0021A5", "#22C55E", "#EC4899"]) {
+      const css = brandingToCssVars(resolveBranding({ colors: { accent } }));
+      const soft = /--accent-soft:(#[0-9a-fA-F]{6})/.exec(css)![1];
+      const onSoft = /--accent-on-soft:(#[0-9a-fA-F]{6})/.exec(css)![1];
+      expect(contrastRatio(soft, onSoft)).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+
+  it("produces valid 6-digit hex for every derived token", () => {
+    const css = brandingToCssVars(resolveBranding({ colors: { accent: "#000" } }));
+    for (const token of ["--accent-deep", "--accent-soft", "--accent-on-soft"]) {
+      const value = new RegExp(`${token}:(#[0-9a-fA-F]{6})`).exec(css);
+      expect(value, `${token} should be a 6-digit hex`).not.toBeNull();
+    }
   });
 });
 

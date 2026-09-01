@@ -1,52 +1,83 @@
 "use client";
 
 import { useState } from "react";
-import { Calendar, Info } from "lucide-react";
 
 import type { StatsMeeting } from "@/lib/stats-terms";
+import { cn } from "@/lib/utils";
 import { MeetingDetailsModal } from "./meeting-details-modal";
 
 const DATE_FORMAT = new Intl.DateTimeFormat("en-US", {
-  weekday: "short",
   month: "short",
   day: "numeric",
-  year: "numeric",
 });
 
+const TIME_FORMAT = new Intl.DateTimeFormat("en-US", {
+  hour: "numeric",
+  minute: "2-digit",
+});
+
+/**
+ * One meeting row.
+ *
+ * The wireframe's version carries the verdict as a single glyph on the right --
+ * a green tick for attended, a grey dash for missed, with the whole row dimmed.
+ * That reads down a long list far faster than a badge per row, and it keeps the
+ * title as the thing the eye lands on.
+ */
 export function MeetingListItem({ meeting }: { meeting: StatsMeeting }) {
   const [showModal, setShowModal] = useState(false);
+  const date = new Date(meeting.start_time);
+  const attended = meeting.attended;
+
+  const meta = [
+    DATE_FORMAT.format(date),
+    attended ? TIME_FORMAT.format(date) : "missed",
+  ]
+    .filter(Boolean)
+    .join(" · ");
 
   return (
-    <li className="flex flex-col gap-3 rounded-2xl border border-white/15 bg-white/5 px-4 py-3 shadow-sm">
-      <div className="flex items-center gap-3 sm:gap-4">
-        {/* Tinted from the org accent rather than bg-brand-background, which on
-            this card sat on the gradient's own bottom color and disappeared. */}
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-[color-mix(in_srgb,var(--brand-primary)_22%,transparent)]">
-          <Calendar className="h-5 w-5 text-brand-primary" />
-        </div>
-        <div className="min-w-0 flex-1">
-          {/* Wraps to two lines rather than truncating -- on a narrow card the
-              truncated form often cuts the title before it's identifiable. */}
-          <p className="line-clamp-2 text-sm font-semibold text-white">
+    <li
+      className={cn(
+        "rounded-card border border-line bg-surface shadow-[var(--shadow-card)]",
+        !attended && "opacity-65",
+      )}
+    >
+      <div className="flex items-center justify-between gap-3 p-3.5">
+        <div className="flex min-w-0 flex-col gap-0.5">
+          <span className="line-clamp-2 text-[15px] font-semibold text-ink">
             {meeting.title}
-          </p>
-          <p className="text-xs text-white/60">
-            {DATE_FORMAT.format(new Date(meeting.start_time))}
-          </p>
+          </span>
+          <span className="text-[12.5px] text-ink-faint">{meta}</span>
         </div>
-        {meeting.hasDetails && (
-          <button
-            type="button"
-            onClick={() => setShowModal(true)}
-            className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-white/25 px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-white/10 focus-visible:ring-2 focus-visible:ring-white/40 focus-visible:outline-none"
+
+        <div className="flex flex-none items-center gap-2">
+          {meeting.hasDetails && (
+            <button
+              type="button"
+              onClick={() => setShowModal(true)}
+              className="cursor-pointer rounded-control border border-line px-2.5 py-1.5 text-xs font-semibold text-ink-strong transition-colors hover:bg-surface-sunken"
+            >
+              Details
+            </button>
+          )}
+          <span
+            aria-label={attended ? "Attended" : "Missed"}
+            className={cn(
+              "text-base",
+              attended ? "text-good" : "text-ink-faint",
+            )}
           >
-            <Info className="h-3.5 w-3.5" />
-            Details
-          </button>
-        )}
+            {attended ? "✓" : "—"}
+          </span>
+        </div>
       </div>
+
       {showModal && (
-        <MeetingDetailsModal meetingId={meeting.id} onClose={() => setShowModal(false)} />
+        <MeetingDetailsModal
+          meetingId={meeting.id}
+          onClose={() => setShowModal(false)}
+        />
       )}
     </li>
   );

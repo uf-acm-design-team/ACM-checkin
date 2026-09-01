@@ -98,13 +98,13 @@ export function FormBuilder({
   return (
     <div className="flex flex-col gap-3">
       {formError && (
-        <div className="rounded-[10px] border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
+        <div className="rounded-control border border-bad-line bg-bad-surface px-4 py-3 text-sm font-semibold text-bad-ink">
           {formError}
         </div>
       )}
 
       {locked && (
-        <div className="rounded-[10px] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+        <div className="rounded-control border border-warn-line bg-warn-surface px-4 py-3 text-sm text-warn-ink">
           <span className="font-bold">This meeting has responses.</span> You can
           still fix wording and add questions, but deleting a question or an
           option would orphan answers that are already saved.
@@ -112,11 +112,11 @@ export function FormBuilder({
       )}
 
       {schema.length === 0 ? (
-        <div className="rounded-[14px] border border-dashed border-slate-300 bg-white p-10 text-center">
-          <p className="text-sm font-semibold text-slate-600">
+        <div className="rounded-card border border-dashed border-line bg-white p-10 text-center">
+          <p className="text-sm font-semibold text-ink-strong">
             No questions — attendance only.
           </p>
-          <p className="mt-1 text-xs text-slate-500">
+          <p className="mt-1 text-xs text-ink-muted">
             This meeting is ready to use. Attendees just tap “Check In”. Add a
             question below only if you want to collect something at the door.
           </p>
@@ -147,7 +147,7 @@ export function FormBuilder({
           value={addType}
           onChange={(e) => setAddType(e.target.value as QuestionType)}
           aria-label="Type of question to add"
-          className="cursor-pointer rounded-[9px] border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold"
+          className="cursor-pointer rounded-control border border-line bg-white px-3 py-2.5 text-sm font-semibold"
         >
           {QUESTION_TYPES.map((t) => (
             <option key={t} value={t}>
@@ -159,12 +159,12 @@ export function FormBuilder({
           type="button"
           onClick={addQuestion}
           disabled={schema.length >= MAX_QUESTIONS}
-          className="cursor-pointer rounded-[9px] border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-brand-background transition-all hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+          className="cursor-pointer rounded-control border border-line bg-white px-4 py-2.5 text-sm font-bold text-ink-strong transition-all hover:bg-canvas disabled:cursor-not-allowed disabled:opacity-50"
         >
           + Add question
         </button>
         {schema.length >= MAX_QUESTIONS && (
-          <span className="text-xs font-semibold text-slate-500">
+          <span className="text-xs font-semibold text-ink-muted">
             Limit of {MAX_QUESTIONS} questions reached.
           </span>
         )}

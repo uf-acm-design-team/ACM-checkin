@@ -1,39 +1,50 @@
 import { cn } from "@/lib/utils";
 
+/**
+ * The member/non-member marker.
+ *
+ * Rendered as a solid inverted chip when it sits on the accent membership card,
+ * and as a tinted chip otherwise. A role (Officer, Owner) takes precedence over
+ * the plain member label -- it is the more specific fact.
+ */
 export function MembershipBadge({
   isMember,
   orgName,
   role,
+  onAccent = false,
 }: {
   isMember: boolean;
   orgName: string;
   role?: string | null;
+  /** Sitting on the accent card, so it inverts to white-on-accent. */
+  onAccent?: boolean;
 }) {
   const label =
     role && role !== "member"
-      ? role.charAt(0).toUpperCase() + role.slice(1)
+      ? role.toUpperCase()
       : isMember
-        ? `${orgName} member`
-        : "Potential member";
+        ? "ACTIVE"
+        : "GUEST";
+
+  const title =
+    role && role !== "member"
+      ? `${role} of ${orgName}`
+      : isMember
+        ? `Member of ${orgName}`
+        : `Not yet a member of ${orgName}`;
 
   return (
     <span
+      title={title}
       className={cn(
-        "inline-flex items-center gap-2 rounded-full border px-2.5 py-0.5 text-xs font-semibold",
-        isMember
-          ? "border-emerald-400/30 bg-emerald-400/10 text-emerald-200"
-          : "border-rose-400/30 bg-rose-400/10 text-rose-200"
+        "inline-flex items-center rounded-sm px-2 py-1.5 text-[11px] font-bold tracking-[0.04em]",
+        onAccent
+          ? "bg-white text-accent-deep"
+          : isMember
+            ? "bg-good-surface text-good-ink"
+            : "bg-surface-sunken text-ink-muted",
       )}
     >
-      <span
-        aria-hidden="true"
-        className={cn(
-          "h-2 w-2 rounded-full",
-          isMember
-            ? "bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.7)]"
-            : "bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.7)]"
-        )}
-      />
       {label}
     </span>
   );

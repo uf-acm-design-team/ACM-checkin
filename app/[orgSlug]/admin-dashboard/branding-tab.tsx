@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@clerk/nextjs";
-import type { Branding } from "@/lib/branding";
+import { inkOn, type Branding } from "@/lib/branding";
 
 // Edits an existing org's branding via the update-org-branding edge function
 // (logo uploads need the service role -- see that function's header comment).
@@ -11,11 +11,18 @@ import type { Branding } from "@/lib/branding";
 // (admin-dashboard/page.tsx's EMPTY_ORG_DRAFT/ORG_COLOR_FIELDS), pre-filled
 // from the org's current branding instead of the ACM defaults.
 
-const COLOR_FIELDS = [
+// Accent leads because it is the only stored colour that still paints anything:
+// the app runs on one fixed design system (white surfaces, slate text) and an
+// org's accent is applied on the check-in screen alone. The rest are kept so a
+// club's saved palette survives a round-trip through this form, but they are
+// grouped separately and labelled as inactive rather than presented as live
+// controls -- a picker that changes nothing visible is worse than no picker.
+const ACCENT_FIELD = { key: "accent", label: "Accent" } as const;
+
+const STORED_FIELDS = [
   { key: "primary", label: "Primary" },
   { key: "background", label: "Background" },
   { key: "backgroundSecondary", label: "Background (secondary)" },
-  { key: "accent", label: "Accent" },
   { key: "text", label: "Text" },
 ] as const;
 
@@ -124,74 +131,115 @@ export default function BrandingTab({ orgId, branding, onSaved }: BrandingTabPro
   };
 
   return (
-    <div className="max-w-xl rounded-[14px] border border-slate-200 bg-white p-5 sm:p-7">
-      <div className="mb-1 text-lg font-extrabold">Branding</div>
-      <p className="mb-5 text-xs text-slate-500">
-        Colors and logos shown across this organization&apos;s pages.
+    <div className="max-w-xl rounded-card border border-line bg-surface p-5 sm:p-7">
+      <div className="mb-1 text-lg font-bold tracking-[-0.02em]">Branding</div>
+      <p className="mb-5 text-[13px] leading-relaxed text-ink-muted">
+        Your accent colour and logos. The accent is used on your check-in screen
+        — on its primary button, selected options and crest tile. The rest of the
+        app runs on one shared design system so that officers see a consistent
+        console and warnings stay readable on every palette.
       </p>
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-        <div>
-          <label className="mb-1.5 block text-xs font-bold text-slate-500">
-            Colors
+        <div className="flex flex-col gap-2">
+          <label
+            htmlFor="branding-accent"
+            className="text-[13px] font-semibold text-ink-strong"
+          >
+            Accent colour
           </label>
-          <div className="grid grid-cols-3 gap-2.5 sm:grid-cols-5">
-            {COLOR_FIELDS.map((field) => (
+          <div className="flex items-center gap-3">
+            <input
+              id="branding-accent"
+              type="color"
+              value={colors[ACCENT_FIELD.key]}
+              onChange={(e) =>
+                setColors({ ...colors, [ACCENT_FIELD.key]: e.target.value })
+              }
+              className="h-11 w-16 flex-none cursor-pointer rounded-control border border-line"
+            />
+            {/* A live sample of the one thing this control actually changes.
+                The ink on the swatch is derived, not assumed white, so a light
+                accent previews as the legible button it will really be. */}
+            <span
+              className="inline-flex items-center rounded-control px-4 py-2.5 text-sm font-semibold"
+              style={{
+                background: colors[ACCENT_FIELD.key],
+                color: inkOn(colors[ACCENT_FIELD.key]),
+              }}
+            >
+              Check in
+            </span>
+            <span className="font-mono text-xs text-ink-faint uppercase">
+              {colors[ACCENT_FIELD.key]}
+            </span>
+          </div>
+        </div>
+
+        {/* Stored but not painted. Kept editable so a club that later gets a
+            themed surface doesn't lose the palette it already chose. */}
+        <details className="rounded-card border border-line p-3.5">
+          <summary className="cursor-pointer text-[13px] font-semibold text-ink-strong">
+            Other stored colours (not currently shown anywhere)
+          </summary>
+          <div className="mt-3 grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+            {STORED_FIELDS.map((field) => (
               <div key={field.key} className="flex flex-col items-center gap-1">
                 <input
                   type="color"
+                  aria-label={field.label}
                   value={colors[field.key]}
                   onChange={(e) =>
                     setColors({ ...colors, [field.key]: e.target.value })
                   }
-                  className="h-9 w-full cursor-pointer rounded-md border border-slate-200"
+                  className="h-9 w-full cursor-pointer rounded-md border border-line"
                 />
-                <span className="text-center text-[11px] font-semibold text-slate-500">
+                <span className="text-center text-[11px] font-semibold text-ink-faint">
                   {field.label}
                 </span>
               </div>
             ))}
           </div>
-        </div>
+        </details>
 
         <div className="grid grid-cols-2 gap-2.5">
           <div>
-            <label className="mb-1.5 block text-xs font-bold text-slate-500">
+            <label className="mb-1.5 block text-xs font-bold text-ink-muted">
               Crest logo
             </label>
             <input
               type="file"
               accept="image/png,image/jpeg,image/webp,image/svg+xml"
               onChange={(e) => setCrestFile(e.target.files?.[0] ?? null)}
-              className="w-full text-xs text-slate-500 file:mr-2 file:cursor-pointer file:rounded-md file:border-0 file:bg-slate-100 file:px-2.5 file:py-1.5 file:text-xs file:font-bold"
+              className="w-full text-xs text-ink-muted file:mr-2 file:cursor-pointer file:rounded-md file:border-0 file:bg-surface-sunken file:px-2.5 file:py-1.5 file:text-xs file:font-bold"
             />
           </div>
           <div>
-            <label className="mb-1.5 block text-xs font-bold text-slate-500">
+            <label className="mb-1.5 block text-xs font-bold text-ink-muted">
               Wordmark logo
             </label>
             <input
               type="file"
               accept="image/png,image/jpeg,image/webp,image/svg+xml"
               onChange={(e) => setWordmarkFile(e.target.files?.[0] ?? null)}
-              className="w-full text-xs text-slate-500 file:mr-2 file:cursor-pointer file:rounded-md file:border-0 file:bg-slate-100 file:px-2.5 file:py-1.5 file:text-xs file:font-bold"
+              className="w-full text-xs text-ink-muted file:mr-2 file:cursor-pointer file:rounded-md file:border-0 file:bg-surface-sunken file:px-2.5 file:py-1.5 file:text-xs file:font-bold"
             />
           </div>
         </div>
-        <p className="text-[11px] text-slate-400">
+        <p className="text-[11px] text-ink-faint">
           Leave a logo blank to keep the current one.
         </p>
 
-        {error && <p className="text-sm text-red-600">{error}</p>}
-        {success && <p className="text-sm text-emerald-600">Branding updated.</p>}
+        {error && <p className="text-sm text-bad">{error}</p>}
+        {success && <p className="text-sm text-good">Branding updated.</p>}
 
         <div className="flex justify-end">
           <button
             type="submit"
             disabled={saving}
-            className="cursor-pointer rounded-[9px] bg-brand-action px-4.5 py-2.5 text-[13px] font-bold text-white disabled:opacity-50"
+            className="cursor-pointer rounded-control bg-accent px-4 py-2.5 text-[13px] font-bold text-accent-ink disabled:opacity-50"
           >
-            {saving ? "Saving..." : "Save branding"}
+            {saving ? "Saving…" : "Save branding"}
           </button>
         </div>
       </form>

@@ -1,8 +1,5 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { Check, ChevronDown } from "lucide-react";
-
 import { cn } from "@/lib/utils";
 
 export type MeetingView = "attended" | "missed" | "all";
@@ -10,97 +7,52 @@ export type MeetingView = "attended" | "missed" | "all";
 const OPTIONS: { value: MeetingView; label: string }[] = [
   { value: "attended", label: "Attended" },
   { value: "missed", label: "Missed" },
-  { value: "all", label: "All Meetings" },
+  { value: "all", label: "All" },
 ];
 
+/**
+ * The attended/missed/all switch.
+ *
+ * Was a dropdown; the wireframe makes it an underlined tab strip with the count
+ * baked into each label. Three options never justified a menu -- collapsing them
+ * hid the counts, which are the most useful part, behind a click.
+ */
 export function ViewToggle({
   value,
+  counts,
   onChange,
 }: {
   value: MeetingView;
+  /** Per-view totals rendered beside each label, when known. */
+  counts?: Partial<Record<MeetingView, number>>;
   onChange: (value: MeetingView) => void;
 }) {
-  const [open, setOpen] = useState(false);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const current = OPTIONS.find((option) => option.value === value) ?? OPTIONS[0];
-
-  useEffect(() => {
-    if (!open) return;
-
-    function handlePointer(event: MouseEvent) {
-      if (
-        containerRef.current &&
-        !containerRef.current.contains(event.target as Node)
-      ) {
-        setOpen(false);
-      }
-    }
-    function handleKey(event: KeyboardEvent) {
-      if (event.key === "Escape") setOpen(false);
-    }
-
-    document.addEventListener("mousedown", handlePointer);
-    document.addEventListener("keydown", handleKey);
-    return () => {
-      document.removeEventListener("mousedown", handlePointer);
-      document.removeEventListener("keydown", handleKey);
-    };
-  }, [open]);
-
   return (
-    <div ref={containerRef} className="relative">
-      <button
-        type="button"
-        onClick={() => setOpen((prev) => !prev)}
-        aria-haspopup="listbox"
-        aria-expanded={open}
-        className="inline-flex items-center gap-1.5 rounded-full border border-white/25 bg-white/5 px-3 py-1 text-xs font-medium text-white transition-colors hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40"
-      >
-        {current.label}
-        <ChevronDown
-          aria-hidden="true"
-          className={cn("h-3.5 w-3.5 transition-transform", open && "rotate-180")}
-        />
-      </button>
-
-      {open && (
-        <ul
-          role="listbox"
-          aria-label="Meeting view"
-          // Same reasoning as the details sheet: the org's panel color, not the
-          // gradient's bottom stop, so the menu reads as floating above the page.
-          className="absolute right-0 z-20 mt-1 w-44 overflow-hidden rounded-xl border border-white/20 bg-brand-background-secondary/95 p-1 shadow-xl backdrop-blur-md"
-        >
-          {OPTIONS.map((option) => {
-            const selected = option.value === value;
-            return (
-              <li key={option.value} role="option" aria-selected={selected}>
-                <button
-                  type="button"
-                  onClick={() => {
-                    onChange(option.value);
-                    setOpen(false);
-                  }}
-                  className={cn(
-                    "flex w-full items-center justify-between gap-2 rounded-lg px-3 py-2 text-left text-xs font-medium transition-colors",
-                    selected
-                      ? "bg-white/10 text-white"
-                      : "text-white/70 hover:bg-white/5 hover:text-white"
-                  )}
-                >
-                  {option.label}
-                  {selected && (
-                    <Check
-                      aria-hidden="true"
-                      className="h-3.5 w-3.5 text-brand-primary"
-                    />
-                  )}
-                </button>
-              </li>
-            );
-          })}
-        </ul>
-      )}
+    <div role="tablist" aria-label="Meeting view" className="flex gap-4">
+      {OPTIONS.map((option) => {
+        const isActive = option.value === value;
+        const count = counts?.[option.value];
+        return (
+          <button
+            key={option.value}
+            role="tab"
+            type="button"
+            aria-selected={isActive}
+            onClick={() => onChange(option.value)}
+            className={cn(
+              "cursor-pointer border-b-2 pb-1.5 text-[13px] font-semibold transition-colors",
+              isActive
+                ? "border-accent text-ink"
+                : "border-transparent text-ink-faint hover:text-ink-muted",
+            )}
+          >
+            {option.label}
+            {count != null && (
+              <span aria-hidden="true"> · {count}</span>
+            )}
+          </button>
+        );
+      })}
     </div>
   );
 }

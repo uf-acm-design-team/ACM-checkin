@@ -52,7 +52,7 @@ export default function DeveloperShortcut() {
       href="/developer"
       aria-label="Developer console"
       title="Developer console"
-      className="fixed bottom-4 right-4 z-[60] flex h-11 w-11 items-center justify-center rounded-full bg-slate-900 text-white shadow-lg transition-transform hover:scale-105 focus-visible:ring-2 focus-visible:ring-white/60 focus-visible:outline-none"
+      className="fixed bottom-4 right-4 z-[60] flex h-11 w-11 items-center justify-center rounded-full bg-ink text-white shadow-lg transition-transform hover:scale-105 focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none"
     >
       <svg
         className="h-5 w-5"

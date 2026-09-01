@@ -19,6 +19,7 @@ import {
   LocationAskState,
   LocationDeniedState,
   NetworkErrorState,
+  LocationCheckingState,
   NoActiveMeetingState,
   OrgNotFoundState,
   SuccessState,
@@ -44,6 +45,7 @@ const boards: [string, React.ReactNode][] = [
   ],
   ["6 · Location ask", <LocationAskState key="c" radius={200} where="CSE E121" onShare={noop} onAskOfficer={noop} />],
   ["8 · Too far", <TooFarState key="d" metresAway={340} radius={200} where="CSE E121" onRetry={noop} onAskOfficer={noop} />],
+  ["7 · Location checking", <LocationCheckingState key="e2" />],
   ["9 · Location denied", <LocationDeniedState key="e" onRetry={noop} onAskOfficer={noop} />],
   ["11 · Already checked in", <AlreadyCheckedInState key="f" meetingTitle="General Body Meeting #5" at="6:58 PM EST" onStats={noop} />],
   ["12 · Network error", <NetworkErrorState key="g" detail="POST /checkin · timeout after 10s" reference="8f2a·19:04:22 EST" onRetry={noop} />],
@@ -77,16 +79,16 @@ export default function StatesPreview() {
   const palette = useSearchParams().get("palette");
   const override = palette ? PALETTES[palette] : null;
   return (
-    <div className="flex flex-wrap items-start gap-6 p-6">
+    <div className="flex flex-wrap items-start gap-6 bg-canvas p-6">
       {override != null && (
         <style>{`:root{${brandingToCssVars(resolveBranding(override))}}`}</style>
       )}
       {boards.map(([label, node]) => (
         <div key={label} className="flex flex-col gap-2">
-          <span className="font-mono text-[10.5px] font-semibold uppercase tracking-[0.06em] text-white/75">
+          <span className="font-mono text-[10.5px] font-semibold tracking-[0.06em] text-ink-faint uppercase">
             {label}
           </span>
-          <div className="flex h-[760px] w-[390px] flex-col overflow-hidden rounded-[22px] border border-white/25">
+          <div className="flex h-[760px] w-[390px] flex-col overflow-hidden rounded-phone border border-line bg-surface">
             {node}
           </div>
         </div>

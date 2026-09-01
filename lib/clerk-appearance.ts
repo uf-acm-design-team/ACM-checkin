@@ -1,8 +1,14 @@
-// Shared Clerk look-and-feel. Clerk's default components render as an opaque
-// white card, which reads as a foreign element on top of the brand gradient +
-// particle background. Everything here is expressed in terms of the brand CSS
-// variables (see app/globals.css and OrgTheme), so a per-org theme repaints the
-// Clerk widgets along with the rest of the page for free.
+// Shared Clerk look-and-feel.
+//
+// Clerk's default components already render as a white card, which is now what
+// the design system wants -- so this file's job flipped. It used to fight the
+// defaults back to white-on-gradient; it now mostly tunes them to match the
+// system's own hairlines, slate text ramp, radii, and accent, so the Clerk
+// widgets read as part of the app rather than a hosted form dropped into it.
+//
+// Everything is expressed in the design tokens from app/globals.css. Note that
+// the accent here is the product purple on the auth routes -- those live
+// outside /[orgSlug], so no org accent is in scope.
 //
 // `variables` covers Clerk's own design tokens; `elements` handles the pieces
 // those tokens don't reach (the card shell, social buttons, popovers).
@@ -16,85 +22,86 @@
 // `spacingUnit` were renamed and are silently ignored under those old names.
 export const clerkAppearance = {
   variables: {
-    colorPrimary: "var(--brand-action)",
-    colorBackground: "transparent",
-    colorForeground: "#ffffff",
-    colorPrimaryForeground: "#ffffff",
-    colorMutedForeground: "rgba(255,255,255,0.65)",
-    colorMuted: "rgba(255,255,255,0.08)",
-    colorInput: "rgba(255,255,255,0.1)",
-    colorInputForeground: "#ffffff",
-    colorBorder: "rgba(255,255,255,0.2)",
-    colorRing: "rgba(255,255,255,0.4)",
-    colorDanger: "#fda4af",
-    colorSuccess: "#6ee7b7",
-    colorWarning: "#fcd34d",
-    colorNeutral: "#ffffff",
-    borderRadius: "0.75rem",
+    colorPrimary: "var(--accent)",
+    colorBackground: "var(--surface)",
+    colorForeground: "var(--ink)",
+    colorPrimaryForeground: "var(--accent-ink)",
+    colorMutedForeground: "var(--ink-muted)",
+    colorMuted: "var(--surface-sunken)",
+    colorInput: "var(--surface)",
+    colorInputForeground: "var(--ink)",
+    colorBorder: "var(--line)",
+    colorRing: "var(--accent)",
+    colorDanger: "var(--bad)",
+    colorSuccess: "var(--good)",
+    colorWarning: "var(--warn)",
+    colorNeutral: "var(--ink)",
+    // The system's control radius, not Clerk's rounder default.
+    borderRadius: "6px",
     fontFamily: "var(--font-geist-sans), Arial, Helvetica, sans-serif",
   },
   elements: {
-    // The card shell — matches the frosted panels used across the app.
+    // The card shell. One hairline and the system's single elevation -- Clerk's
+    // default drops a much heavier shadow, which floats it off the canvas.
     rootBox: "w-full",
-    cardBox: "w-full shadow-2xl",
-    card: "bg-white/10 backdrop-blur-md border border-white/20 shadow-2xl w-full",
-    headerTitle: "text-white text-xl sm:text-2xl font-bold",
-    headerSubtitle: "text-white/70 text-sm",
+    cardBox: "w-full shadow-[var(--shadow-card)]",
+    card: "bg-surface border border-line shadow-none w-full",
+    headerTitle: "text-ink text-xl sm:text-2xl font-bold tracking-[-0.02em]",
+    headerSubtitle: "text-ink-muted text-sm",
 
-    // Social / alternate-method buttons.
+    // Social / alternate-method buttons -- the system's secondary button.
     socialButtonsBlockButton:
-      "bg-white/10 border border-white/25 text-white hover:bg-white/20 transition-colors",
-    socialButtonsBlockButtonText: "text-white font-medium",
-    dividerLine: "bg-white/20",
-    dividerText: "text-white/50",
+      "bg-surface border border-line text-ink-strong hover:bg-surface-sunken transition-colors",
+    socialButtonsBlockButtonText: "text-ink-strong font-semibold",
+    dividerLine: "bg-line",
+    dividerText: "text-ink-faint",
 
     // Form fields.
-    formFieldLabel: "text-white/80 text-sm font-medium",
+    formFieldLabel: "text-ink-strong text-[13px] font-semibold",
     formFieldInput:
-      "bg-white/10 border border-white/20 text-white placeholder:text-white/40",
-    formFieldInputShowPasswordButton: "text-white/60 hover:text-white",
-    formFieldSuccessText: "text-emerald-200",
-    formFieldErrorText: "text-rose-200",
-    formFieldWarningText: "text-amber-200",
-    formFieldHintText: "text-white/50",
+      "bg-surface border border-line text-ink placeholder:text-ink-faint",
+    formFieldInputShowPasswordButton: "text-ink-faint hover:text-ink",
+    formFieldSuccessText: "text-good-ink",
+    formFieldErrorText: "text-bad",
+    formFieldWarningText: "text-warn-ink",
+    formFieldHintText: "text-ink-faint",
 
     formButtonPrimary:
-      "bg-brand-action text-white font-semibold normal-case tracking-normal hover:opacity-90 transition-opacity shadow-lg",
-    formButtonReset: "text-white/70 hover:text-white",
-    formResendCodeLink: "text-brand-primary hover:opacity-80",
+      "bg-accent text-accent-ink font-medium normal-case tracking-normal hover:bg-accent-deep transition-colors shadow-[var(--shadow-raised)]",
+    formButtonReset: "text-ink-muted hover:text-ink",
+    formResendCodeLink: "text-accent hover:text-accent-deep",
 
     // OTP / verification code inputs.
-    otpCodeFieldInput: "bg-white/10 border border-white/20 text-white",
+    otpCodeFieldInput: "bg-surface border border-line text-ink",
 
     // Footer ("Don't have an account? Sign up").
     footer: "bg-transparent border-none",
     footerAction: "bg-transparent",
-    footerActionText: "text-white/70",
-    footerActionLink: "text-brand-primary font-semibold hover:opacity-80",
-    footerPages: "text-white/50",
-    footerPagesLink: "text-white/60 hover:text-white",
+    footerActionText: "text-ink-muted",
+    footerActionLink: "text-accent font-semibold hover:text-accent-deep",
+    footerPages: "text-ink-faint",
+    footerPagesLink: "text-ink-faint hover:text-ink",
 
     // Misc text/links inside flows.
-    identityPreview: "bg-white/10 border border-white/20",
-    identityPreviewText: "text-white",
-    identityPreviewEditButton: "text-brand-primary hover:opacity-80",
+    identityPreview: "bg-surface-sunken border border-line",
+    identityPreviewText: "text-ink",
+    identityPreviewEditButton: "text-accent hover:text-accent-deep",
     alternativeMethodsBlockButton:
-      "bg-white/10 border border-white/25 text-white hover:bg-white/20",
-    alternativeMethodsBlockButtonText: "text-white",
-    backLink: "text-brand-primary hover:opacity-80",
-    selectButton: "bg-white/10 border border-white/20 text-white",
-    avatarBox: "ring-2 ring-white/25",
+      "bg-surface border border-line text-ink-strong hover:bg-surface-sunken",
+    alternativeMethodsBlockButtonText: "text-ink-strong",
+    backLink: "text-accent hover:text-accent-deep",
+    selectButton: "bg-surface border border-line text-ink",
+    avatarBox: "ring-1 ring-line",
 
     // Popovers (the UserButton menu) render on the page rather than inside the
-    // frosted card, so they need an opaque brand surface to stay legible.
-    userButtonPopoverCard:
-      "bg-brand-background border border-white/15 shadow-2xl",
+    // card, so they need an opaque surface of their own.
+    userButtonPopoverCard: "bg-surface border border-line shadow-[var(--shadow-card)]",
     userButtonPopoverMain: "bg-transparent",
-    userButtonPopoverActionButton: "text-white/80 hover:bg-white/10",
-    userButtonPopoverActionButtonText: "text-white/80",
-    userButtonPopoverActionButtonIcon: "text-white/60",
+    userButtonPopoverActionButton: "text-ink-strong hover:bg-surface-sunken",
+    userButtonPopoverActionButtonText: "text-ink-strong",
+    userButtonPopoverActionButtonIcon: "text-ink-faint",
     userButtonPopoverFooter: "hidden",
-    userPreviewMainIdentifier: "text-white",
-    userPreviewSecondaryIdentifier: "text-white/60",
+    userPreviewMainIdentifier: "text-ink",
+    userPreviewSecondaryIdentifier: "text-ink-muted",
   },
 };

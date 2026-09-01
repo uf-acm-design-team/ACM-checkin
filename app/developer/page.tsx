@@ -182,25 +182,25 @@ export default function DeveloperPage() {
 
   if (!isLoaded || !adminCheckFinished || !isGlobalAdmin) {
     return (
-      <div className="flex min-h-dvh items-center justify-center bg-slate-50">
-        <div className="text-xl text-slate-500">Loading...</div>
+      <div className="flex min-h-dvh items-center justify-center bg-canvas">
+        <div className="text-xl text-ink-muted">Loading...</div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-dvh bg-slate-50 text-slate-900">
-      <header className="border-b border-slate-200 bg-white px-4 py-5 sm:px-8">
+    <div className="min-h-dvh bg-canvas text-ink">
+      <header className="border-b border-line bg-white px-4 py-5 sm:px-8">
         <div className="mx-auto flex max-w-5xl items-center justify-between">
           <div>
             <div className="text-lg font-extrabold sm:text-xl">Developer</div>
-            <div className="text-xs font-medium text-slate-500">
+            <div className="text-xs font-medium text-ink-muted">
               Platform administration
             </div>
           </div>
           <Link
             href="/dashboard"
-            className="text-sm font-semibold text-brand-background hover:underline"
+            className="text-sm font-semibold text-ink-strong hover:underline"
           >
             ← All clubs
           </Link>
@@ -208,15 +208,15 @@ export default function DeveloperPage() {
       </header>
 
       <main className="mx-auto max-w-5xl px-4 py-6 sm:px-8">
-        <div className="mb-5 flex gap-1.5 rounded-[10px] bg-slate-100 p-1 sm:w-fit">
+        <div className="mb-5 flex gap-1.5 rounded-control bg-surface-sunken p-1 sm:w-fit">
           {TABS.map((tab) => (
             <button
               key={tab.key}
               onClick={() => setActiveTab(tab.key)}
               className={`flex-1 cursor-pointer rounded-lg px-4 py-2 text-[13px] font-bold transition-all sm:flex-none ${
                 activeTab === tab.key
-                  ? "bg-white text-brand-background shadow-sm"
-                  : "text-slate-500"
+                  ? "bg-white text-ink-strong shadow-sm"
+                  : "text-ink-muted"
               }`}
             >
               {tab.label}
@@ -227,7 +227,7 @@ export default function DeveloperPage() {
         {activeTab === "orgs" && (
           <>
             <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-              <div className="text-sm font-semibold text-slate-500">
+              <div className="text-sm font-semibold text-ink-muted">
                 All organizations on the platform.
               </div>
               <button
@@ -235,34 +235,34 @@ export default function DeveloperPage() {
                   setOrgError(null);
                   setShowOrgModal(true);
                 }}
-                className="w-full cursor-pointer rounded-[9px] bg-brand-action px-4.5 py-2.5 text-sm font-bold text-white transition-all hover:opacity-90 sm:w-auto"
+                className="w-full cursor-pointer rounded-control bg-accent px-4 py-2.5 text-sm font-semibold text-accent-ink transition-colors hover:bg-accent-deep sm:w-auto"
               >
                 + New Org
               </button>
             </div>
 
-            <div className="overflow-hidden rounded-[14px] border border-slate-200 bg-white">
-              <div className="hidden grid-cols-[2.6fr_1.6fr_120px] gap-4 border-b border-slate-200 px-5 py-3.5 text-xs font-bold tracking-wide text-slate-500 uppercase sm:grid">
+            <div className="overflow-hidden rounded-card border border-line bg-white">
+              <div className="hidden grid-cols-[2.6fr_1.6fr_120px] gap-4 border-b border-line px-5 py-3.5 text-xs font-bold tracking-wide text-ink-muted uppercase sm:grid">
                 <div>Organization</div>
                 <div>Slug</div>
                 <div></div>
               </div>
               {orgsLoading ? (
-                <div className="p-10 text-center text-sm text-slate-500">
+                <div className="p-10 text-center text-sm text-ink-muted">
                   Loading organizations...
                 </div>
               ) : orgs.length > 0 ? (
                 orgs.map((org) => (
                   <div
                     key={org.id}
-                    className="flex flex-col gap-2 border-b border-slate-100 px-4 py-4 text-sm last:border-b-0 sm:grid sm:grid-cols-[2.6fr_1.6fr_120px] sm:items-center sm:gap-4 sm:px-5"
+                    className="flex flex-col gap-2 border-b border-line-soft px-4 py-4 text-sm last:border-b-0 sm:grid sm:grid-cols-[2.6fr_1.6fr_120px] sm:items-center sm:gap-4 sm:px-5"
                   >
                     <div className="font-bold wrap-break-word">{org.name}</div>
-                    <div className="font-semibold text-slate-600">@{org.slug}</div>
+                    <div className="font-semibold text-ink-strong">@{org.slug}</div>
                     <div className="flex sm:justify-end">
                       <button
                         onClick={() => router.push(`/${org.slug}/admin-dashboard`)}
-                        className="cursor-pointer rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-xs font-bold text-brand-background transition-all hover:bg-slate-50"
+                        className="cursor-pointer rounded-lg border border-line bg-white px-3.5 py-2 text-xs font-bold text-ink-strong transition-all hover:bg-canvas"
                       >
                         Open
                       </button>
@@ -270,7 +270,7 @@ export default function DeveloperPage() {
                   </div>
                 ))
               ) : (
-                <div className="p-10 text-center text-sm text-slate-500">
+                <div className="p-10 text-center text-sm text-ink-muted">
                   No organizations yet.
                 </div>
               )}
@@ -289,7 +289,7 @@ export default function DeveloperPage() {
       {/* NEW ORG MODAL */}
       {showOrgModal && (
         <div
-          className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/45 p-0 sm:items-center sm:p-4"
+          className="fixed inset-0 z-50 flex items-end justify-center bg-ink/40 p-0 sm:items-center sm:p-4"
           onClick={() => setShowOrgModal(false)}
         >
           <form
@@ -300,7 +300,7 @@ export default function DeveloperPage() {
             <div className="mb-4 text-lg font-extrabold">New Organization</div>
             <div className="flex flex-col gap-3.5">
               <div>
-                <label className="mb-1.5 block text-xs font-bold text-slate-500">
+                <label className="mb-1.5 block text-xs font-bold text-ink-muted">
                   Organization Name
                 </label>
                 <input
@@ -309,11 +309,11 @@ export default function DeveloperPage() {
                   value={orgDraft.name}
                   onChange={(e) => setOrgDraft({ ...orgDraft, name: e.target.value })}
                   placeholder="Organization Name"
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm"
+                  className="w-full rounded-lg border border-line px-3 py-2.5 text-sm"
                 />
               </div>
               <div>
-                <label className="mb-1.5 block text-xs font-bold text-slate-500">
+                <label className="mb-1.5 block text-xs font-bold text-ink-muted">
                   Slug
                 </label>
                 <input
@@ -322,12 +322,12 @@ export default function DeveloperPage() {
                   value={orgDraft.slug}
                   onChange={(e) => setOrgDraft({ ...orgDraft, slug: e.target.value })}
                   placeholder="e.g. acm"
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm"
+                  className="w-full rounded-lg border border-line px-3 py-2.5 text-sm"
                 />
               </div>
 
               <div>
-                <label className="mb-1.5 block text-xs font-bold text-slate-500">
+                <label className="mb-1.5 block text-xs font-bold text-ink-muted">
                   Owner email
                 </label>
                 <input
@@ -338,12 +338,12 @@ export default function DeveloperPage() {
                     setOrgDraft({ ...orgDraft, ownerEmail: e.target.value })
                   }
                   placeholder="owner@ufl.edu"
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm"
+                  className="w-full rounded-lg border border-line px-3 py-2.5 text-sm"
                 />
               </div>
 
               <div>
-                <label className="mb-1.5 block text-xs font-bold text-slate-500">
+                <label className="mb-1.5 block text-xs font-bold text-ink-muted">
                   Branding
                 </label>
                 <div className="grid grid-cols-3 gap-2.5">
@@ -355,9 +355,9 @@ export default function DeveloperPage() {
                         onChange={(e) =>
                           setOrgDraft({ ...orgDraft, [field.key]: e.target.value })
                         }
-                        className="h-9 w-full cursor-pointer rounded-md border border-slate-200"
+                        className="h-9 w-full cursor-pointer rounded-md border border-line"
                       />
-                      <span className="text-center text-[11px] font-semibold text-slate-500">
+                      <span className="text-center text-[11px] font-semibold text-ink-muted">
                         {field.label}
                       </span>
                     </div>
@@ -367,29 +367,29 @@ export default function DeveloperPage() {
 
               <div className="grid grid-cols-2 gap-2.5">
                 <div>
-                  <label className="mb-1.5 block text-xs font-bold text-slate-500">
+                  <label className="mb-1.5 block text-xs font-bold text-ink-muted">
                     Crest logo
                   </label>
                   <input
                     type="file"
                     accept="image/png,image/jpeg,image/webp,image/svg+xml"
                     onChange={(e) => setOrgCrestFile(e.target.files?.[0] ?? null)}
-                    className="w-full text-xs text-slate-500 file:mr-2 file:cursor-pointer file:rounded-md file:border-0 file:bg-slate-100 file:px-2.5 file:py-1.5 file:text-xs file:font-bold"
+                    className="w-full text-xs text-ink-muted file:mr-2 file:cursor-pointer file:rounded-md file:border-0 file:bg-surface-sunken file:px-2.5 file:py-1.5 file:text-xs file:font-bold"
                   />
                 </div>
                 <div>
-                  <label className="mb-1.5 block text-xs font-bold text-slate-500">
+                  <label className="mb-1.5 block text-xs font-bold text-ink-muted">
                     Wordmark logo
                   </label>
                   <input
                     type="file"
                     accept="image/png,image/jpeg,image/webp,image/svg+xml"
                     onChange={(e) => setOrgWordmarkFile(e.target.files?.[0] ?? null)}
-                    className="w-full text-xs text-slate-500 file:mr-2 file:cursor-pointer file:rounded-md file:border-0 file:bg-slate-100 file:px-2.5 file:py-1.5 file:text-xs file:font-bold"
+                    className="w-full text-xs text-ink-muted file:mr-2 file:cursor-pointer file:rounded-md file:border-0 file:bg-surface-sunken file:px-2.5 file:py-1.5 file:text-xs file:font-bold"
                   />
                 </div>
               </div>
-              <p className="text-[11px] text-slate-400">
+              <p className="text-[11px] text-ink-faint">
                 Logos are optional -- leave blank to use the default ACM mark.
               </p>
 
@@ -405,14 +405,14 @@ export default function DeveloperPage() {
                   setOrgWordmarkFile(null);
                   setOrgError(null);
                 }}
-                className="cursor-pointer rounded-[9px] border border-slate-200 bg-white px-4.5 py-2.5 text-[13px] font-bold"
+                className="cursor-pointer rounded-control border border-line bg-white px-4.5 py-2.5 text-[13px] font-bold"
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 disabled={creatingOrg}
-                className="cursor-pointer rounded-[9px] bg-brand-action px-4.5 py-2.5 text-[13px] font-bold text-white disabled:opacity-50"
+                className="cursor-pointer rounded-control bg-accent px-4.5 py-2.5 text-[13px] font-bold text-white disabled:opacity-50"
               >
                 {creatingOrg ? "Creating..." : "Create Organization"}
               </button>
