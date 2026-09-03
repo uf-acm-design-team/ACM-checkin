@@ -158,13 +158,23 @@ export function QuestionCard({
             <label className="mb-1.5 block text-xs font-bold text-ink-muted">
               Question
             </label>
-            <input
-              type="text"
+            {/* A textarea, not an <input type="text">: an input cannot hold a
+                newline at all, so multi-line prompts ("Follow our socials!"
+                above a list of links) were impossible to type regardless of how
+                they rendered. Auto-grows with the text so the common one-line
+                question still looks like a single-line field. */}
+            <textarea
               value={question.label}
+              rows={Math.min(8, Math.max(1, question.label.split("\n").length))}
               onChange={(e) => set({ label: e.target.value })}
               placeholder="e.g. How did you hear about this meeting?"
-              className="w-full rounded-lg border border-line px-3 py-2.5 text-sm"
+              className="w-full resize-y rounded-lg border border-line px-3 py-2.5 text-sm"
             />
+            <p className="mt-1 text-[11px] text-ink-muted">
+              Press Enter for a new line. Links starting with{" "}
+              <span className="font-semibold">https://</span> become tappable on
+              the check-in page.
+            </p>
           </div>
 
           <div>

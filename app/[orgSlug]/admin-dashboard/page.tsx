@@ -601,15 +601,25 @@ export default function AdminDashboard({
   };
 
   const handleDeleteMeeting = async (m: Meeting) => {
-    // Attendance rows reference meetings, so deleting one with check-ins would
-    // fail on the FK anyway -- say so up front instead of surfacing a raw error.
-    if (m.attendance_count > 0) {
-      setMeetingError(
-        `"${m.title}" has ${m.attendance_count} check-in(s). Close it instead of deleting to keep the attendance record.`,
-      );
-      return;
-    }
-    if (!confirm(`Delete "${m.title}"? This cannot be undone.`)) return;
+    // Check-ins cascade with the meeting as of
+    // 20260903000000_meeting_delete_cascades_attendance.sql. Before that the FK
+    // had no referential action, so this refused outright whenever
+    // attendance_count > 0 -- correct about the database, but it left test and
+    // mistake meetings undeletable from inside the app forever.
+    //
+    // The count is spelled out in the prompt rather than merely warned about:
+    // "this cannot be undone" is easy to click past, whereas a number of
+    // records is the thing an officer actually needs to weigh. Two sentences,
+    // one confirm -- a second dialog would just train people to dismiss both.
+    const message =
+      m.attendance_count > 0
+        ? `Delete "${m.title}"?\n\nThis meeting has ${m.attendance_count} check-in${
+            m.attendance_count === 1 ? "" : "s"
+          }. Deleting it will permanently remove ${
+            m.attendance_count === 1 ? "that attendance record" : "those attendance records"
+          } too.\n\nThis cannot be undone.`
+        : `Delete "${m.title}"? This cannot be undone.`;
+    if (!confirm(message)) return;
 
     setDeletingMeetingId(m.id);
     try {
@@ -688,7 +698,18 @@ export default function AdminDashboard({
         ? pastMeetings
         : meetings;
 
-  const nextMeeting = upcomingMeetings[0];
+  // The overview card answers "what is actually happening next", which is not
+  // the same question the Upcoming FILTER answers. A meeting an officer has
+  // closed is still legitimately listed under Upcoming -- it is on the calendar
+  // and can be reopened -- but it is not what the club does next, and surfacing
+  // it here meant a finished test meeting sat on the dashboard indefinitely,
+  // labelled "Closed" by the very card calling it the next meeting.
+  //
+  // Falls back to the first upcoming meeting when every one of them is closed,
+  // so the card degrades to the old behaviour rather than to an empty state
+  // that would read as "nothing scheduled" when something plainly is.
+  const nextMeeting =
+    upcomingMeetings.find((m) => m.status) ?? upcomingMeetings[0];
   const totalCheckIns = meetings.reduce((sum, m) => sum + m.attendance_count, 0);
   const officers = members.filter((m) => m.role?.toLowerCase() !== "member");
 
