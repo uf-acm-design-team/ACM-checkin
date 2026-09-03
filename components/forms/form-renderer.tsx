@@ -6,6 +6,7 @@ import {
   type AnswerValue,
   type FormSchema,
 } from "@/lib/form-schema";
+import { parseRichText } from "@/lib/rich-text";
 import { cn } from "@/lib/utils";
 import { FIELD_CLASS, Label } from "@/components/ui/primitives";
 
@@ -49,8 +50,11 @@ export function FormRenderer({
         return (
           <fieldset key={question.id} className="flex flex-col gap-2 border-0 p-0">
             <legend id={labelId} className="mb-1">
-              <Label>
-                {question.label}
+              {/* whitespace-pre-line is what makes newlines in the label
+                  actually break -- HTML collapses them otherwise, so a
+                  multi-line question would render as one run-on line. */}
+              <Label className="block whitespace-pre-line">
+                <RichText text={question.label} />
                 {question.required && (
                   <span className="ml-1 text-bad" aria-hidden="true">
                     *
@@ -186,6 +190,41 @@ export function FormRenderer({
         );
       })}
     </div>
+  );
+}
+
+/**
+ * Question text with its URLs turned into real links.
+ *
+ * Segments come from parseRichText, which only ever emits plain strings and
+ * http(s) hrefs -- nothing here is interpreted as markup, so a label containing
+ * HTML is displayed rather than rendered. See lib/rich-text.ts.
+ *
+ * The link stops click and pointer events from reaching the surrounding
+ * <legend>/<label>: on the check-in page a label click activates its control,
+ * which would otherwise fire the moment someone taps the Instagram link.
+ * `rel="noreferrer"` because these point off-site and the target is arbitrary.
+ */
+function RichText({ text }: { text: string }) {
+  return (
+    <>
+      {parseRichText(text).map((segment, i) =>
+        segment.type === "link" ? (
+          <a
+            key={i}
+            href={segment.href}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(e) => e.stopPropagation()}
+            className="font-semibold text-accent underline underline-offset-2 wrap-anywhere hover:text-accent-deep"
+          >
+            {segment.value}
+          </a>
+        ) : (
+          <span key={i}>{segment.value}</span>
+        ),
+      )}
+    </>
   );
 }
 

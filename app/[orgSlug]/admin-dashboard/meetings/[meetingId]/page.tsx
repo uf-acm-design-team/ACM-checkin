@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
 import { ArrowLeft } from "lucide-react";
@@ -101,6 +101,15 @@ export default function MeetingEditor({
 
   // Draft state. `saved*` mirrors what is in the database so dirty state is a
   // comparison rather than a flag that has to be cleared everywhere.
+  //
+  // `hydrated` guards the draft against a second load(). Clerk hands back a new
+  // `user` object every time it refreshes the session token (roughly once a
+  // minute) and on tab focus; the mount effect below used to depend on that
+  // object, so it re-fired on every refresh and load() overwrote whatever the
+  // officer had typed with the database copy -- questions vanishing mid-edit at
+  // no particular moment. A ref rather than state because it must not itself
+  // trigger a render, and because load() reads it in the same tick it sets it.
+  const hydrated = useRef(false);
   const [schema, setSchema] = useState<FormSchema>([]);
   const [savedSchema, setSavedSchema] = useState<string>("[]");
   const [settings, setSettings] = useState<Settings | null>(null);
@@ -117,6 +126,12 @@ export default function MeetingEditor({
   const [rowsLoading, setRowsLoading] = useState(false);
 
   const load = useCallback(async () => {
+    // Never re-hydrate. Anything already in the draft is either what the
+    // officer is mid-way through typing or what they just saved; refetching
+    // over it loses work with no upside, since the row cannot have changed
+    // underneath a single-editor page in any way worth clobbering for.
+    if (hydrated.current) return;
+    hydrated.current = true;
     setLoading(true);
     const { data, error: fetchError } = await supabase
       .from("meetings")
@@ -130,6 +145,9 @@ export default function MeetingEditor({
       // RLS returns "no row" rather than a permission error for a meeting in an
       // org you don't belong to, so these two cases are indistinguishable here.
       setError("Meeting not found, or you don't have access to it.");
+      // Release the latch: this attempt produced no draft to protect, and a
+      // transient failure must not wedge the page permanently.
+      hydrated.current = false;
       setLoading(false);
       return;
     }
@@ -173,14 +191,18 @@ export default function MeetingEditor({
     setLoading(false);
   }, [meetingId, supabase]);
 
+  // Depends on the Clerk USER ID, not the user object: the object is a fresh
+  // reference after every token refresh, which re-ran this effect on a timer.
+  // The id is a stable string, so this now fires once per signed-in session.
+  const userId = user?.id;
   useEffect(() => {
     if (!isLoaded) return;
-    if (!user) {
+    if (!userId) {
       router.push("/");
       return;
     }
     load();
-  }, [isLoaded, user, router, load]);
+  }, [isLoaded, userId, router, load]);
 
   const fetchResponses = useCallback(async () => {
     setRowsLoading(true);
