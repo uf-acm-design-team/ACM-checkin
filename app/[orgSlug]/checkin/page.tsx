@@ -22,7 +22,6 @@ import {
   Eyebrow,
   Field,
   Identity,
-  Label,
   StepBar,
   FIELD_CLASS,
 } from "@/components/ui/primitives";
@@ -94,8 +93,6 @@ type View =
     };
 
 type Step = "email" | "profile";
-
-const GRAD_YEARS = ["2026", "2027", "2028", "2029"];
 
 /** EST, always — meetings are stored without a timezone. */
 const EST = "America/New_York";
@@ -300,20 +297,25 @@ export default function CheckinPage({
           user.emailAddresses?.[0]?.emailAddress ||
           "";
         if (userEmail) {
-          const { data: byEmail } = await supabase
+          // Blind claim, matched case-insensitively against the unique index on
+          // lower(email) (20260813000000). Two things this deliberately does
+          // NOT do: read the row first (attendees_read_own hides an unclaimed
+          // row from the very user about to claim it, so the SELECT this used
+          // to run always came back empty and the relink silently never fired),
+          // and match with .eq() (which would miss a guest who typed
+          // "Ada@ufl.edu" against a Clerk address of "ada@ufl.edu").
+          //
+          // attendees_claim_by_email is what makes this safe: USING
+          // (user_id IS NULL) prevents claiming someone else's linked row, and
+          // WITH CHECK forces the new user_id to be the caller's own.
+          const { data: linked } = await supabase
             .from("attendees")
+            .update({ user_id: user.id })
+            .is("user_id", null)
+            .ilike("email", userEmail)
             .select("id, first_name, last_name, email")
-            .eq("email", userEmail)
             .maybeSingle();
-          if (byEmail) {
-            const { data: linked } = await supabase
-              .from("attendees")
-              .update({ user_id: user.id })
-              .eq("id", byEmail.id)
-              .select("id, first_name, last_name, email")
-              .single();
-            if (linked) setUserAttendee(linked);
-          }
+          if (linked) setUserAttendee(linked);
         }
       }
     }
@@ -921,60 +923,22 @@ export default function CheckinPage({
           </Field>
         </div>
 
-        {/* Taps, not a text field — grad year is the one place the old form
-            lost people. "Other" falls back to a numeric input. */}
-        <div className="flex flex-col gap-2">
-          <Label>Graduation year</Label>
-          <div className="flex flex-wrap gap-2">
-            {GRAD_YEARS.map((y) => {
-              const active = gradYear === y;
-              return (
-                <button
-                  key={y}
-                  type="button"
-                  onClick={() => setGradYear(y)}
-                  aria-pressed={active}
-                  disabled={busy}
-                  className={cn(
-                    "min-h-11 cursor-pointer rounded-control px-4 text-[15px] font-semibold transition-colors",
-                    active
-                      ? "border border-accent bg-accent-soft text-accent-on-soft"
-                      : "border border-line bg-surface text-ink-strong hover:bg-surface-sunken",
-                  )}
-                >
-                  {y}
-                </button>
-              );
-            })}
-            <button
-              type="button"
-              onClick={() => setGradYear("")}
-              aria-pressed={gradYear !== "" && !GRAD_YEARS.includes(gradYear)}
-              disabled={busy}
-              className={cn(
-                "min-h-11 cursor-pointer rounded-control px-4 text-[15px] font-semibold transition-colors",
-                gradYear !== "" && !GRAD_YEARS.includes(gradYear)
-                  ? "border border-accent bg-accent-soft text-accent-on-soft"
-                  : "border border-line bg-surface text-ink-muted hover:bg-surface-sunken",
-              )}
-            >
-              Other
-            </button>
-          </div>
-          {!GRAD_YEARS.includes(gradYear) && (
-            <input
-              type="text"
-              inputMode="numeric"
-              value={gradYear}
-              onChange={(e) => setGradYear(e.target.value)}
-              required
-              placeholder="e.g. 2030"
-              disabled={busy}
-              aria-label="Graduation year"
-              className={FIELD_CLASS}
-            />
-          )}
-        </div>
+        {/* A plain field rather than a row of year chips. The chips hardcoded
+            a four-year window, so they silently went stale every year and an
+            incoming freshman always had to reach for "Other" anyway. */}
+        <Field label="Graduation year" htmlFor="checkin-grad-year">
+          <input
+            id="checkin-grad-year"
+            type="text"
+            inputMode="numeric"
+            value={gradYear}
+            onChange={(e) => setGradYear(e.target.value)}
+            required
+            placeholder="e.g. 2030"
+            disabled={busy}
+            className={FIELD_CLASS}
+          />
+        </Field>
 
         {passwordField}
         {questions}
