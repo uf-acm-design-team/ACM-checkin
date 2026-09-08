@@ -134,17 +134,62 @@ export default function OnboardingPage() {
         return;
       }
 
-      const { error: insertError } = await supabase.from("attendees").insert({
-        user_id: user.id,
-        email: user.primaryEmailAddress?.emailAddress || "",
-        first_name: trimmedFirstName,
-        last_name: trimmedLastName,
-        grad_year: trimmedGradYear,
-      });
+      const email = user.primaryEmailAddress?.emailAddress || "";
 
-      if (insertError) {
-        setError("Failed to save profile: " + insertError.message);
-        return;
+      // Claim an orphaned guest row before inserting.
+      //
+      // Guest check-in creates an attendee with user_id = NULL keyed only on a
+      // typed email (see checkin/guest-actions.ts). Signing up later with that
+      // same address used to go straight to the INSERT below and collide with
+      // attendees_email_lower_key (20260813000000), so the person could never
+      // finish onboarding -- and their guest attendance was stranded on a row
+      // nobody could reach.
+      //
+      // This has to be a BLIND update: attendees_read_own only exposes rows
+      // whose user_id is already the caller's, so the orphan is invisible to a
+      // SELECT and .maybeSingle() would return null even though the row exists.
+      // The claim is safe because attendees_claim_by_email restricts it in
+      // Postgres -- USING (user_id IS NULL) means an already-claimed row cannot
+      // be stolen, and WITH CHECK pins the new value to the caller's own Clerk
+      // id. Matched with ilike() to line up with the unique index on
+      // lower(email); .eq() would miss "Ada@ufl.edu" vs "ada@ufl.edu" and fall
+      // through to the same duplicate-key error.
+      //
+      // The returned rows tell us whether anything matched -- the same UPDATE
+      // both detects and performs the claim, so there is no TOCTOU window.
+      let claimed = false;
+      if (email) {
+        const { data: claimedRows, error: claimError } = await supabase
+          .from("attendees")
+          .update({ user_id: user.id })
+          .is("user_id", null)
+          .ilike("email", email)
+          .select("id");
+
+        if (claimError) {
+          setError("Failed to link your existing check-ins: " + claimError.message);
+          return;
+        }
+        claimed = (claimedRows?.length ?? 0) > 0;
+      }
+
+      // Only insert when there was no guest row to adopt. The claimed row keeps
+      // the name and grad year it was checked in with; the form's values are
+      // discarded rather than overwriting what an officer may already have seen
+      // on a roster.
+      if (!claimed) {
+        const { error: insertError } = await supabase.from("attendees").insert({
+          user_id: user.id,
+          email,
+          first_name: trimmedFirstName,
+          last_name: trimmedLastName,
+          grad_year: trimmedGradYear,
+        });
+
+        if (insertError) {
+          setError("Failed to save profile: " + insertError.message);
+          return;
+        }
       }
 
       // Update Clerk user metadata with the name
