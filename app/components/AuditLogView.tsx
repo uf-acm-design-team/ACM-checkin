@@ -6,8 +6,9 @@ import { createClient } from "@/app/utils/supabase/client";
 // Shared table for both the per-org Audit Log tab (admin-dashboard, scope
 // 'org') and the platform-wide Developer Audit Log (/developer, scope
 // 'platform') -- same shape, same RLS-backed query, only the filter differs.
-// See supabase/migrations/20260823000000_audit_log_schema.sql and
-// 20260824000000_member_management_and_coowner.sql for the actions this
+// See supabase/migrations/20260823000000_audit_log_schema.sql,
+// 20260824000000_member_management_and_coowner.sql, and
+// 20260909000000_membership_backfill_on_claim.sql for the actions this
 // renders.
 
 interface AuditLogRow {
@@ -22,6 +23,7 @@ const ACTION_LABELS: Record<string, string> = {
   "member.role_changed": "Role changed",
   "member.removed": "Member removed",
   "member.invited": "Member invited",
+  "member.auto_joined": "Auto-joined from attendance",
   "meeting.deleted": "Meeting deleted",
   "meeting.status_toggled": "Check-in toggled",
   "meeting.geo_lock_changed": "Geo-lock changed",
@@ -45,6 +47,8 @@ function summarize(action: string, metadata: Record<string, unknown>): string {
       return `${str("target_name")} (was ${str("prior_role")})`;
     case "member.invited":
       return `${str("target_email")} as ${str("role")}`;
+    case "member.auto_joined":
+      return str("target_name");
     case "meeting.status_toggled":
       return `${str("meeting_title")}: ${metadata["to_status"] === true ? "opened" : "closed"}`;
       return str("meeting_title");

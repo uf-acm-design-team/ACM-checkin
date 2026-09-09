@@ -2,7 +2,7 @@
 
 import { auth, clerkClient } from "@clerk/nextjs/server";
 
-import { createClerkSupabaseClient } from "../utils/supabase/server";
+import { createServiceSupabaseClient } from "../utils/supabase/server";
 
 /**
  * Marks the signed-in user as having completed onboarding.
@@ -16,6 +16,14 @@ import { createClerkSupabaseClient } from "../utils/supabase/server";
  *
  * The attendee row is verified here rather than trusted from the caller: this
  * is the flag that unlocks the rest of the app, so it must reflect real state.
+ *
+ * Uses the service-role client rather than the RLS-gated one. Clerk is
+ * registered as a Supabase third-party auth provider and the RLS policies
+ * check out on paper, but the claim in syncOnboardingStatus below still
+ * silently failed to link through that path in practice -- so this route
+ * doesn't depend on it. The check is already authorized by Clerk's own
+ * auth() above, so there's no security loss: userId comes from a verified
+ * session, not from the caller.
  */
 export async function completeOnboarding(): Promise<{ ok: boolean; error?: string }> {
   const { userId } = await auth();
@@ -24,7 +32,7 @@ export async function completeOnboarding(): Promise<{ ok: boolean; error?: strin
   // Confirm the attendees row actually exists before flipping the flag --
   // otherwise a failed insert would still let the user past the proxy, and
   // every downstream attendees lookup would return null.
-  const supabase = createClerkSupabaseClient();
+  const supabase = createServiceSupabaseClient();
   const { data: attendee, error } = await supabase
     .from("attendees")
     .select("id")
@@ -48,6 +56,19 @@ export async function completeOnboarding(): Promise<{ ok: boolean; error?: strin
  * started enforcing it). Called from the onboarding page on mount so those
  * users are waved through instead of being asked to re-enter a profile the
  * database already has.
+ *
+ * Also claims an orphaned guest row by email, right here on mount -- before
+ * this existed, claiming only happened client-side after the user filled out
+ * and submitted the onboarding form (see page.tsx), which made someone with
+ * attendance history re-type a profile the database already had. Moving it
+ * here means it fires the moment the user lands on /onboarding instead.
+ *
+ * Uses the service-role client. The equivalent RLS-gated claim (in page.tsx,
+ * and previously here too) checks out against attendees_claim_by_email on
+ * paper -- Clerk is registered as a Supabase third-party auth provider -- but
+ * did not reliably link the row in practice. Service role sidesteps whatever
+ * that gap is; the email is read from Clerk's own backend record rather than
+ * trusted from the client, so scoping stays equivalent to what RLS enforced.
  */
 export async function syncOnboardingStatus(): Promise<{ alreadyOnboarded: boolean }> {
   // Never throws: this runs on mount and the page blocks rendering until it
@@ -57,7 +78,7 @@ export async function syncOnboardingStatus(): Promise<{ alreadyOnboarded: boolea
     const { userId } = await auth();
     if (!userId) return { alreadyOnboarded: false };
 
-    const supabase = createClerkSupabaseClient();
+    const supabase = createServiceSupabaseClient();
     const { data: attendee, error } = await supabase
       .from("attendees")
       .select("id")
@@ -68,9 +89,41 @@ export async function syncOnboardingStatus(): Promise<{ alreadyOnboarded: boolea
       console.error("syncOnboardingStatus: attendee lookup failed:", error);
       return { alreadyOnboarded: false };
     }
-    if (!attendee) return { alreadyOnboarded: false };
 
     const client = await clerkClient();
+    let hasAttendee = Boolean(attendee);
+
+    if (!hasAttendee) {
+      const clerkUser = await client.users.getUser(userId);
+      const email =
+        clerkUser.emailAddresses.find(
+          (e) => e.id === clerkUser.primaryEmailAddressId,
+        )?.emailAddress ?? clerkUser.emailAddresses[0]?.emailAddress;
+
+      if (email) {
+        // Same claim guest-actions.ts and page.tsx use, and gated by the same
+        // policy (attendees_claim_by_email): matched case-insensitively
+        // against the unique index on lower(email), only an unclaimed
+        // (user_id IS NULL) row is eligible, and WITH CHECK pins the new
+        // user_id to the caller's own Clerk id.
+        const { data: claimed, error: claimError } = await supabase
+          .from("attendees")
+          .update({ user_id: userId })
+          .is("user_id", null)
+          .ilike("email", email)
+          .select("id")
+          .maybeSingle();
+
+        if (claimError) {
+          console.error("syncOnboardingStatus: claim failed:", claimError);
+        } else if (claimed) {
+          hasAttendee = true;
+        }
+      }
+    }
+
+    if (!hasAttendee) return { alreadyOnboarded: false };
+
     await client.users.updateUser(userId, {
       publicMetadata: { onboardingComplete: true },
     });
