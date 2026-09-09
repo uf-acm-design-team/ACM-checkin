@@ -23,6 +23,7 @@ export default function OnboardingPage() {
   const [loading, setLoading] = useState(false);
   const [checkingExisting, setCheckingExisting] = useState(true);
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState(false);
   const router = useRouter();
   const supabase = createClient();
 
@@ -60,7 +61,10 @@ export default function OnboardingPage() {
         // route), the page rendered "Loading..." with nothing left to resolve it.
         setCheckingExisting(false);
         if (alreadyOnboarded) {
-          window.location.href = "/dashboard";
+          setSuccess(true);
+          setTimeout(() => {
+            window.location.href = "/dashboard";
+          }, 1200);
         }
       })
       .catch((err) => {
@@ -88,6 +92,17 @@ export default function OnboardingPage() {
   if (!user) {
     router.push("/sign-in");
     return null;
+  }
+
+  if (success) {
+    return (
+      <div className="flex min-h-dvh flex-col items-center justify-center gap-4 px-4">
+        <Notice tone="good" title="Successfully authenticated!" className="max-w-sm text-center">
+          Taking you to your dashboard…
+        </Notice>
+        <Spinner size={22} />
+      </div>
+    );
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -130,11 +145,20 @@ export default function OnboardingPage() {
         // so the proxy stops redirecting back here.
         await completeOnboarding();
         await user.reload();
-        window.location.href = "/dashboard";
+        setSuccess(true);
+        setTimeout(() => {
+          window.location.href = "/dashboard";
+        }, 1200);
         return;
       }
 
-      const email = user.primaryEmailAddress?.emailAddress || "";
+      // primaryEmailAddress can be unset even once Clerk has finished loading
+      // (seen after OAuth sign-up, before Clerk resolves a primary pointer) --
+      // fall back to the first address on file, same as checkin/page.tsx does.
+      const email =
+        user.primaryEmailAddress?.emailAddress ||
+        user.emailAddresses?.[0]?.emailAddress ||
+        "";
 
       // Claim an orphaned guest row before inserting.
       //
@@ -157,8 +181,8 @@ export default function OnboardingPage() {
       //
       // The returned rows tell us whether anything matched -- the same UPDATE
       // both detects and performs the claim, so there is no TOCTOU window.
-      let claimed = false;
-      if (email) {
+      const claimGuestRow = async (): Promise<{ claimed: boolean; error?: string }> => {
+        if (!email) return { claimed: false };
         const { data: claimedRows, error: claimError } = await supabase
           .from("attendees")
           .update({ user_id: user.id })
@@ -166,12 +190,16 @@ export default function OnboardingPage() {
           .ilike("email", email)
           .select("id");
 
-        if (claimError) {
-          setError("Failed to link your existing check-ins: " + claimError.message);
-          return;
-        }
-        claimed = (claimedRows?.length ?? 0) > 0;
+        if (claimError) return { claimed: false, error: claimError.message };
+        return { claimed: (claimedRows?.length ?? 0) > 0 };
+      };
+
+      const firstAttempt = await claimGuestRow();
+      if (firstAttempt.error) {
+        setError("Failed to link your existing check-ins: " + firstAttempt.error);
+        return;
       }
+      let claimed = firstAttempt.claimed;
 
       // Only insert when there was no guest row to adopt. The claimed row keeps
       // the name and grad year it was checked in with; the form's values are
@@ -187,8 +215,30 @@ export default function OnboardingPage() {
         });
 
         if (insertError) {
-          setError("Failed to save profile: " + insertError.message);
-          return;
+          // 23505 on attendees_email_lower_key means a row with this email
+          // exists that the claim above didn't catch -- e.g. a guest row
+          // created in the instant between that UPDATE and this INSERT.
+          // Re-run the claim once rather than dead-ending on a raw DB error:
+          // if it matches now, this request simply lost a race, not a real
+          // conflict. If it still matches nothing, the email is genuinely
+          // owned by another linked account.
+          const isEmailConflict =
+            insertError.code === "23505" &&
+            insertError.message.includes("attendees_email_lower_key");
+
+          if (isEmailConflict) {
+            const retry = await claimGuestRow();
+            claimed = retry.claimed;
+          }
+
+          if (!claimed) {
+            setError(
+              isEmailConflict
+                ? "This email is already linked to another account. Contact an officer if that's unexpected."
+                : "Failed to save profile: " + insertError.message,
+            );
+            return;
+          }
         }
       }
 
@@ -212,10 +262,14 @@ export default function OnboardingPage() {
       // without this the proxy reads the old claims on the very next request.
       await user.reload();
 
+      setSuccess(true);
+
       // Full page load, not router.push(). A client-side nav reuses the
       // existing React tree and the cached session token, so the proxy can
       // still see the pre-onboarding claims and bounce straight back here.
-      router.push("/dashboard");
+      setTimeout(() => {
+        window.location.href = "/dashboard";
+      }, 1200);
     } catch (err) {
       setError("An unexpected error occurred");
     } finally {
