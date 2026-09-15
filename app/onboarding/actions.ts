@@ -3,6 +3,40 @@
 import { auth, clerkClient } from "@clerk/nextjs/server";
 
 import { createServiceSupabaseClient } from "../utils/supabase/server";
+import type { SupabaseClient } from "@supabase/supabase-js";
+
+/**
+ * Claims an orphaned guest attendees row (user_id IS NULL) by email, via the
+ * service-role client.
+ *
+ * Guest check-in creates an attendee keyed only on a typed email
+ * (checkin/guest-actions.ts). The equivalent claim used to run through the
+ * RLS-gated browser client against the attendees_claim_by_email policy --
+ * checks out on paper (Clerk is registered as a Supabase third-party auth
+ * provider) but did not reliably link the row in practice, which is exactly
+ * the "this email is already linked to another account" report: the row is
+ * real and genuinely unclaimed, the RLS claim just silently failed to attach
+ * it. Service role sidesteps whatever that gap is.
+ *
+ * Matched with ilike() to line up with the unique index on lower(email);
+ * .eq() would miss "Ada@ufl.edu" vs "ada@ufl.edu".
+ */
+async function claimGuestAttendeeRow(
+  supabase: SupabaseClient,
+  userId: string,
+  email: string,
+): Promise<{ claimed: boolean; error?: string }> {
+  if (!email) return { claimed: false };
+  const { data, error } = await supabase
+    .from("attendees")
+    .update({ user_id: userId })
+    .is("user_id", null)
+    .ilike("email", email)
+    .select("id");
+
+  if (error) return { claimed: false, error: error.message };
+  return { claimed: (data?.length ?? 0) > 0 };
+}
 
 /**
  * Marks the signed-in user as having completed onboarding.
@@ -101,22 +135,10 @@ export async function syncOnboardingStatus(): Promise<{ alreadyOnboarded: boolea
         )?.emailAddress ?? clerkUser.emailAddresses[0]?.emailAddress;
 
       if (email) {
-        // Same claim guest-actions.ts and page.tsx use, and gated by the same
-        // policy (attendees_claim_by_email): matched case-insensitively
-        // against the unique index on lower(email), only an unclaimed
-        // (user_id IS NULL) row is eligible, and WITH CHECK pins the new
-        // user_id to the caller's own Clerk id.
-        const { data: claimed, error: claimError } = await supabase
-          .from("attendees")
-          .update({ user_id: userId })
-          .is("user_id", null)
-          .ilike("email", email)
-          .select("id")
-          .maybeSingle();
-
-        if (claimError) {
-          console.error("syncOnboardingStatus: claim failed:", claimError);
-        } else if (claimed) {
+        const claim = await claimGuestAttendeeRow(supabase, userId, email);
+        if (claim.error) {
+          console.error("syncOnboardingStatus: claim failed:", claim.error);
+        } else if (claim.claimed) {
           hasAttendee = true;
         }
       }
@@ -133,4 +155,104 @@ export async function syncOnboardingStatus(): Promise<{ alreadyOnboarded: boolea
     console.error("syncOnboardingStatus failed:", err);
     return { alreadyOnboarded: false };
   }
+}
+
+export type SubmitOnboardingProfileResult =
+  | { ok: true }
+  | { ok: false; error: string };
+
+/**
+ * Submits the onboarding form: claims an orphaned guest row by email, or
+ * creates a fresh attendee if none exists, then flips the onboarding flag.
+ *
+ * Entirely service-role, including the claim -- this used to run from the
+ * browser (page.tsx) against the RLS-gated client, the same claim that
+ * syncOnboardingStatus above already had to move off of. Left there, it made
+ * the failure deterministic: anyone whose claim silently failed fell through
+ * to the INSERT, hit attendees_email_lower_key, retried the claim through the
+ * exact same broken path, and landed on "already linked to another account"
+ * for a row that was, in fact, theirs and genuinely unclaimed.
+ */
+export async function submitOnboardingProfile(input: {
+  firstName: string;
+  lastName: string;
+  gradYear: string;
+}): Promise<SubmitOnboardingProfileResult> {
+  const { userId } = await auth();
+  if (!userId) return { ok: false, error: "NOT_AUTHENTICATED" };
+
+  const firstName = input.firstName.trim();
+  const lastName = input.lastName.trim();
+  const gradYear = input.gradYear.trim();
+  if (!firstName || !lastName || !gradYear) {
+    return { ok: false, error: "Missing required fields." };
+  }
+
+  const supabase = createServiceSupabaseClient();
+
+  const { data: existing } = await supabase
+    .from("attendees")
+    .select("id")
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  // Row already there (e.g. claimed via guest check-in, or by
+  // syncOnboardingStatus on mount) -- nothing to claim or insert.
+  if (!existing) {
+    const client = await clerkClient();
+    const clerkUser = await client.users.getUser(userId);
+    const email =
+      clerkUser.emailAddresses.find(
+        (e) => e.id === clerkUser.primaryEmailAddressId,
+      )?.emailAddress ?? clerkUser.emailAddresses[0]?.emailAddress ?? "";
+
+    const claim = await claimGuestAttendeeRow(supabase, userId, email);
+    if (claim.error) {
+      return {
+        ok: false,
+        error: "Failed to link your existing check-ins: " + claim.error,
+      };
+    }
+
+    if (!claim.claimed) {
+      const { error: insertError } = await supabase.from("attendees").insert({
+        user_id: userId,
+        email,
+        first_name: firstName,
+        last_name: lastName,
+        grad_year: gradYear,
+      });
+
+      if (insertError) {
+        // 23505 on attendees_email_lower_key means a row with this email
+        // exists that the claim above didn't catch -- e.g. a guest row
+        // created in the instant between that claim and this insert. Retry
+        // once rather than dead-ending on a raw DB error: if it matches now,
+        // this request simply lost a race, not a real conflict.
+        const isEmailConflict =
+          insertError.code === "23505" &&
+          insertError.message.includes("attendees_email_lower_key");
+
+        const retry = isEmailConflict
+          ? await claimGuestAttendeeRow(supabase, userId, email)
+          : { claimed: false };
+
+        if (!retry.claimed) {
+          return {
+            ok: false,
+            error: isEmailConflict
+              ? "This email is already linked to another account. Contact an officer if that's unexpected."
+              : "Failed to save profile: " + insertError.message,
+          };
+        }
+      }
+    }
+
+    await client.users.updateUser(userId, { firstName, lastName });
+  }
+
+  const completed = await completeOnboarding();
+  return completed.ok
+    ? { ok: true }
+    : { ok: false, error: completed.error ?? "Failed to complete onboarding." };
 }

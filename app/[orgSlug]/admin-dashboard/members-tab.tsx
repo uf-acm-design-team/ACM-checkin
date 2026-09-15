@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createClient } from "../../utils/supabase/client";
+import { Check } from "lucide-react";
 // Permission matrix mirror -- pure, unit-tested, and documented against the
 // RPCs that actually enforce these rules. See lib/org-roles.ts.
 import {
@@ -14,16 +15,11 @@ import {
   demoteTarget,
   promoteTarget,
 } from "@/lib/org-roles";
+import { fetchOrgMembers, type OrgMember } from "@/lib/org-members";
 
-interface Member {
-  user_id: string;
-  role: string;
-  first_name: string;
-  last_name: string;
-  email: string;
-  grad_year: string;
-  attendance_count: number;
-}
+type Member = OrgMember;
+
+const MEMBERS_PAGE_SIZE_OPTIONS = [10, 25, 50, 100] as const;
 
 interface MeetingOption {
   id: string;
@@ -33,6 +29,7 @@ interface MeetingOption {
 
 interface MembersTabProps {
   orgId: string;
+  orgSlug: string;
   membershipRole: string | null;
   isGlobalAdmin: boolean;
   meetings: MeetingOption[];
@@ -49,6 +46,7 @@ const initials = (name: string) =>
 
 export default function MembersTab({
   orgId,
+  orgSlug,
   membershipRole,
   isGlobalAdmin,
   meetings,
@@ -64,11 +62,24 @@ export default function MembersTab({
   const [actionError, setActionError] = useState<string | null>(null);
   const [busyUserId, setBusyUserId] = useState<string | null>(null);
 
+  // Rendering cap only -- the full roster is fetched once; this just limits
+  // how much of it is shown at a time. Officer-selectable, not tied to the
+  // fetch itself.
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState<number>(25);
+
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState("member");
   const [inviting, setInviting] = useState(false);
   const [inviteError, setInviteError] = useState<string | null>(null);
+
+  const openInviteModal = (prefill?: { email: string; role?: string }) => {
+    setInviteError(null);
+    setInviteEmail(prefill?.email ?? "");
+    setInviteRole(prefill?.role ?? "member");
+    setShowInviteModal(true);
+  };
 
   const [checkinTargetUserId, setCheckinTargetUserId] = useState<string | null>(
     null,
@@ -85,72 +96,11 @@ export default function MembersTab({
   const fetchMembers = useCallback(async () => {
     setMembersLoading(true);
     try {
-      const { data: memberships, error } = await supabase
-        .from("memberships")
-        .select("user_id, role")
-        .eq("org_id", orgId);
-
-      if (error) {
-        console.error("Error fetching memberships:", error);
-        return;
-      }
-
-      const userIds = (memberships || []).map((m) => m.user_id).filter(Boolean);
-      let attendeesById: Record<
-        string,
-        {
-          id: string;
-          first_name: string;
-          last_name: string;
-          email: string;
-          grad_year: string;
-        }
-      > = {};
-      const countsByAttendee: Record<string, number> = {};
-
-      if (userIds.length > 0) {
-        const { data: attendees } = await supabase
-          .from("attendees")
-          .select("id, user_id, first_name, last_name, email, grad_year")
-          .in("user_id", userIds);
-
-        attendeesById = Object.fromEntries(
-          (attendees || []).map((a) => [a.user_id, a]),
-        );
-
-        const attendeeIds = (attendees || []).map((a) => a.id);
-        if (attendeeIds.length > 0) {
-          const { data: attendanceRows } = await supabase
-            .from("attendance")
-            .select("attendee_id")
-            .eq("org_id", orgId)
-            .in("attendee_id", attendeeIds);
-
-          for (const row of attendanceRows || []) {
-            countsByAttendee[row.attendee_id] =
-              (countsByAttendee[row.attendee_id] || 0) + 1;
-          }
-        }
-      }
-
-      setMembers(
-        (memberships || []).map((m) => {
-          const attendee = attendeesById[m.user_id];
-          return {
-            user_id: m.user_id,
-            role: m.role,
-            first_name: attendee?.first_name ?? "Unknown",
-            last_name: attendee?.last_name ?? "",
-            email: attendee?.email ?? "—",
-            grad_year: attendee?.grad_year ?? "",
-            attendance_count: attendee ? countsByAttendee[attendee.id] || 0 : 0,
-          };
-        }),
-      );
+      setMembers(await fetchOrgMembers(supabase, orgId, orgSlug));
     } finally {
       setMembersLoading(false);
     }
-  }, [orgId, supabase]);
+  }, [orgId, orgSlug, supabase]);
 
   useEffect(() => {
     fetchMembers();
@@ -164,6 +114,15 @@ export default function MembersTab({
       m.email.toLowerCase().includes(search) ||
       m.role?.toLowerCase().includes(search),
   );
+
+  // A new search or page-size change should never leave the view scrolled
+  // past what's now the filtered/sized result set.
+  useEffect(() => {
+    setPage(1);
+  }, [search, pageSize]);
+
+  const pagedMembers = filteredMembers.slice(0, page * pageSize);
+  const canLoadMoreMembers = filteredMembers.length > pagedMembers.length;
 
   const invitableRoles = useMemo(
     () => ROLE_ORDER.filter((role) => ROLE_LEVEL[role] <= ceiling),
@@ -212,7 +171,12 @@ export default function MembersTab({
     }
   };
 
+  // Only ever called from a row with a real memberships row (the "Remove"
+  // button is gated on that), which guarantees user_id is set -- role !== null
+  // is only possible via a matched or orphaned memberships row, both of which
+  // carry a real Clerk id.
   const handleRemove = async (member: Member) => {
+    if (!member.user_id) return;
     if (
       !confirm(
         `Remove ${member.first_name} ${member.last_name} from the organization?`,
@@ -301,13 +265,29 @@ export default function MembersTab({
   return (
     <>
       <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:gap-4">
-        <input
-          type="text"
-          placeholder="Search members..."
-          value={memberSearch}
-          onChange={(e) => setMemberSearch(e.target.value)}
-          className="w-full rounded-control border border-line bg-white px-4 py-2.5 text-sm sm:w-auto sm:min-w-65"
-        />
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-3">
+          <input
+            type="text"
+            placeholder="Search members..."
+            value={memberSearch}
+            onChange={(e) => setMemberSearch(e.target.value)}
+            className="w-full rounded-control border border-line bg-white px-4 py-2.5 text-sm sm:w-auto sm:min-w-65"
+          />
+          <label className="flex items-center gap-1.5 text-[13px] font-semibold text-ink-muted">
+            Per page
+            <select
+              value={pageSize}
+              onChange={(e) => setPageSize(Number(e.target.value))}
+              className="rounded-control border border-line bg-white px-2 py-1.5 text-[13px] font-semibold"
+            >
+              {MEMBERS_PAGE_SIZE_OPTIONS.map((size) => (
+                <option key={size} value={size}>
+                  {size}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
         <div className="flex items-center gap-3">
           <div className="text-[13px] font-semibold text-ink-muted">
             {members.length} member{members.length === 1 ? "" : "s"}
@@ -326,10 +306,7 @@ export default function MembersTab({
           )}
           {ceiling >= 0 && (
             <button
-              onClick={() => {
-                setInviteError(null);
-                setShowInviteModal(true);
-              }}
+              onClick={() => openInviteModal()}
               className="cursor-pointer rounded-control bg-accent px-4 py-2 text-sm font-bold text-accent-ink transition-colors hover:bg-accent-deep"
             >
               + Add by email
@@ -345,10 +322,11 @@ export default function MembersTab({
       )}
 
       <div className="overflow-hidden rounded-card border border-line bg-white">
-        <div className="hidden grid-cols-[1.6fr_1.8fr_1fr_1fr_1.6fr] gap-4 border-b border-line px-5 py-3.5 text-xs font-bold tracking-wide text-ink-muted uppercase md:grid">
+        <div className="hidden grid-cols-[1.6fr_1.8fr_1fr_1fr_1fr_1.6fr] gap-4 border-b border-line px-5 py-3.5 text-xs font-bold tracking-wide text-ink-muted uppercase md:grid">
           <div>Name</div>
           <div>Contact</div>
           <div>Role</div>
+          <div>Status</div>
           <div>Check-Ins</div>
           <div className="text-right">Actions</div>
         </div>
@@ -356,17 +334,30 @@ export default function MembersTab({
           <div className="p-10 text-center text-sm text-ink-muted">
             Loading members...
           </div>
-        ) : filteredMembers.length > 0 ? (
-          filteredMembers.map((mem) => {
-            const promoteRole = promoteTarget(mem.role, ceiling);
-            const demoteRole = demoteTarget(mem.role, level, isGlobalAdmin);
-            const removable = canRemove(mem.role, level, isGlobalAdmin);
+        ) : pagedMembers.length > 0 ? (
+          pagedMembers.map((mem) => {
+            // Three states, driven by authenticated/role independently of the
+            // pending/active status badge:
+            //   1. Guest, no account          -- no actions at all.
+            //   2. Account, no memberships row -- Add to meeting + Invite.
+            //   3. Real memberships row        -- promote/demote/remove.
+            // role !== null is only possible via a matched or orphaned
+            // memberships row, both of which carry a real Clerk user_id --
+            // safe to assert non-null wherever gated on mem.role or
+            // mem.authenticated below.
+            const promoteRole = mem.role ? promoteTarget(mem.role, ceiling) : null;
+            const demoteRole = mem.role
+              ? demoteTarget(mem.role, level, isGlobalAdmin)
+              : null;
+            const removable = mem.role
+              ? canRemove(mem.role, level, isGlobalAdmin)
+              : false;
             const busy = busyUserId === mem.user_id;
 
             return (
               <div
-                key={mem.user_id}
-                className="flex flex-col gap-2.5 border-b border-line-soft px-4 py-3.5 text-sm last:border-b-0 sm:px-5 md:grid md:grid-cols-[1.6fr_1.8fr_1fr_1fr_1.6fr] md:items-center md:gap-4"
+                key={mem.attendee_id}
+                className="flex flex-col gap-2.5 border-b border-line-soft px-4 py-3.5 text-sm last:border-b-0 sm:px-5 md:grid md:grid-cols-[1.6fr_1.8fr_1fr_1fr_1fr_1.6fr] md:items-center md:gap-4"
               >
                 <div className="flex min-w-0 items-center gap-2.5 font-bold">
                   <div className="flex h-8 w-8 flex-none items-center justify-center rounded-full bg-accent-soft text-[11px] font-bold text-accent">
@@ -375,13 +366,29 @@ export default function MembersTab({
                   <span className="min-w-0 wrap-break-word">
                     {mem.first_name} {mem.last_name}
                   </span>
+                  {mem.authenticated && (
+                    <span title="Registered" className="flex-none">
+                      <Check className="h-3.5 w-3.5 text-good-ink" strokeWidth={3} />
+                    </span>
+                  )}
                 </div>
                 <div className="text-[13px] font-medium break-all text-ink-strong md:truncate md:break-normal">
                   {mem.email}
                 </div>
-                <div>
+                <div className="flex flex-wrap gap-1">
                   <span className="inline-block rounded-full bg-surface-sunken px-2.5 py-1 text-[11px] font-bold text-ink-strong capitalize">
-                    {ROLE_LABEL[mem.role] ?? mem.role}
+                    {mem.role ? (ROLE_LABEL[mem.role] ?? mem.role) : "Member"}
+                  </span>
+                </div>
+                <div className="flex flex-wrap gap-1">
+                  <span
+                    className={`inline-block rounded-full px-2.5 py-1 text-[11px] font-bold capitalize ${
+                      mem.status === "active"
+                        ? "bg-good-surface text-good-ink"
+                        : "bg-warn-surface text-warn-ink"
+                    }`}
+                  >
+                    {mem.status}
                   </span>
                 </div>
                 <div>
@@ -390,18 +397,28 @@ export default function MembersTab({
                   </span>
                 </div>
                 <div className="flex flex-wrap gap-1.5 md:justify-end">
-                  {level >= 1 && meetings.length > 0 && (
+                  {mem.authenticated && level >= 1 && meetings.length > 0 && (
                     <button
-                      onClick={() => openCheckinModal(mem.user_id)}
+                      onClick={() => openCheckinModal(mem.user_id!)}
                       className="cursor-pointer rounded-md border border-line px-2 py-1 text-[11px] font-bold text-ink-strong hover:bg-surface-sunken"
                     >
                       Add to meeting
                     </button>
                   )}
+                  {mem.authenticated && mem.role === null && ceiling >= 0 && (
+                    <button
+                      onClick={() =>
+                        openInviteModal({ email: mem.email, role: "member" })
+                      }
+                      className="cursor-pointer rounded-md border border-line px-2 py-1 text-[11px] font-bold text-ink-strong hover:bg-surface-sunken"
+                    >
+                      Invite
+                    </button>
+                  )}
                   {promoteRole && (
                     <button
                       disabled={busy}
-                      onClick={() => handleRoleChange(mem.user_id, promoteRole)}
+                      onClick={() => handleRoleChange(mem.user_id!, promoteRole)}
                       className="cursor-pointer rounded-md border border-line px-2 py-1 text-[11px] font-bold text-ink-strong hover:bg-surface-sunken disabled:opacity-50"
                     >
                       Promote
@@ -410,7 +427,7 @@ export default function MembersTab({
                   {demoteRole && (
                     <button
                       disabled={busy}
-                      onClick={() => handleRoleChange(mem.user_id, demoteRole)}
+                      onClick={() => handleRoleChange(mem.user_id!, demoteRole)}
                       className="cursor-pointer rounded-md border border-line px-2 py-1 text-[11px] font-bold text-ink-strong hover:bg-surface-sunken disabled:opacity-50"
                     >
                       Demote
@@ -432,6 +449,16 @@ export default function MembersTab({
         ) : (
           <div className="p-10 text-center text-sm text-ink-muted">
             No members match your search.
+          </div>
+        )}
+        {canLoadMoreMembers && (
+          <div className="border-t border-line-soft p-4 text-center">
+            <button
+              onClick={() => setPage((p) => p + 1)}
+              className="cursor-pointer rounded-control border border-line bg-white px-4 py-2 text-[13px] font-bold text-ink-strong hover:bg-canvas"
+            >
+              Load more
+            </button>
           </div>
         )}
       </div>
@@ -546,8 +573,8 @@ export default function MembersTab({
                     Select a member
                   </option>
                   {transferCandidates.map((m) => (
-                    <option key={m.user_id} value={m.user_id}>
-                      {m.first_name} {m.last_name} ({ROLE_LABEL[m.role]})
+                    <option key={m.user_id} value={m.user_id ?? ""}>
+                      {m.first_name} {m.last_name} ({m.role ? ROLE_LABEL[m.role] : ""})
                     </option>
                   ))}
                 </select>

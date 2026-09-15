@@ -24,6 +24,8 @@ import {
   buildAttendanceCsv,
   downloadCsv,
 } from "@/lib/attendance-csv";
+import { fetchOrgMembers, type OrgMember } from "@/lib/org-members";
+import { pageRange, hasMore as computeHasMore } from "@/lib/stats-terms";
 
 interface Organization {
   id: string;
@@ -78,16 +80,6 @@ interface CheckIn {
   grad_year: string;
   checked_in_at: string;
   answers: AnswerMap;
-}
-
-interface Member {
-  user_id: string;
-  role: string;
-  first_name: string;
-  last_name: string;
-  email: string;
-  grad_year: string;
-  attendance_count: number;
 }
 
 const TABS = [
@@ -170,10 +162,16 @@ export default function AdminDashboard({
   );
   const [checkIns, setCheckIns] = useState<Record<string, CheckIn[]>>({});
   const [checkInsLoading, setCheckInsLoading] = useState(false);
+  const [checkInsLoadingMore, setCheckInsLoadingMore] = useState(false);
+  // Page currently loaded per meeting -- "Load more" appends the next page
+  // rather than re-fetching everything, same pattern as
+  // components/stats/stats-view.tsx.
+  const [checkInsPage, setCheckInsPage] = useState<Record<string, number>>({});
+  const [checkInsTotal, setCheckInsTotal] = useState<Record<string, number>>({});
 
   // Members (Overview stats/officers panel only -- the Members tab itself
   // fetches and manages its own roster in members-tab.tsx)
-  const [members, setMembers] = useState<Member[]>([]);
+  const [members, setMembers] = useState<OrgMember[]>([]);
   const [, setMembersLoading] = useState(true);
 
   useEffect(() => {
@@ -330,66 +328,11 @@ export default function AdminDashboard({
     if (!organization) return;
     setMembersLoading(true);
     try {
-      const { data: memberships, error } = await supabase
-        .from("memberships")
-        .select("user_id, role")
-        .eq("org_id", organization.id);
-
-      if (error) {
-        console.error("Error fetching memberships:", error);
-        return;
-      }
-
-      const userIds = (memberships || []).map((m) => m.user_id).filter(Boolean);
-      let attendeesById: Record<
-        string,
-        { id: string; first_name: string; last_name: string; email: string; grad_year: string }
-      > = {};
-      const countsByAttendee: Record<string, number> = {};
-
-      if (userIds.length > 0) {
-        const { data: attendees } = await supabase
-          .from("attendees")
-          .select("id, user_id, first_name, last_name, email, grad_year")
-          .in("user_id", userIds);
-
-        attendeesById = Object.fromEntries(
-          (attendees || []).map((a) => [a.user_id, a])
-        );
-
-        const attendeeIds = (attendees || []).map((a) => a.id);
-        if (attendeeIds.length > 0) {
-          const { data: attendanceRows } = await supabase
-            .from("attendance")
-            .select("attendee_id")
-            .eq("org_id", organization.id)
-            .in("attendee_id", attendeeIds);
-
-          for (const row of attendanceRows || []) {
-            countsByAttendee[row.attendee_id] =
-              (countsByAttendee[row.attendee_id] || 0) + 1;
-          }
-        }
-      }
-
-      setMembers(
-        (memberships || []).map((m) => {
-          const attendee = attendeesById[m.user_id];
-          return {
-            user_id: m.user_id,
-            role: m.role,
-            first_name: attendee?.first_name ?? "Unknown",
-            last_name: attendee?.last_name ?? "",
-            email: attendee?.email ?? "—",
-            grad_year: attendee?.grad_year ?? "",
-            attendance_count: attendee ? countsByAttendee[attendee.id] || 0 : 0,
-          };
-        })
-      );
+      setMembers(await fetchOrgMembers(supabase, organization.id, orgSlug));
     } finally {
       setMembersLoading(false);
     }
-  }, [organization, supabase]);
+  }, [organization, orgSlug, supabase]);
 
   useEffect(() => {
     if (!organization) return;
@@ -405,38 +348,59 @@ export default function AdminDashboard({
     }
   }, [meetings, attendanceMeetingId]);
 
+  const ATTENDANCE_PAGE_SIZE = 25;
+
+  const loadCheckInsPage = useCallback(
+    async (meetingId: string, page: number) => {
+      const { from, to } = pageRange(page, ATTENDANCE_PAGE_SIZE);
+      const { data, error, count } = await supabase
+        .from("attendance")
+        .select(
+          "checked_in_at, answers, attendee:attendee_id(first_name, last_name, email, grad_year)",
+          { count: "exact" },
+        )
+        .eq("meeting_id", meetingId)
+        .order("checked_in_at", { ascending: true })
+        .range(from, to);
+
+      if (error || !data) return;
+
+      const rows: CheckIn[] = data.map((row: any) => ({
+        first_name: row.attendee?.first_name ?? "",
+        last_name: row.attendee?.last_name ?? "",
+        email: row.attendee?.email ?? "",
+        grad_year: row.attendee?.grad_year ?? "",
+        checked_in_at: row.checked_in_at,
+        answers: parseAnswers(row.answers),
+      }));
+
+      setCheckIns((prev) => ({
+        ...prev,
+        [meetingId]: page === 1 ? rows : [...(prev[meetingId] ?? []), ...rows],
+      }));
+      setCheckInsPage((prev) => ({ ...prev, [meetingId]: page }));
+      setCheckInsTotal((prev) => ({ ...prev, [meetingId]: count ?? rows.length }));
+    },
+    [supabase],
+  );
+
   useEffect(() => {
     const meetingId = attendanceMeetingId;
     if (!meetingId || checkIns[meetingId]) return;
-    const fetchCheckIns = async () => {
-      setCheckInsLoading(true);
-      try {
-        const { data, error } = await supabase
-          .from("attendance")
-          .select(
-            "checked_in_at, answers, attendee:attendee_id(first_name, last_name, email, grad_year)"
-          )
-          .eq("meeting_id", meetingId);
+    setCheckInsLoading(true);
+    loadCheckInsPage(meetingId, 1).finally(() => setCheckInsLoading(false));
+  }, [attendanceMeetingId, checkIns, loadCheckInsPage]);
 
-        if (!error && data) {
-          setCheckIns((prev) => ({
-            ...prev,
-            [meetingId]: data.map((row: any) => ({
-              first_name: row.attendee?.first_name ?? "",
-              last_name: row.attendee?.last_name ?? "",
-              email: row.attendee?.email ?? "",
-              grad_year: row.attendee?.grad_year ?? "",
-              checked_in_at: row.checked_in_at,
-              answers: parseAnswers(row.answers),
-            })),
-          }));
-        }
-      } finally {
-        setCheckInsLoading(false);
-      }
-    };
-    fetchCheckIns();
-  }, [attendanceMeetingId, checkIns, supabase]);
+  const loadMoreCheckIns = async () => {
+    const meetingId = attendanceMeetingId;
+    if (!meetingId) return;
+    setCheckInsLoadingMore(true);
+    try {
+      await loadCheckInsPage(meetingId, (checkInsPage[meetingId] ?? 1) + 1);
+    } finally {
+      setCheckInsLoadingMore(false);
+    }
+  };
 
   const openCreateMeeting = () => {
     setMeetingDraft(EMPTY_MEETING_DRAFT);
@@ -634,28 +598,58 @@ export default function AdminDashboard({
     }
   };
 
+  const [exportingCsv, setExportingCsv] = useState(false);
+
   // One column per form question, appended after the fixed attendee columns.
   // See lib/attendance-csv.ts -- shared with the meeting editor's Responses tab
   // so both produce the same file.
-  const downloadAttendanceCSV = () => {
+  //
+  // Fetches the full attendee set itself rather than exporting `checkIns`,
+  // which now only holds whatever pages have been loaded in the UI -- an
+  // export must never silently truncate to the last-loaded page.
+  const downloadAttendanceCSV = async () => {
     const meeting = meetings.find((m) => m.id === attendanceMeetingId);
-    const rows = checkIns[attendanceMeetingId ?? ""];
-    if (!meeting || !rows) return;
-    downloadCsv(
-      buildAttendanceCsv(rows, meeting.form_schema),
-      attendanceFilename(meeting.title),
-    );
+    if (!meeting) return;
 
-    // Best-effort: the export already happened, so a logging failure
-    // shouldn't surface as an error to the officer who just downloaded it.
-    supabase
-      .rpc("log_attendance_export", {
-        p_meeting_id: meeting.id,
-        p_row_count: rows.length,
-      })
-      .then(({ error }) => {
-        if (error) console.error("Failed to log attendance export:", error);
-      });
+    setExportingCsv(true);
+    try {
+      const { data, error } = await supabase
+        .from("attendance")
+        .select(
+          "checked_in_at, answers, attendee:attendee_id(first_name, last_name, email, grad_year)",
+        )
+        .eq("meeting_id", meeting.id)
+        .order("checked_in_at", { ascending: true });
+
+      if (error || !data) return;
+
+      const rows: CheckIn[] = data.map((row: any) => ({
+        first_name: row.attendee?.first_name ?? "",
+        last_name: row.attendee?.last_name ?? "",
+        email: row.attendee?.email ?? "",
+        grad_year: row.attendee?.grad_year ?? "",
+        checked_in_at: row.checked_in_at,
+        answers: parseAnswers(row.answers),
+      }));
+
+      downloadCsv(
+        buildAttendanceCsv(rows, meeting.form_schema),
+        attendanceFilename(meeting.title),
+      );
+
+      // Best-effort: the export already happened, so a logging failure
+      // shouldn't surface as an error to the officer who just downloaded it.
+      supabase
+        .rpc("log_attendance_export", {
+          p_meeting_id: meeting.id,
+          p_row_count: rows.length,
+        })
+        .then(({ error: logError }) => {
+          if (logError) console.error("Failed to log attendance export:", logError);
+        });
+    } finally {
+      setExportingCsv(false);
+    }
   };
 
   // The upcoming/past boundary. Held in state and refreshed on a timer rather
@@ -711,7 +705,10 @@ export default function AdminDashboard({
   const nextMeeting =
     upcomingMeetings.find((m) => m.status) ?? upcomingMeetings[0];
   const totalCheckIns = meetings.reduce((sum, m) => sum + m.attendance_count, 0);
-  const officers = members.filter((m) => m.role?.toLowerCase() !== "member");
+  const activeMembers = members.filter((m) => m.status === "active");
+  const officers = activeMembers.filter(
+    (m) => m.role && m.role.toLowerCase() !== "member",
+  );
 
   // Audit Log and Branding are co-owner/owner (or global admin) tools --
   // matches the audit_owner_read and orgs_officer_update RLS policies from
@@ -949,7 +946,7 @@ export default function AdminDashboard({
                 {[
                   {
                     label: "Total Members",
-                    value: String(members.length),
+                    value: String(activeMembers.length),
                     sub: "Active roster",
                   },
                   {
@@ -1265,10 +1262,10 @@ export default function AdminDashboard({
                 </div>
                 <button
                   onClick={downloadAttendanceCSV}
-                  disabled={!selectedCheckIns?.length}
+                  disabled={!selectedMeeting?.attendance_count || exportingCsv}
                   className="w-full cursor-pointer rounded-control border border-line bg-surface px-4 py-2.5 text-sm font-semibold text-ink-strong transition-colors hover:bg-surface-sunken disabled:opacity-50 sm:w-auto"
                 >
-                  ↓ Download attendance (.csv)
+                  {exportingCsv ? "Preparing…" : "↓ Download attendance (.csv)"}
                 </button>
               </div>
 
@@ -1334,6 +1331,22 @@ export default function AdminDashboard({
                       No attendees for this meeting.
                     </div>
                   )}
+                  {selectedMeeting &&
+                    computeHasMore(
+                      checkInsPage[selectedMeeting.id] ?? 1,
+                      ATTENDANCE_PAGE_SIZE,
+                      checkInsTotal[selectedMeeting.id] ?? 0,
+                    ) && (
+                      <div className="border-t border-line-soft p-4 text-center">
+                        <button
+                          onClick={loadMoreCheckIns}
+                          disabled={checkInsLoadingMore}
+                          className="cursor-pointer rounded-control border border-line bg-white px-4 py-2 text-[13px] font-bold text-ink-strong hover:bg-canvas disabled:opacity-50"
+                        >
+                          {checkInsLoadingMore ? "Loading…" : "Load more"}
+                        </button>
+                      </div>
+                    )}
                 </div>
               ) : (
                 <div className="rounded-card border border-line bg-white p-10 text-center text-sm text-ink-muted">
@@ -1347,6 +1360,7 @@ export default function AdminDashboard({
           {activeTab === "members" && (
             <MembersTab
               orgId={organization.id}
+              orgSlug={orgSlug}
               membershipRole={membershipRole}
               isGlobalAdmin={isGlobalAdmin}
               meetings={meetings}

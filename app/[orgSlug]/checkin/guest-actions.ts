@@ -4,6 +4,7 @@ import { headers } from "next/headers";
 import { createClient } from "@supabase/supabase-js";
 
 import { parseSchema, validateAnswers } from "@/lib/form-schema";
+import { isWithinMeetingWindow } from "@/lib/meeting-time";
 
 /**
  * Guest check-in, performed server-side.
@@ -128,15 +129,24 @@ export async function guestCheckIn(input: {
   // can legitimately run two at once (e.g. a general body meeting alongside a
   // workshop), and the old `.limit(1)` silently recorded everyone against
   // whichever started first.
-  const { data: openMeetings } = await supabase
+  const { data: allOpenMeetings } = await supabase
     .from("meetings")
-    .select("id, form_schema, checkin_password")
+    .select("id, form_schema, checkin_password, start_time, end_time")
     .eq("org_id", org.id)
     .eq("status", true)
     .eq("is_officer_only", false)
     .order("start_time", { ascending: true });
 
-  if (!openMeetings || openMeetings.length === 0) {
+  // status=true is just an officer's on/off switch -- it says nothing about
+  // whether "now" is actually inside the meeting's own scheduled window (a
+  // meeting can be opened ahead of start_time, or sit open briefly past
+  // end_time before the once-a-minute auto-close cron catches it).
+  const now = new Date();
+  const openMeetings = (allOpenMeetings ?? []).filter((m) =>
+    isWithinMeetingWindow(now, m.start_time, m.end_time),
+  );
+
+  if (openMeetings.length === 0) {
     return { ok: false, error: "There is no active meeting." };
   }
 

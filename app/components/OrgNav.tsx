@@ -184,6 +184,21 @@ export default function OrgNav() {
             </Link>
           ))}
         </div>
+
+        {/* A guest who already checked in has no other route back to signing
+            up -- the prompt on the check-in form itself is easy to miss once
+            they've submitted it, and from then on this bar is the only thing
+            that follows them across the org's pages. Gated on isLoaded, not
+            just !user, so a signed-in visitor never sees it flash during the
+            brief window before Clerk resolves. */}
+        {isLoaded && !user && (
+          <Link
+            href="/sign-in"
+            className="ml-1 flex-none rounded-pill bg-accent px-3 py-2 text-xs font-bold whitespace-nowrap text-accent-ink transition-colors hover:bg-accent-deep sm:px-4 sm:text-[13px]"
+          >
+            Sign Up/In
+          </Link>
+        )}
       </nav>
     </header>
   );

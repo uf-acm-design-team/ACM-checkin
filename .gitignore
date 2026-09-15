@@ -51,6 +51,7 @@ AGENTS.md
 # Local database dumps from `supabase db dump`
 backup-*.sql
 *.dump
+/backups/
 
 # vercel
 .vercel

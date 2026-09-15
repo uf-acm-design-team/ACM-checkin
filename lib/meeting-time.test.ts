@@ -4,6 +4,7 @@ import {
   fromDateTimeLocal,
   orgWallClock,
   isBefore,
+  isWithinMeetingWindow,
 } from "./meeting-time";
 
 // meetings.start_time / end_time are timestamptz. PostgREST returns them with
@@ -97,5 +98,39 @@ describe("isBefore", () => {
     // Same instant, different notations.
     expect(isBefore("2026-09-03T19:00:00+00:00", "2026-09-03T15:00:00-04:00")).toBe(false);
     expect(isBefore("2026-09-03T18:00:00+00:00", "2026-09-03T15:00:00-04:00")).toBe(true);
+  });
+});
+
+describe("isWithinMeetingWindow", () => {
+  const start = "2026-09-03T15:00:00-04:00";
+  const end = "2026-09-03T16:00:00-04:00";
+
+  it("is true strictly between start and end", () => {
+    expect(isWithinMeetingWindow(new Date("2026-09-03T15:30:00-04:00"), start, end)).toBe(true);
+  });
+
+  it("is true exactly at the start and end boundaries", () => {
+    expect(isWithinMeetingWindow(new Date(start), start, end)).toBe(true);
+    expect(isWithinMeetingWindow(new Date(end), start, end)).toBe(true);
+  });
+
+  it("is false before start", () => {
+    expect(isWithinMeetingWindow(new Date("2026-09-03T14:59:00-04:00"), start, end)).toBe(false);
+  });
+
+  it("is false after end", () => {
+    expect(isWithinMeetingWindow(new Date("2026-09-03T16:01:00-04:00"), start, end)).toBe(false);
+  });
+
+  it("treats a null start as unbounded below", () => {
+    expect(isWithinMeetingWindow(new Date("2020-01-01T00:00:00Z"), null, end)).toBe(true);
+  });
+
+  it("treats a null end as unbounded above", () => {
+    expect(isWithinMeetingWindow(new Date("2099-01-01T00:00:00Z"), start, null)).toBe(true);
+  });
+
+  it("is always true when both bounds are null", () => {
+    expect(isWithinMeetingWindow(new Date(), null, null)).toBe(true);
   });
 });
