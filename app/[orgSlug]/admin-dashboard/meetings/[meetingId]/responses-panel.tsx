@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import {
   formatAnswer,
@@ -17,6 +17,14 @@ import type { AttendanceRow } from "@/lib/attendance-csv";
  * hundreds), and the rows are already fetched for the CSV export -- a
  * round-trip per question would cost more than counting them here.
  */
+// Rendering cap for the Individual table only -- Summary and the CSV export
+// (onExport, wired up by the caller) both still use the full `rows` array,
+// since a tally needs every response and an export must never silently
+// truncate to whatever page happens to be showing. `rows` itself is one
+// fetch, sized for a student org's turnout per the note above -- this just
+// limits how much of it renders as a table at once, not a second round trip.
+const INDIVIDUAL_PAGE_SIZE = 25;
+
 export function ResponsesPanel({
   schema,
   rows,
@@ -32,6 +40,13 @@ export function ResponsesPanel({
   onExport: () => void;
 }) {
   const [mode, setMode] = useState<"summary" | "individual">("summary");
+  const [individualPage, setIndividualPage] = useState(1);
+
+  // A different meeting's rows loaded in -- don't stay scrolled past a page
+  // count that no longer applies.
+  useEffect(() => {
+    setIndividualPage(1);
+  }, [rows]);
 
   const summaries = useMemo(() => {
     if (!rows) return [];
@@ -187,40 +202,52 @@ export function ResponsesPanel({
           )}
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-card border border-line bg-white">
-          <table className="w-full min-w-[640px] border-collapse text-sm">
-            <thead>
-              <tr className="border-b border-line text-left text-xs font-bold tracking-wide text-ink-muted uppercase">
-                <th className="px-5 py-3.5">Attendee</th>
-                <th className="px-5 py-3.5">Checked In</th>
-                {schema.map((q) => (
-                  <th key={q.id} className="px-5 py-3.5">
-                    {q.label || "Untitled"}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row, i) => (
-                <tr key={i} className="border-b border-line-soft last:border-b-0">
-                  <td className="px-5 py-3.5">
-                    <div className="font-bold">
-                      {`${row.first_name} ${row.last_name}`.trim() || "—"}
-                    </div>
-                    <div className="text-xs text-ink-muted">{row.email}</div>
-                  </td>
-                  <td className="px-5 py-3.5 text-ink-strong">
-                    {new Date(row.checked_in_at).toLocaleString()}
-                  </td>
+        <div className="overflow-hidden rounded-card border border-line bg-white">
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[640px] border-collapse text-sm">
+              <thead>
+                <tr className="border-b border-line text-left text-xs font-bold tracking-wide text-ink-muted uppercase">
+                  <th className="px-5 py-3.5">Attendee</th>
+                  <th className="px-5 py-3.5">Checked In</th>
                   {schema.map((q) => (
-                    <td key={q.id} className="px-5 py-3.5 text-ink-strong">
-                      {formatAnswer(row.answers[q.id]) || "—"}
-                    </td>
+                    <th key={q.id} className="px-5 py-3.5">
+                      {q.label || "Untitled"}
+                    </th>
                   ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {rows.slice(0, individualPage * INDIVIDUAL_PAGE_SIZE).map((row, i) => (
+                  <tr key={i} className="border-b border-line-soft last:border-b-0">
+                    <td className="px-5 py-3.5">
+                      <div className="font-bold">
+                        {`${row.first_name} ${row.last_name}`.trim() || "—"}
+                      </div>
+                      <div className="text-xs text-ink-muted">{row.email}</div>
+                    </td>
+                    <td className="px-5 py-3.5 text-ink-strong">
+                      {new Date(row.checked_in_at).toLocaleString()}
+                    </td>
+                    {schema.map((q) => (
+                      <td key={q.id} className="px-5 py-3.5 text-ink-strong">
+                        {formatAnswer(row.answers[q.id]) || "—"}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {rows.length > individualPage * INDIVIDUAL_PAGE_SIZE && (
+            <div className="border-t border-line-soft p-4 text-center">
+              <button
+                onClick={() => setIndividualPage((p) => p + 1)}
+                className="cursor-pointer rounded-control border border-line bg-white px-4 py-2 text-[13px] font-bold text-ink-strong hover:bg-canvas"
+              >
+                Load more
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>

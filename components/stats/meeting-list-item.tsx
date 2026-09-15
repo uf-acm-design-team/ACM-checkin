@@ -37,13 +37,17 @@ export function MeetingListItem({ meeting }: { meeting: StatsMeeting }) {
     .join(" · ");
 
   return (
-    <li
-      className={cn(
-        "rounded-card border border-line bg-surface shadow-[var(--shadow-card)]",
-        !attended && "opacity-65",
-      )}
-    >
-      <div className="flex items-center justify-between gap-3 p-3.5">
+    <li className="rounded-card border border-line bg-surface shadow-[var(--shadow-card)]">
+      {/* Dimming lives on the row content, not the <li> -- the details modal
+          below is also a child of this <li>, and CSS opacity cascades into
+          descendants regardless of their own position, so putting it on the
+          <li> washed out the modal (and its backdrop) for missed meetings. */}
+      <div
+        className={cn(
+          "flex items-center justify-between gap-3 p-3.5",
+          !attended && "opacity-65",
+        )}
+      >
         <div className="flex min-w-0 flex-col gap-0.5">
           <span className="line-clamp-2 text-[15px] font-semibold text-ink">
             {meeting.title}

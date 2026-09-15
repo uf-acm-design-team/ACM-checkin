@@ -8,6 +8,7 @@ import { memberCheckIn, resolveAndUpdateMembershipStatus } from "./actions";
 import { guestCheckIn } from "./guest-actions";
 import { verifyGeoLock, type GeoFailure } from "./geolock";
 import { membershipThreshold } from "@/lib/membership";
+import { isWithinMeetingWindow } from "@/lib/meeting-time";
 import { cn } from "@/lib/utils";
 import { FormRenderer } from "@/components/forms/form-renderer";
 import {
@@ -257,10 +258,17 @@ export default function CheckinPage({
       return;
     }
 
-    const parsed = (meetings ?? []).map((m) => ({
-      ...m,
-      form_schema: parseSchema(m.form_schema),
-    }));
+    // status=true means an officer switched it on, not that "now" is inside
+    // the meeting's own start/end window -- filter the same way the server
+    // actions do, so the picker never offers a meeting the check-in itself
+    // would then reject.
+    const now = new Date();
+    const parsed = (meetings ?? [])
+      .filter((m) => isWithinMeetingWindow(now, m.start_time, m.end_time))
+      .map((m) => ({
+        ...m,
+        form_schema: parseSchema(m.form_schema),
+      }));
     setOpenMeetings(parsed);
 
     // Auto-select only when there is no ambiguity. With two meetings open,

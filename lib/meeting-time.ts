@@ -114,3 +114,25 @@ export function fromDateTimeLocal(value: string): string | null {
 export function isBefore(iso: string, other: string): boolean {
   return new Date(iso).getTime() < new Date(other).getTime();
 }
+
+/**
+ * Whether `now` falls inside [startTime, endTime]. A null bound is
+ * unbounded on that side -- the same convention close_expired_meetings()
+ * uses for end_time, applied symmetrically to start_time.
+ *
+ * meetings.status is an officer's on/off switch and says nothing about
+ * whether the meeting's own scheduled window has actually arrived yet (a
+ * meeting can be opened ahead of start_time) or already passed (the
+ * auto-close cron only runs once a minute, so a just-ended meeting can sit
+ * open briefly). This is the check that closes both gaps.
+ */
+export function isWithinMeetingWindow(
+  now: Date,
+  startTime: string | null,
+  endTime: string | null,
+): boolean {
+  const t = now.getTime();
+  if (startTime && t < new Date(startTime).getTime()) return false;
+  if (endTime && t > new Date(endTime).getTime()) return false;
+  return true;
+}
