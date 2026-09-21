@@ -1,0 +1,113 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+# A new push to a PR cancels the previous run for that PR.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm test
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+        env:
+          # Dummy values: `next build` only needs these to exist so module-scope
+          # client construction doesn't throw. Nothing here talks to a real
+          # project -- no secrets are needed for a PR to pass CI.
+          NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder-anon-key
+          SUPABASE_SERVICE_ROLE_KEY: placeholder-service-role-key
+          NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: pk_test_cGxhY2Vob2xkZXIuY2xlcmsuYWNjb3VudHMuZGV2JA
+          CLERK_SECRET_KEY: sk_test_placeholder
+          NEXT_PUBLIC_CLERK_SIGN_IN_URL: /sign-in
+          NEXT_PUBLIC_CLERK_SIGN_UP_URL: /sign-up
+          NEXT_PUBLIC_CLERK_SIGN_UP_FORCE_REDIRECT_URL: /onboarding
+
+  migrations:
+    name: Migrations replay
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Need the merge base to tell whether this PR touches supabase/.
+          fetch-depth: 0
+
+      - name: Check whether supabase/ changed
+        id: changed
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            base="origin/${{ github.base_ref }}"
+            git fetch --quiet origin "${{ github.base_ref }}"
+            if git diff --quiet "$base"...HEAD -- supabase/; then
+              echo "run=false" >> "$GITHUB_OUTPUT"
+            else
+              echo "run=true" >> "$GITHUB_OUTPUT"
+            fi
+          else
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/setup-node@v4
+        if: steps.changed.outputs.run == 'true'
+        with:
+          node-version: 20
+          cache: npm
+
+      - uses: supabase/setup-cli@v1
+        if: steps.changed.outputs.run == 'true'
+        with:
+          version: 2.69.0
+
+      # Boot Postgres and replay every migration against an empty database.
+      - name: Start local database
+        if: steps.changed.outputs.run == 'true'
+        run: supabase db start
+
+      # The automated form of `npx supabase db reset`. `db start` already
+      # applied the migrations; this re-runs them from scratch AND executes
+      # seed.sql, so a migration that only works against the author's
+      # already-migrated database fails here instead of on staging.
+      - name: Replay migrations and seed from empty
+        if: steps.changed.outputs.run == 'true'
+        run: supabase db reset
+
+      - name: Show migration status
+        if: steps.changed.outputs.run == 'true'
+        run: supabase migration list --local
