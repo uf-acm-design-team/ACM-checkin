@@ -1,0 +1,107 @@
+{
+  "ranAt": "2026-09-09T03:17:09.867Z",
+  "mode": "apply",
+  "org": {
+    "id": "3b8a50f7-5971-40e9-b8ec-e2a96521b283",
+    "slug": "acm"
+  },
+  "csv": {
+    "total": 209,
+    "inScope": 206,
+    "skipped": 3
+  },
+  "people": {
+    "distinct": 169,
+    "alreadyExisted": 72,
+    "created": 97
+  },
+  "meetings": [
+    {
+      "title": "GBM 1 Fall 2026",
+      "id": "9534fdeb-06ab-4b7a-bec0-53a74bacc37f"
+    },
+    {
+      "title": "Workshop Resume LinkedIn Backup",
+      "id": "7cfd79d8-d69f-4ec5-b57a-cb8b11eda560"
+    }
+  ],
+  "attendance": {
+    "inScope": 206,
+    "inserted": 206
+  },
+  "namesRepaired": [
+    {
+      "email": "mahadev.sagi@ufl.edu",
+      "from": "mahadev sagi",
+      "to": "Mahadev Sagi"
+    },
+    {
+      "email": "r.pinapaka@ufl.edu",
+      "from": "Rishi pinapaka",
+      "to": "Rishi Pinapaka"
+    },
+    {
+      "email": "r.tuljapurkar@ufl.edu",
+      "from": "Rudr Tuljapurkar",
+      "to": "Rudra Tuljapurkar"
+    }
+  ],
+  "conflictsKeptFromDb": [
+    {
+      "email": "kenliu@ufl.edu",
+      "db": {
+        "name": "Ken Liu",
+        "grad_year": "2030"
+      },
+      "csv": {
+        "name": "ken liu",
+        "grad_year": "2026"
+      }
+    },
+    {
+      "email": "jacklenhart@ufl.edu",
+      "db": {
+        "name": "Jack Lenhart",
+        "grad_year": "2029"
+      },
+      "csv": {
+        "name": "Jack Lenhart",
+        "grad_year": "2030"
+      }
+    },
+    {
+      "email": "josephpope@ufl.edu",
+      "db": {
+        "name": "Joseph Pope",
+        "grad_year": "2028"
+      },
+      "csv": {
+        "name": "Joey Pope",
+        "grad_year": "2028"
+      }
+    },
+    {
+      "email": "sheeleo@ufl.edu",
+      "db": {
+        "name": "Leo Shee",
+        "grad_year": "2029"
+      },
+      "csv": {
+        "name": "Leo Shee",
+        "grad_year": "2030"
+      }
+    },
+    {
+      "email": "timothychoy@ufl.edu",
+      "db": {
+        "name": "Timothy Choy",
+        "grad_year": "2027"
+      },
+      "csv": {
+        "name": "timothy choy",
+        "grad_year": "2027"
+      }
+    }
+  ],
+  "unresolvedRows": []
+}
