@@ -63,6 +63,10 @@ Each developer runs their **own** Clerk development application. This means:
 6. On the next page, copy these two values — you'll paste them in step 5:
    - `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` (starts with `pk_test_...`)
    - `CLERK_SECRET_KEY` (starts with `sk_test_...`)
+7. Integrate Clerk with Supabase at https://dashboard.clerk.com/setup/supabase.
+   - Ensure your selected application matches what you named it in step 3.
+   - Confirm your instance type is set to `Development`.
+   - Copy the domain listed under `Clerk domain`.
 
 Leave the Clerk dashboard tab open — you may need to come back to it.
 
@@ -95,9 +99,10 @@ The setup script created `.env.local` with the Supabase values. You need to appe
 Open `.env.local` in your editor and add:
 
 ```bash
-# Clerk (auth) — your personal dev keys from step 3
+# Clerk (auth) — your personal dev keys and clerk domain from step 3
 NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_your_key_here
 CLERK_SECRET_KEY=sk_test_your_key_here
+CLERK_AUTH_DOMAIN=your-auth-domain.clerk.accounts.dev
 
 # Clerk routing — these match the app's pages, don't change them
 NEXT_PUBLIC_CLERK_SIGN_IN_URL=/sign-in
