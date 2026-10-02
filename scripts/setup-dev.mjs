@@ -8,6 +8,8 @@
 
 import { execSync, spawn } from "child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
+import readline from "readline/promises"
+import { stdin as input, stdout as output } from "process"
 import { platform } from "os";
 import { dirname, join } from "path";
 import { fileURLToPath } from "url";
@@ -116,6 +118,14 @@ function log(msg, type = "info") {
   else if (type === "warn") warn(msg);
   else if (type === "err") err(msg);
   else step(msg);
+}
+
+async function getUserInput(question) {
+  const rl = readline.createInterface({ input, output })
+  const userInput = (await rl.question(question)).trim()
+  rl.close()
+
+  return userInput
 }
 
 function run(cmd, opts = {}) {
@@ -385,6 +395,9 @@ async function main() {
 
   await checkDocker();
   ensureNpmDeps();
+
+  // Add clerk key inputs
+
   stopSupabase();
   startSupabase();
   await waitForSupabase();
