@@ -405,7 +405,7 @@ USE_LOCAL_SUPABASE=true
     for (const key of clerkKeys) content += `${key}=${clerk[key]}\n`;
   }
 
-  const preservedKeys = Object.keys(preserved);
+  const preservedKeys = Object.keys(preserved).filter((key) => !(key in clerk));
   if (preservedKeys.length > 0) {
     content += `\n# Preserved from previous .env.local\n`;
     for (const key of preservedKeys) content += `${key}=${preserved[key]}\n`;
