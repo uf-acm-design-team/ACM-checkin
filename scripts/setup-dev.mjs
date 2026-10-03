@@ -2,14 +2,14 @@
 /**
  * ACM Check-in - Developer Setup Script
  *
- * One-command setup: Docker check, Supabase CLI, env files, migrations, functions, Studio.
+ * One-command setup: Docker check, Supabase CLI, Clerk Auth, env files, migrations, functions, Studio.
  * Run: npm run setup
  */
 
 import { execSync, spawn } from "child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
-import readline from "readline/promises"
-import { stdin as input, stdout as output } from "process"
+import readline from "readline/promises";
+import { stdin as input, stdout as output } from "process";
 import { platform } from "os";
 import { dirname, join } from "path";
 import { fileURLToPath } from "url";
@@ -120,12 +120,11 @@ function log(msg, type = "info") {
   else step(msg);
 }
 
-async function getUserInput(question) {
-  const rl = readline.createInterface({ input, output })
-  const userInput = (await rl.question(question)).trim()
-  rl.close()
-
-  return userInput
+async function question(msg) {
+  const rl = readline.createInterface({ input, output });
+  const userInput = (await rl.question(C.dim + "  | " + C.reset + msg)).trim();
+  rl.close();
+  return userInput;
 }
 
 function run(cmd, opts = {}) {
@@ -324,7 +323,71 @@ function readPreservedEnv(path) {
   return preserved;
 }
 
-function writeEnvLocal(env) {
+function extractClerkDomain(publishableKey) {
+  try {
+    const raw = publishableKey.trim().replace(/^pk_(test|live)_/, "").replace(/\$$/, "");
+    const decoded = Buffer.from(raw, "base64").toString("utf-8").replace(/\$$/, "").trim();
+    return decoded.includes("clerk") ? decoded : null;
+  } catch {
+    return null;
+  }
+}
+
+async function ensureClerkEnv(preserved) {
+  const clerkEnvKeys = {};
+
+  if (preserved.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY && preserved.CLERK_SECRET_KEY) {
+    const domain = preserved.CLERK_AUTH_DOMAIN || extractClerkDomain(preserved.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY);
+    if (domain) {
+      if (!preserved.CLERK_AUTH_DOMAIN) {
+        clerkEnvKeys.CLERK_AUTH_DOMAIN = domain;
+      }
+      process.env.CLERK_AUTH_DOMAIN = domain;
+      ok(`Using existing Clerk configuration (${domain})`);
+    }
+    if (!domain) {
+      err("Invalid Clerk publishable key. Could not resolve Clerk auth domain.");
+      process.exit(1);
+    }
+    return clerkEnvKeys;
+  }
+
+  section("Clerk Authentication");
+
+  if (!input.isTTY) {
+    warn("Non-interactive environment detected. Skipping Clerk prompts.");
+    return {};
+  }
+
+  step("Paste your dev keys from step 3. You can find them at https://dashboard.clerk.com:");
+
+  const pubKey = await question("NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY (pk_test_...): ");
+  const secretKey = await question("CLERK_SECRET_KEY (sk_test_...): ");
+
+  if (!pubKey || !secretKey) {
+    err("Both Clerk Publishable Key and Secret Key are required.");
+    process.exit(1);
+  }
+
+  const domain = extractClerkDomain(pubKey);
+  if (!domain) {
+    err("Invalid Clerk publishable key. Could not resolve Clerk auth domain.");
+    process.exit(1);
+  }
+  
+  process.env.CLERK_AUTH_DOMAIN = domain;
+  clerkEnvKeys.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY = pubKey;
+  clerkEnvKeys.CLERK_SECRET_KEY = secretKey;
+  clerkEnvKeys.CLERK_AUTH_DOMAIN = domain;
+  clerkEnvKeys.NEXT_PUBLIC_CLERK_SIGN_IN_URL="/sign-in";
+  clerkEnvKeys.NEXT_PUBLIC_CLERK_SIGN_UP_URL="/sign-up";
+  clerkEnvKeys.NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL="/onboarding";
+
+  ok(`Clerk domain resolved: ${domain}`);
+  return clerkEnvKeys;
+}
+
+function writeEnvLocal(env, clerk = {}) {
   const apiUrl = env.API_URL || "http://127.0.0.1:54321";
   const anonKey = env.ANON_KEY || "";
   const serviceKey = env.SERVICE_ROLE_KEY || "";
@@ -336,6 +399,12 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=${anonKey}
 SUPABASE_SERVICE_ROLE_KEY=${serviceKey}
 USE_LOCAL_SUPABASE=true
 `;
+  const clerkKeys = Object.keys(clerk);
+  if (clerkKeys.length > 0) {
+    content += "\n# Clerk auth keys and routing from your personal dev instance. Do not change Clerk routing URLs!\n";
+    for (const key of clerkKeys) content += `${key}=${clerk[key]}\n`;
+  }
+
   const preservedKeys = Object.keys(preserved);
   if (preservedKeys.length > 0) {
     content += `\n# Preserved from previous .env.local\n`;
@@ -396,7 +465,10 @@ async function main() {
   await checkDocker();
   ensureNpmDeps();
 
-  // Add clerk key inputs
+  const path = join(ROOT, ".env.local");
+  const preserved = readPreservedEnv(path);
+
+  const clerkKeys = await ensureClerkEnv(preserved);
 
   stopSupabase();
   startSupabase();
@@ -411,7 +483,7 @@ async function main() {
 
   section("Environment");
   step("Writing .env.local and supabase/functions/.env...");
-  writeEnvLocal(env);
+  writeEnvLocal(env, clerkKeys);
   writeFunctionsEnv(env);
 
   runMigrations();
