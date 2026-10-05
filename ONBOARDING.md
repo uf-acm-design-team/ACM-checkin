@@ -63,6 +63,9 @@ Each developer runs their **own** Clerk development application. This means:
 6. On the next page, copy these two values — you'll input them during the setup script:
    - `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` (starts with `pk_test_...`)
    - `CLERK_SECRET_KEY` (starts with `sk_test_...`)
+7. After creating your dev instance, integrate Clerk with Supabase as a third-party auth provider:
+   - To integrate Supabase, go to https://dashboard.clerk.com/setup/supabase
+   - Make sure you are integrating with the `acm-checkin-dev-<your-name>` application you just created
 
 Leave the Clerk dashboard tab open in case you need to reference it.
 
