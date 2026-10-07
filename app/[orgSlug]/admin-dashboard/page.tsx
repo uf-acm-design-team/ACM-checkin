@@ -12,6 +12,7 @@ import MembersTab from "./members-tab";
 import { roleBadgeLabel } from "@/lib/org-roles";
 import { Chip, Identity, Spinner } from "@/components/ui/primitives";
 import BrandingTab from "./branding-tab";
+import QRCodeTab from "./qr-code-tab";
 import {
   parseAnswers,
   parseSchema,
@@ -32,6 +33,7 @@ interface Organization {
   name: string;
   slug: string;
   branding: unknown;
+  qr_code: string | null;
 }
 
 interface Meeting {
@@ -87,6 +89,7 @@ const TABS = [
   { key: "meetings", label: "Meetings" },
   { key: "attendance", label: "Attendance" },
   { key: "members", label: "Members" },
+  { key: "qr-code", label: "QR Code" },
   { key: "audit-log", label: "Audit Log" },
   { key: "branding", label: "Branding" },
 ] as const;
@@ -187,7 +190,7 @@ export default function AdminDashboard({
     const fetchOrganization = async () => {
       const { data, error } = await supabase
         .from("organizations")
-        .select("id, name, slug, branding")
+        .select("id, name, slug, branding, qr_code")
         .eq("slug", orgSlug)
         .single();
 
@@ -1366,7 +1369,13 @@ export default function AdminDashboard({
               meetings={meetings}
             />
           )}
-
+          {/* QR CODE */}
+          {activeTab === "qr-code" && (
+            <QRCodeTab
+              organizationName={organization.name}
+              qrCode={organization.qr_code}
+            />
+          )}
           {/* AUDIT LOG */}
           {activeTab === "audit-log" && canManageOrg && (
             <AuditLogView
