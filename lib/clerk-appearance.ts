@@ -22,7 +22,7 @@
 // `spacingUnit` were renamed and are silently ignored under those old names.
 export const clerkAppearance = {
   variables: {
-    colorPrimary: "var(--accent)",
+    colorPrimary: "var(--clerk-accent)",
     colorBackground: "var(--surface)",
     colorForeground: "var(--ink)",
     colorPrimaryForeground: "var(--accent-ink)",
