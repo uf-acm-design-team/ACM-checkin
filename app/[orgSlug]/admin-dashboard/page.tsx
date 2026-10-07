@@ -33,7 +33,6 @@ interface Organization {
   name: string;
   slug: string;
   branding: unknown;
-  qr_code: string | null;
 }
 
 interface Meeting {
@@ -190,7 +189,7 @@ export default function AdminDashboard({
     const fetchOrganization = async () => {
       const { data, error } = await supabase
         .from("organizations")
-        .select("id, name, slug, branding, qr_code")
+        .select("id, name, slug, branding")
         .eq("slug", orgSlug)
         .single();
 
@@ -1373,7 +1372,7 @@ export default function AdminDashboard({
           {activeTab === "qr-code" && (
             <QRCodeTab
               organizationName={organization.name}
-              qrCode={organization.qr_code}
+              orgSlug={organization.slug}
             />
           )}
           {/* AUDIT LOG */}
