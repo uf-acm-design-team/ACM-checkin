@@ -27,6 +27,10 @@
   /* Ink for text on --accent-soft. */
   --accent-on-soft: #6d28d9;
 
+  /* Create accent for clerk auth ui as --accent is used internally by clerk to apply primary color styling. Using --accent directly
+  leads to naming collisions */
+  --clerk-accent: #7c3aed;
+
   /* --- Surfaces --------------------------------------------------------- */
   --canvas: #fafafa; /* app background behind cards */
   --surface: #ffffff; /* cards, tables, panels */
