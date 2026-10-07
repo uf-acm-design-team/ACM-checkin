@@ -21,6 +21,7 @@
 // `colorTextSecondary`, `colorInputText`, `colorInputBackground` and
 // `spacingUnit` were renamed and are silently ignored under those old names.
 export const clerkAppearance = {
+  cssLayerName: "clerk",
   variables: {
     colorPrimary: "var(--clerk-accent)",
     colorBackground: "var(--surface)",
