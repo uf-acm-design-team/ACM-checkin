@@ -2,14 +2,16 @@
 // import the helper typescript function for getting the link of the specific org
 import { buildCheckinLink } from "@/lib/checkin-link";
 
+import CheckinQrCard from "./checkin-qr-card";
+
 interface QRCodeTabProps {
   organizationName: string;
-  qrCode: string | null;
+  orgSlug: string;
 }
 
 export default function QRCodeTab({
   organizationName,
-  qrCode,
+  orgSlug,
 }: QRCodeTabProps) {
 
   // use the helper function here to create the org link when the user clicks on the qrcode tab.
@@ -27,19 +29,7 @@ return (
       Scan this QR code to open the check-in page for {organizationName}.
     </p>
 
-    {qrCode ? (
-      <div className="flex justify-center rounded-card border border-line bg-white p-6">
-        <img
-          src={qrCode}
-          alt={`${organizationName} check-in QR code`}
-          className="h-56 w-56 object-contain"
-        />
-      </div>
-    ) : (
-      <div className="rounded-card border border-line bg-surface-sunken p-6 text-center text-sm text-ink-muted">
-        No QR code has been generated yet.
-      </div>
-    )}
+    <CheckinQrCard orgName={organizationName} orgSlug={orgSlug} />
   </div>
 );
 }
