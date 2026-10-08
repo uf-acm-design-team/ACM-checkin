@@ -298,13 +298,17 @@ function getSupabaseEnv() {
   return env;
 }
 
+const CLERK_ROUTING = {
+  NEXT_PUBLIC_CLERK_SIGN_IN_URL: "/sign-in",
+  NEXT_PUBLIC_CLERK_SIGN_UP_URL: "/sign-up",
+  NEXT_PUBLIC_CLERK_SIGN_UP_FORCE_REDIRECT_URL: "/onboarding",
+};
+
 const PRESERVED_ENV_KEYS = [
   "NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY",
   "CLERK_SECRET_KEY",
   "CLERK_AUTH_DOMAIN",
-  "NEXT_PUBLIC_CLERK_SIGN_IN_URL",
-  "NEXT_PUBLIC_CLERK_SIGN_UP_URL",
-  "NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL",
+  ...Object.keys(CLERK_ROUTING),
 ];
 
 function readPreservedEnv(path) {
@@ -349,6 +353,9 @@ async function ensureClerkEnv(preserved) {
       err("Invalid Clerk publishable key. Could not resolve Clerk auth domain.");
       process.exit(1);
     }
+    for (const [key, value] of Object.entries(CLERK_ROUTING)) {
+      if (!preserved[key]) clerkEnvKeys[key] = value;
+    }
     return clerkEnvKeys;
   }
 
@@ -379,9 +386,7 @@ async function ensureClerkEnv(preserved) {
   clerkEnvKeys.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY = pubKey;
   clerkEnvKeys.CLERK_SECRET_KEY = secretKey;
   clerkEnvKeys.CLERK_AUTH_DOMAIN = domain;
-  clerkEnvKeys.NEXT_PUBLIC_CLERK_SIGN_IN_URL="/sign-in";
-  clerkEnvKeys.NEXT_PUBLIC_CLERK_SIGN_UP_URL="/sign-up";
-  clerkEnvKeys.NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL="/onboarding";
+  Object.assign(clerkEnvKeys, CLERK_ROUTING);
 
   ok(`Clerk domain resolved: ${domain}`);
   return clerkEnvKeys;
