@@ -12,6 +12,7 @@ import MembersTab from "./members-tab";
 import { roleBadgeLabel } from "@/lib/org-roles";
 import { Chip, Identity, Spinner } from "@/components/ui/primitives";
 import BrandingTab from "./branding-tab";
+import QRCodeTab from "./qr-code-tab";
 import {
   parseAnswers,
   parseSchema,
@@ -87,6 +88,7 @@ const TABS = [
   { key: "meetings", label: "Meetings" },
   { key: "attendance", label: "Attendance" },
   { key: "members", label: "Members" },
+  { key: "qr-code", label: "QR Code" },
   { key: "audit-log", label: "Audit Log" },
   { key: "branding", label: "Branding" },
 ] as const;
@@ -1376,7 +1378,13 @@ export default function AdminDashboard({
               meetings={meetings}
             />
           )}
-
+          {/* QR CODE */}
+          {activeTab === "qr-code" && (
+            <QRCodeTab
+              organizationName={organization.name}
+              orgSlug={organization.slug}
+            />
+          )}
           {/* AUDIT LOG */}
           {activeTab === "audit-log" && canManageOrg && (
             <AuditLogView
