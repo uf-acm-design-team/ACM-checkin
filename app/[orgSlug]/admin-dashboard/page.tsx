@@ -12,6 +12,7 @@ import MembersTab from "./members-tab";
 import { roleBadgeLabel } from "@/lib/org-roles";
 import { Chip, Identity, Spinner } from "@/components/ui/primitives";
 import BrandingTab from "./branding-tab";
+import QRCodeTab from "./qr-code-tab";
 import {
   parseAnswers,
   parseSchema,
@@ -87,6 +88,7 @@ const TABS = [
   { key: "meetings", label: "Meetings" },
   { key: "attendance", label: "Attendance" },
   { key: "members", label: "Members" },
+  { key: "qr-code", label: "QR Code" },
   { key: "audit-log", label: "Audit Log" },
   { key: "branding", label: "Branding" },
 ] as const;
@@ -805,23 +807,33 @@ export default function AdminDashboard({
         }`}
       >
         <div className="mb-5 flex items-center gap-2.5 px-2">
-          {/* The slot is always filled: the org's crest when it has one, a
-              monogram of its name when it doesn't -- never another club's. */}
-          <Identity
-            label={initials(branding.name || organization.name)}
-            src={branding.logo.crest}
-            size="sm"
-            solid
-            className="h-8 w-8"
-          />
-          <div className="min-w-0 leading-tight">
-            <div className="truncate text-sm font-bold text-ink">
-              {branding.name || organization.name}
+          {/* Crest + name -> back out of this org: the platform console for
+              global admins, the cross-org list for officers (who /developer
+              would just bounce). The close button stays outside the link so
+              tapping it on mobile closes the drawer. */}
+          <Link
+            href={isGlobalAdmin ? "/developer" : "/dashboard"}
+            title={isGlobalAdmin ? "Back to developer console" : "Back to all clubs"}
+            className="-mx-1 flex min-w-0 flex-1 items-center gap-2.5 rounded-control px-1 py-1 transition-opacity hover:opacity-80"
+          >
+            {/* The slot is always filled: the org's crest when it has one, a
+                monogram of its name when it doesn't -- never another club's. */}
+            <Identity
+              label={initials(branding.name || organization.name)}
+              src={branding.logo.crest}
+              size="sm"
+              solid
+              className="h-8 w-8"
+            />
+            <div className="min-w-0 leading-tight">
+              <div className="truncate text-sm font-bold text-ink">
+                {branding.name || organization.name}
+              </div>
+              <div className="text-[11.5px] text-ink-faint">
+                {roleBadge ?? "Officer"}
+              </div>
             </div>
-            <div className="text-[11.5px] text-ink-faint">
-              {roleBadge ?? "Officer"}
-            </div>
-          </div>
+          </Link>
           <button
             onClick={() => setSidebarOpen(false)}
             aria-label="Close menu"
@@ -1366,7 +1378,13 @@ export default function AdminDashboard({
               meetings={meetings}
             />
           )}
-
+          {/* QR CODE */}
+          {activeTab === "qr-code" && (
+            <QRCodeTab
+              organizationName={organization.name}
+              orgSlug={organization.slug}
+            />
+          )}
           {/* AUDIT LOG */}
           {activeTab === "audit-log" && canManageOrg && (
             <AuditLogView

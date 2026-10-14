@@ -60,11 +60,14 @@ Each developer runs their **own** Clerk development application. This means:
 3. Name it something like `acm-checkin-dev-<your-name>`.
 4. Under **Sign-in options**, enable **Email** (this matches our production config).
 5. Click **Create application**.
-6. On the next page, copy these two values — you'll paste them in step 5:
+6. On the next page, copy these two values — you'll input them during the setup script:
    - `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` (starts with `pk_test_...`)
    - `CLERK_SECRET_KEY` (starts with `sk_test_...`)
+7. After creating your dev instance, integrate Clerk with Supabase as a third-party auth provider:
+   - To integrate Supabase, go to https://dashboard.clerk.com/setup/supabase
+   - Make sure you are integrating with the `acm-checkin-dev-<your-name>` application you just created
 
-Leave the Clerk dashboard tab open — you may need to come back to it.
+Leave the Clerk dashboard tab open in case you need to reference it.
 
 ## 4. Run the setup script
 
@@ -74,40 +77,20 @@ From the repo root:
 npm run setup
 ```
 
-This single command:
+This single command guides you through everything:
 
-1. Verifies Docker is running (starts it for you on Mac/Windows if it isn't)
-2. Runs `npm install`
-3. Boots the local Supabase stack via Docker
-4. Writes `.env.local` and `supabase/functions/.env` with the auto-generated local Supabase credentials
-5. Applies all database migrations from `supabase/migrations/`
-6. Starts Supabase Edge Functions in the background
-7. Opens Supabase Studio in your browser at `http://127.0.0.1:54323`
+1. Verifies Docker is running (starts it for you on Mac/Windows if it isn't).
+2. Installs npm dependencies.
+3. **Prompts you to paste your Clerk Publishable Key and Secret Key** from step 3. It automatically derives your Clerk auth domain from your publishable key and passes it to Supabase.
+4. Boots the local Supabase stack via Docker (with Clerk third-party auth enabled for your domain).
+5. Writes `.env.local` and `supabase/functions/.env` with the auto-generated Supabase credentials and your Clerk keys.
+6. Applies all database migrations from `supabase/migrations/` and seeds test data.
+7. Starts Supabase Edge Functions in the background.
+8. Opens Supabase Studio in your browser at `http://127.0.0.1:54323`.
 
-The first run takes a few minutes because Docker has to download the Supabase images. Subsequent runs are fast.
+> **Note:** If you ever re-run `npm run setup`, it will detect the Clerk keys in `.env.local` and skip the prompt automatically.
 
-> **Heads up:** if the script asks you to install Docker and opens the install page, install it, start Docker Desktop, then re-run `npm run setup`.
-
-## 5. Add your Clerk keys to `.env.local`
-
-The setup script created `.env.local` with the Supabase values. You need to append your Clerk keys.
-
-Open `.env.local` in your editor and add:
-
-```bash
-# Clerk (auth) — your personal dev keys from step 3
-NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_your_key_here
-CLERK_SECRET_KEY=sk_test_your_key_here
-
-# Clerk routing — these match the app's pages, don't change them
-NEXT_PUBLIC_CLERK_SIGN_IN_URL=/sign-in
-NEXT_PUBLIC_CLERK_SIGN_UP_URL=/sign-up
-NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL=/onboarding
-```
-
-Save the file. `.env.local` is gitignored, so your keys never leave your machine.
-
-## 6. Start the dev server
+## 5. Start the dev server
 
 In a new terminal (leave the setup terminal alone — it's running Edge Functions in the background):
 
@@ -120,8 +103,9 @@ Open [http://localhost:3000](http://localhost:3000). You should see the landing 
 **Smoke test:** click sign-up, enter an `@ufl.edu` email, complete the flow. If you land on `/onboarding` without errors, everything is wired correctly.
 
 > Clerk in dev mode emails the verification code to a real address. Use one you can check.
+> **Note:** @ufl emails tend to quarantine dev mode emails, so either use a personal email or check your gatorcloud quarantine
 
-## 7. What's running and where
+## 6. What's running and where
 
 | Service             | URL                                 | What it is                                                |
 | ------------------- | ----------------------------------- | --------------------------------------------------------- |
@@ -133,7 +117,7 @@ Open [http://localhost:3000](http://localhost:3000). You should see the landing 
 | **Inbucket**        | http://127.0.0.1:54324              | Catches all email sent by Supabase locally                |
 | **Clerk dashboard** | https://dashboard.clerk.com         | Auth provider (your dev app)                              |
 
-## 8. Day-to-day workflow
+## 7. Day-to-day workflow
 
 ### Starting work
 
@@ -158,7 +142,7 @@ npm run supabase:stop    # stops the Docker containers
 
 You don't have to stop Supabase between sessions, but doing so frees up memory.
 
-## 9. Database changes — migrations
+## 8. Database changes — migrations
 
 **Never edit schema by clicking around in the cloud Supabase dashboard.** Every schema change goes through a migration file checked into git. This keeps all three teams in sync.
 
@@ -204,7 +188,7 @@ npx supabase db push
 
 This applies pending migrations to the real Supabase project. Coordinate with the other leads before doing this.
 
-## 10. Common issues
+## 9. Common issues
 
 **`npm run setup` fails at the Docker step**
 Docker Desktop isn't running. Open it, wait for the whale icon to be steady (not animating), re-run.
@@ -213,7 +197,7 @@ Docker Desktop isn't running. Open it, wait for the whale icon to be steady (not
 First-time Docker image pulls can be slow on a weak connection. Re-run `npm run setup` — the images are cached after the first download.
 
 **Sign-up works but the app errors out after**
-Your Clerk keys in `.env.local` are missing or wrong. Re-check steps 3 and 5. Restart `npm run dev` after editing `.env.local`.
+Your Clerk keys in `.env.local` are missing or wrong. Re-check step 3 and re-run `npm run setup`. Restart `npm run dev` after updating `.env.local`.
 
 **Port 54321 / 54322 / 54323 already in use**
 Another Supabase project is running. Run `npx supabase stop` in that other project's directory, or stop all Supabase containers: `docker ps` then `docker stop <id>`.
@@ -224,7 +208,7 @@ The most recent migration has a SQL error. Open the file, fix the SQL, re-run `d
 **I committed a secret by accident**
 Tell a lead immediately. Don't try to "fix" it with `git push --force` — the secret is still in history. The lead will rotate the key and rewrite history.
 
-## 11. Where to get help
+## 10. Where to get help
 
 - **Setup not working?** Ping your team lead in the team channel.
 - **Schema design questions?** All three leads — coordinate before adding new tables.

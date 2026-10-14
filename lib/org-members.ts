@@ -14,7 +14,7 @@
 // guest shows up the moment they clear the org's baseline and needs no
 // separate row or sync step once they eventually sign up.
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { resolveMembership } from "@/lib/membership";
+import { resolveMembership } from "./membership";
 
 export type MemberStatus = "pending" | "active";
 

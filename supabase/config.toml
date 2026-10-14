@@ -362,7 +362,7 @@ enabled = false
 # Find it at https://clerk.com/setup/supabase.
 [auth.third_party.clerk]
 enabled = true
-domain = "good-pony-19.clerk.accounts.dev"
+domain = "env(CLERK_AUTH_DOMAIN)"
 
 # OAuth server configuration
 [auth.oauth_server]
