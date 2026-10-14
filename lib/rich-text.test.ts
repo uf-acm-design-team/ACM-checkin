@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "@jest/globals";
 import { parseRichText, hasLinks, type TextSegment } from "./rich-text";
 
 // Most assertions care about the shape of the split, not the exact objects.

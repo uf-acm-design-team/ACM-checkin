@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "@jest/globals";
 import {
   contrastRatio,
   inkOn,
@@ -168,8 +168,8 @@ describe("brandingToCssVars — the accent tier", () => {
   it("produces valid 6-digit hex for every derived token", () => {
     const css = brandingToCssVars(resolveBranding({ colors: { accent: "#000" } }));
     for (const token of ["--accent-deep", "--accent-soft", "--accent-on-soft"]) {
-      const value = new RegExp(`${token}:(#[0-9a-fA-F]{6})`).exec(css);
-      expect(value, `${token} should be a 6-digit hex`).not.toBeNull();
+      // toMatch prints the pattern on failure, so the offending token is visible.
+      expect(css).toMatch(new RegExp(`${token}:#[0-9a-fA-F]{6}`));
     }
   });
 });

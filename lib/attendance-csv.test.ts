@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "@jest/globals";
 import { buildAttendanceCsv, attendanceFilename, type AttendanceRow } from "./attendance-csv";
 import type { FormSchema } from "./form-schema";
 

@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "@jest/globals";
 import { buildOrgMemberRoster } from "./org-members";
 
 // "acm" has a configured threshold of 3 (see lib/membership.ts). "nope" has none.

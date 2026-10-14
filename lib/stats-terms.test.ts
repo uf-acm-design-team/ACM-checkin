@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "@jest/globals";
 import {
   getTerm, termBounds, compareTermsDesc, academicYearTerms,
   buildTermSummaries, pageRange, hasMore, percentage,
