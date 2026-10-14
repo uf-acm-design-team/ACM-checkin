@@ -5,6 +5,12 @@ import { createClient } from "@supabase/supabase-js";
 
 import { parseSchema, validateAnswers } from "@/lib/form-schema";
 import { isWithinMeetingWindow } from "@/lib/meeting-time";
+import {
+  checkGeofence,
+  geofenceErrorMessage,
+  type Coordinates,
+  type GeofenceFailure,
+} from "@/lib/geo";
 
 /**
  * Guest check-in, performed server-side.
@@ -71,7 +77,13 @@ function admin() {
 
 export type GuestCheckInResult =
   | { ok: true; alreadyCheckedIn?: boolean }
-  | { ok: false; error: string; answerErrors?: Record<string, string> };
+  | {
+      ok: false;
+      error: string;
+      answerErrors?: Record<string, string>;
+      /** Set when the server-side geolock rejected the check-in. */
+      geo?: GeofenceFailure;
+    };
 
 export async function guestCheckIn(input: {
   orgSlug: string;
@@ -91,6 +103,11 @@ export async function guestCheckIn(input: {
    * name an arbitrary one.
    */
   meetingId?: string;
+  /**
+   * The browser's GPS fix. Required when the meeting is geo-locked -- missing
+   * or malformed coordinates are rejected, not waved through.
+   */
+  location?: Coordinates | null;
 }): Promise<GuestCheckInResult> {
   const email = input.email.trim().toLowerCase();
   if (!email || !email.includes("@")) {
@@ -131,7 +148,9 @@ export async function guestCheckIn(input: {
   // whichever started first.
   const { data: allOpenMeetings } = await supabase
     .from("meetings")
-    .select("id, form_schema, checkin_password, start_time, end_time")
+    .select(
+      "id, form_schema, checkin_password, start_time, end_time, is_geo_locked, latitude, longitude, radius_meters",
+    )
     .eq("org_id", org.id)
     .eq("status", true)
     .eq("is_officer_only", false)
@@ -161,6 +180,14 @@ export async function guestCheckIn(input: {
       return { ok: false, error: "That meeting is no longer open." };
     }
     meeting = chosen ?? meeting;
+  }
+
+  // The page runs this same check first, but this endpoint is public: without
+  // the server copy a scripted caller (or a photo of the QR code) skips the
+  // geolock entirely.
+  const geo = checkGeofence(meeting, input.location);
+  if (!geo.ok) {
+    return { ok: false, error: geofenceErrorMessage(geo.failure), geo: geo.failure };
   }
 
   if (meeting.checkin_password && meeting.checkin_password !== (input.password ?? "")) {

@@ -45,9 +45,6 @@ supabase/.branches/
 .claude/
 /docs/
 
-# Agent orientation notes (local, not part of the shipped repo)
-AGENTS.md
-
 # Local database dumps from `supabase db dump`
 backup-*.sql
 *.dump

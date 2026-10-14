@@ -6,10 +6,22 @@ import { createClerkSupabaseClient } from "../../utils/supabase/server";
 import { membershipThreshold } from "@/lib/membership";
 import { parseSchema, validateAnswers } from "@/lib/form-schema";
 import { isWithinMeetingWindow } from "@/lib/meeting-time";
+import {
+  checkGeofence,
+  geofenceErrorMessage,
+  type Coordinates,
+  type GeofenceFailure,
+} from "@/lib/geo";
 
 export type MemberCheckInResult =
   | { ok: true; alreadyCheckedIn?: boolean }
-  | { ok: false; error: string; answerErrors?: Record<string, string> };
+  | {
+      ok: false;
+      error: string;
+      answerErrors?: Record<string, string>;
+      /** Set when the server-side geolock rejected the check-in. */
+      geo?: GeofenceFailure;
+    };
 
 /**
  * Check in a signed-in member, with their form answers.
@@ -36,6 +48,11 @@ export async function memberCheckIn(input: {
    * one freely.
    */
   meetingId?: string;
+  /**
+   * The browser's GPS fix. Required when the meeting is geo-locked -- missing
+   * or malformed coordinates are rejected, not waved through.
+   */
+  location?: Coordinates | null;
 }): Promise<MemberCheckInResult> {
   const { userId } = await auth();
   if (!userId) return { ok: false, error: "You need to be signed in." };
@@ -56,7 +73,9 @@ export async function memberCheckIn(input: {
   // `.limit(1)` recorded every member against whichever started first.
   const { data: allOpenMeetings } = await supabase
     .from("meetings")
-    .select("id, form_schema, start_time, end_time")
+    .select(
+      "id, form_schema, start_time, end_time, is_geo_locked, latitude, longitude, radius_meters",
+    )
     .eq("org_id", org.id)
     .eq("status", true)
     .order("start_time", { ascending: true });
@@ -83,6 +102,13 @@ export async function memberCheckIn(input: {
       return { ok: false, error: "That meeting is no longer open." };
     }
     meeting = chosen ?? meeting;
+  }
+
+  // The page runs this same check first, but that copy is advisory: calling
+  // this action directly would otherwise skip the geolock entirely.
+  const geo = checkGeofence(meeting, input.location);
+  if (!geo.ok) {
+    return { ok: false, error: geofenceErrorMessage(geo.failure), geo: geo.failure };
   }
 
   // checkin_password is column-locked from direct SELECT (this client runs

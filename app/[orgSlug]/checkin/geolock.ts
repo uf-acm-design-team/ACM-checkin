@@ -1,11 +1,17 @@
 /**
- * Geolock distance check.
+ * Geolock distance check (browser side).
  *
  * Returns a discriminated result rather than a prose error string: the check-in
  * page renders a genuinely different screen for "you denied us location"
  * (recoverable with per-platform instructions) than for "you're 340 m away"
  * (recoverable by walking), and it cannot tell those apart from a message.
+ *
+ * This is the fast UX path only. The check-in server actions repeat the same
+ * check (lib/geo.ts) against the coordinates returned here, so skipping this
+ * file no longer skips the geolock.
  */
+
+import { checkGeofence, type Coordinates } from "@/lib/geo";
 
 export type GeoFailure =
     | { kind: "denied" }
@@ -13,26 +19,12 @@ export type GeoFailure =
     | { kind: "unavailable"; message: string }
     | { kind: "timeout" };
 
-export type GeoResult = { allowed: true } | { allowed: false; failure: GeoFailure };
+/** On success, `location` is the fix to forward to the check-in server action. */
+export type GeoResult =
+    | { allowed: true; location: Coordinates }
+    | { allowed: false; failure: GeoFailure };
 
-function getDistanceInMeters(lat1: number, lon1: number, lat2: number, lon2: number): number {
-    const R = 6371e3; // Earth's radius in meters
-    const φ1 = (lat1 * Math.PI) / 180;
-    const φ2 = (lat2 * Math.PI) / 180;
-    const Δφ = ((lat2 - lat1) * Math.PI) / 180;
-    const Δλ = ((lon2 - lon1) * Math.PI) / 180;
-
-    const a =
-        Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
-        Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-
-    return R * c;
-}
-
-type Located = { lat: number; lng: number };
-
-function getUserLocation(): Promise<{ ok: true; loc: Located } | { ok: false; failure: GeoFailure }> {
+function getUserLocation(): Promise<{ ok: true; loc: Coordinates } | { ok: false; failure: GeoFailure }> {
     return new Promise((resolve) => {
         if (!navigator.geolocation) {
             resolve({
@@ -45,7 +37,11 @@ function getUserLocation(): Promise<{ ok: true; loc: Located } | { ok: false; fa
             (position) =>
                 resolve({
                     ok: true,
-                    loc: { lat: position.coords.latitude, lng: position.coords.longitude },
+                    loc: {
+                        latitude: position.coords.latitude,
+                        longitude: position.coords.longitude,
+                        accuracy: position.coords.accuracy,
+                    },
                 }),
             (error) => {
                 if (error.code === error.PERMISSION_DENIED) {
@@ -75,23 +71,23 @@ export async function verifyGeoLock(
     const located = await getUserLocation();
     if (!located.ok) return { allowed: false, failure: located.failure };
 
-    const distance = getDistanceInMeters(
-        located.loc.lat,
-        located.loc.lng,
-        meetingLat,
-        meetingLng
+    // Same function the server actions call, so the two sides cannot disagree.
+    const result = checkGeofence(
+        {
+            is_geo_locked: true,
+            latitude: meetingLat,
+            longitude: meetingLng,
+            radius_meters: maxRadiusMeters,
+        },
+        located.loc
     );
-    if (distance <= maxRadiusMeters) return { allowed: true };
+    if (result.ok) return { allowed: true, location: located.loc };
+    if (result.failure.kind === "too_far") return { allowed: false, failure: result.failure };
 
+    // Only reachable if the browser handed back a non-finite fix.
     return {
         allowed: false,
-        failure: {
-            kind: "too_far",
-            // How much further they have to walk -- the actionable number the
-            // screen leads with, not the raw distance to the pin.
-            metresAway: Math.round(distance - maxRadiusMeters),
-            radius: maxRadiusMeters,
-        },
+        failure: { kind: "unavailable", message: "Couldn't get a location fix. Make sure GPS is on." },
     };
 }
 
