@@ -1,0 +1,49 @@
+create or replace function get_org_retention_by_meeting(
+    p_org_id uuid,
+    p_from timestamptz,
+    p_to timestamptz
+)
+returns table (
+    meeting_title text,
+    first_time bigint,
+    "returning" bigint,
+    total bigint
+)
+language plpgsql
+security invoker
+set search_path = public
+as $$
+begin
+    -- if not public.is_org_officer(p_org_id) then
+    --     raise exception 'Unauthorized';
+    -- end if;
+
+    return query
+    with range_meetings as (
+        select id as meeting_id, title as meeting_title, start_time
+        from meetings
+        where org_id = p_org_id
+          and start_time >= p_from
+          and start_time <= p_to
+    ),
+    all_org_attendance as (
+        select 
+            a.meeting_id,
+            a.attendee_id,
+            m.start_time,
+            row_number() over (partition by a.attendee_id order by m.start_time asc) as visit_seq
+        from attendance a
+        join meetings m on m.id = a.meeting_id
+        where m.org_id = p_org_id
+    )
+    select
+        rm.meeting_title,
+        count(*) filter (where aao.visit_seq = 1) as first_time,
+        count(*) filter (where aao.visit_seq > 1) as "returning",
+        count(aao.attendee_id) as total
+    from range_meetings rm
+    left join all_org_attendance aao on aao.meeting_id = rm.meeting_id
+    group by rm.meeting_id, rm.meeting_title, rm.start_time
+    order by rm.start_time;
+end;
+$$;
