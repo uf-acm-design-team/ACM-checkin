@@ -11,8 +11,26 @@ import {
   Spinner,
   FIELD_CLASS,
 } from "@/components/ui/primitives";
+import { RETURN_PATH_KEY, safeReturnPath } from "@/lib/return-path";
 
 const MAX_NAME_LENGTH = 50;
+
+/**
+ * Where to go once onboarding is done: back to the page that sent the user to
+ * sign in (the check-in page stores it), else the dashboard. Clerk's sign-up
+ * force-redirect to /onboarding drops `redirect_url`, which is why this reads
+ * sessionStorage. Read once and cleared, so a stale value can't hijack a later
+ * onboarding in the same tab.
+ */
+function takeDestination(): string {
+  try {
+    const stored = sessionStorage.getItem(RETURN_PATH_KEY);
+    sessionStorage.removeItem(RETURN_PATH_KEY);
+    return safeReturnPath(stored) ?? "/dashboard";
+  } catch {
+    return "/dashboard";
+  }
+}
 
 export default function OnboardingPage() {
   const { user, isLoaded } = useUser();
@@ -23,7 +41,20 @@ export default function OnboardingPage() {
   const [checkingExisting, setCheckingExisting] = useState(true);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
+  const [destination, setDestination] = useState("/dashboard");
   const router = useRouter();
+
+  const finish = () => {
+    const to = takeDestination();
+    setDestination(to);
+    setSuccess(true);
+    // Full page load, not router.push(). A client-side nav reuses the
+    // existing React tree and the cached session token, so the proxy can
+    // still see the pre-onboarding claims and bounce straight back here.
+    setTimeout(() => {
+      window.location.href = to;
+    }, 1200);
+  };
 
   // Users who already have an attendees row but no onboarding flag (they
   // signed up before this gate existed) shouldn't be asked to re-enter a
@@ -58,12 +89,7 @@ export default function OnboardingPage() {
         // meant that if the navigation didn't take (proxy bounce, blocked
         // route), the page rendered "Loading..." with nothing left to resolve it.
         setCheckingExisting(false);
-        if (alreadyOnboarded) {
-          setSuccess(true);
-          setTimeout(() => {
-            window.location.href = "/dashboard";
-          }, 1200);
-        }
+        if (alreadyOnboarded) finish();
       })
       .catch((err) => {
         // Surface the failure instead of hanging. A rejected server action
@@ -96,7 +122,9 @@ export default function OnboardingPage() {
     return (
       <div className="flex min-h-dvh flex-col items-center justify-center gap-4 px-4">
         <Notice tone="good" title="Successfully authenticated!" className="max-w-sm text-center">
-          Taking you to your dashboard…
+          {destination === "/dashboard"
+            ? "Taking you to your dashboard…"
+            : "Taking you back to check in…"}
         </Notice>
         <Spinner size={22} />
       </div>
@@ -153,14 +181,7 @@ export default function OnboardingPage() {
       // without this the proxy reads the old claims on the very next request.
       await user.reload();
 
-      setSuccess(true);
-
-      // Full page load, not router.push(). A client-side nav reuses the
-      // existing React tree and the cached session token, so the proxy can
-      // still see the pre-onboarding claims and bounce straight back here.
-      setTimeout(() => {
-        window.location.href = "/dashboard";
-      }, 1200);
+      finish();
     } catch (err) {
       setError("An unexpected error occurred");
     } finally {

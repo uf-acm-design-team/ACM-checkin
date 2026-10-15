@@ -9,6 +9,7 @@ import { guestCheckIn } from "./guest-actions";
 import { verifyGeoLock, type GeoFailure } from "./geolock";
 import { membershipThreshold } from "@/lib/membership";
 import { isWithinMeetingWindow } from "@/lib/meeting-time";
+import { RETURN_PATH_KEY, checkinReturnPath } from "@/lib/return-path";
 import { cn } from "@/lib/utils";
 import { FormRenderer } from "@/components/forms/form-renderer";
 import {
@@ -818,7 +819,19 @@ export default function CheckinPage({
               </PrimaryButton>
               <button
                 type="button"
-                onClick={() => router.push("/sign-in")}
+                onClick={() => {
+                  // Come back here after signing in, not the dashboard -- they
+                  // were mid-check-in. redirect_url covers an existing account;
+                  // sessionStorage covers a new one, whose forced detour through
+                  // /onboarding drops the query parameter.
+                  const back = checkinReturnPath(orgSlug);
+                  try {
+                    sessionStorage.setItem(RETURN_PATH_KEY, back);
+                  } catch {
+                    // Storage blocked (private mode): redirect_url still works.
+                  }
+                  router.push(`/sign-in?redirect_url=${encodeURIComponent(back)}`);
+                }}
                 className="text-center text-[13px] text-ink-muted underline underline-offset-2"
               >
                 Have an account? Sign in instead
