@@ -24,6 +24,12 @@ any arguments. In each action:
 - Add `.select("id")` to updates and deletes. A write RLS blocks returns no
   error, just zero rows.
 
+`anon` and `authenticated` can SELECT only listed columns of `meetings`, so
+`checkin_password` stays hidden. A migration that adds a `meetings` column must
+also `GRANT SELECT (column)` to both roles. Never use `select("*")` on
+`meetings` or a table-level `GRANT SELECT ON meetings`; the first fails and the
+second exposes the password again.
+
 ## Known rough edges
 
 ### Geolock trusts client-supplied coordinates
