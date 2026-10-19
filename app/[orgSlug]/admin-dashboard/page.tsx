@@ -26,7 +26,11 @@ import {
   type AnswerMap,
   type FormSchema,
 } from "@/lib/form-schema";
-import { fromDateTimeLocal } from "@/lib/meeting-time";
+import {
+  RADIUS_MAX_METERS,
+  RADIUS_MIN_METERS,
+  validateMeetingDraft,
+} from "@/lib/meeting-validation";
 import {
   attendanceFilename,
   buildAttendanceCsv,
@@ -41,6 +45,7 @@ import {
   sourceLabel,
 } from "@/lib/live-checkins";
 import { useLiveCheckIns, type AttendanceInsert } from "./use-live-checkins";
+import { createMeeting } from "./actions";
 
 interface Organization {
   id: string;
@@ -503,90 +508,28 @@ export default function AdminDashboard({
     e.preventDefault();
     if (!organization || !user) return;
 
-    // Validate before hitting the DB so the officer gets a specific message
-    // rather than a constraint error.
-    if (meetingDraft.end_time && meetingDraft.start_time > meetingDraft.end_time) {
-      setMeetingError("End time must be after the start time.");
-      return;
-    }
-
-    // Convert to instants before anything else so an unparseable value is
-    // caught here rather than becoming a NULL start_time in the database.
-    const startIso = fromDateTimeLocal(meetingDraft.start_time);
-    const endIso = fromDateTimeLocal(meetingDraft.end_time);
-    if (!startIso || !endIso) {
-      setMeetingError("Enter a valid start and end time.");
-      return;
-    }
-
-    const lat = meetingDraft.latitude.trim();
-    const lng = meetingDraft.longitude.trim();
-    if (meetingDraft.is_geo_locked && (!lat || !lng)) {
-      setMeetingError(
-        "Geo-locked meetings need a location. Use “Use current location” or enter coordinates.",
-      );
-      return;
-    }
-
-    const radius = Number(meetingDraft.radius_meters);
-    if (meetingDraft.is_geo_locked && (!Number.isFinite(radius) || radius <= 0)) {
-      setMeetingError("Radius must be a positive number of meters.");
+    // Instant feedback only; createMeeting re-validates on the server.
+    const checked = validateMeetingDraft(meetingDraft);
+    if (!checked.ok) {
+      setMeetingError(checked.error);
       return;
     }
 
     setCreatingMeeting(true);
     setMeetingError(null);
 
-    // Only persist coordinates when geolocking is on -- otherwise a meeting
-    // that was un-geolocked would keep stale coordinates that mean nothing.
-    const payload = {
-      title: meetingDraft.title.trim(),
-      description: meetingDraft.description.trim() || null,
-      // Explicit instants -- see lib/meeting-time.ts. The bare datetime-local
-      // string would be read in the server's zone (UTC), not the club's.
-      start_time: startIso,
-      end_time: endIso,
-      status: meetingDraft.status,
-      is_geo_locked: meetingDraft.is_geo_locked,
-      latitude: meetingDraft.is_geo_locked ? Number(lat) : null,
-      longitude: meetingDraft.is_geo_locked ? Number(lng) : null,
-      radius_meters: meetingDraft.is_geo_locked ? radius : null,
-      is_officer_only: meetingDraft.is_officer_only,
-      checkin_password: meetingDraft.checkin_password.trim() || null,
-    };
-
     try {
-      const { data: created, error } = await supabase
-        .from("meetings")
-        .insert({ ...payload, org_id: organization.id, created_by: user.id })
-        .select("id")
-        .single();
-
-      if (error) {
-        setMeetingError(error.message);
+      const result = await createMeeting(orgSlug, meetingDraft);
+      if (!result.ok) {
+        setMeetingError(result.error);
         return;
       }
 
       setShowMeetingModal(false);
       setMeetingDraft(EMPTY_MEETING_DRAFT);
 
-      // Land in the editor so the next step -- adding check-in questions -- is
-      // in front of the officer rather than behind an Edit button.
-      if (created?.id) {
-        router.push(`/${orgSlug}/admin-dashboard/meetings/${created.id}`);
-        return;
-      }
-
-      // Make sure the meeting just created is actually visible. Creating one
-      // that already ended would otherwise drop it out of the default
-      // "Upcoming" view, which reads as "the save didn't work".
-      const endsInPast =
-        new Date(payload.end_time || payload.start_time).getTime() < Date.now();
-      if (endsInPast && meetingFilter === "upcoming") {
-        setMeetingFilter("all");
-      }
-
-      fetchMeetings();
+      // Land in the editor so adding check-in questions is the next step.
+      router.push(`/${orgSlug}/admin-dashboard/meetings/${result.id}`);
     } catch {
       setMeetingError("Failed to save meeting");
     } finally {
@@ -1733,7 +1676,8 @@ export default function AdminDashboard({
                       </label>
                       <input
                         type="number"
-                        min={10}
+                        min={RADIUS_MIN_METERS}
+                        max={RADIUS_MAX_METERS}
                         step={10}
                         value={meetingDraft.radius_meters}
                         onChange={(e) =>
