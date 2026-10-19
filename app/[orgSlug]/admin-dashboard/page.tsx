@@ -467,6 +467,12 @@ export default function AdminDashboard({
     setShowMeetingModal(true);
   };
 
+  // Clear the error too, or it reappears in the meetings table banner.
+  const closeCreateMeeting = () => {
+    setMeetingError(null);
+    setShowMeetingModal(false);
+  };
+
   // Editing happens in the full-page editor, which owns the form builder along
   // with these scheduling fields. The modal here is create-only.
   const openEditMeeting = (m: Meeting) => {
@@ -1499,7 +1505,7 @@ export default function AdminDashboard({
       {showMeetingModal && (
         <div
           className="fixed inset-0 z-50 flex items-end justify-center bg-ink/45 p-0 sm:items-center sm:p-4"
-          onClick={() => setShowMeetingModal(false)}
+          onClick={closeCreateMeeting}
         >
           <form
             onSubmit={handleSaveMeeting}
@@ -1749,7 +1755,7 @@ export default function AdminDashboard({
             <div className="mt-5 flex flex-col-reverse gap-2.5 sm:flex-row sm:justify-end">
               <button
                 type="button"
-                onClick={() => setShowMeetingModal(false)}
+                onClick={closeCreateMeeting}
                 className="cursor-pointer rounded-control border border-line bg-white px-4.5 py-2.5 text-[13px] font-bold"
               >
                 Cancel
