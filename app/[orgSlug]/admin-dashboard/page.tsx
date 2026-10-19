@@ -45,7 +45,7 @@ import {
   sourceLabel,
 } from "@/lib/live-checkins";
 import { useLiveCheckIns, type AttendanceInsert } from "./use-live-checkins";
-import { createMeeting, setMeetingStatus } from "./actions";
+import { createMeeting, deleteMeeting, setMeetingStatus } from "./actions";
 
 interface Organization {
   id: string;
@@ -582,12 +582,14 @@ export default function AdminDashboard({
 
     setDeletingMeetingId(m.id);
     try {
-      const { error } = await supabase.from("meetings").delete().eq("id", m.id);
-      if (error) {
-        setMeetingError(error.message);
+      const result = await deleteMeeting(orgSlug, m.id);
+      if (!result.ok) {
+        setMeetingError(result.error);
         return;
       }
       fetchMeetings();
+    } catch {
+      setMeetingError("Failed to delete meeting");
     } finally {
       setDeletingMeetingId(null);
     }
