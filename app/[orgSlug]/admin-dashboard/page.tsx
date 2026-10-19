@@ -45,7 +45,7 @@ import {
   sourceLabel,
 } from "@/lib/live-checkins";
 import { useLiveCheckIns, type AttendanceInsert } from "./use-live-checkins";
-import { createMeeting } from "./actions";
+import { createMeeting, setMeetingStatus } from "./actions";
 
 interface Organization {
   id: string;
@@ -540,25 +540,23 @@ export default function AdminDashboard({
   // Open/close a meeting for check-in. This is the switch guests are gated on:
   // meetings_anon_read_active only exposes rows with status = true.
   const toggleMeetingStatus = async (m: Meeting) => {
-    const nextStatus = !m.status;
     setMeetingError(null);
 
-    const { error } = await supabase
-      .from("meetings")
-      .update({ status: nextStatus })
-      .eq("id", m.id)
-      .select("id, status");
+    try {
+      const result = await setMeetingStatus(orgSlug, m.id, !m.status);
+      if (!result.ok) {
+        setMeetingError(result.error);
+        return;
+      }
 
-    if (error) {
-      setMeetingError(error.message);
-      return;
+      setMeetings((prev) =>
+        prev.map((meeting) =>
+          meeting.id === m.id ? { ...meeting, status: result.status } : meeting,
+        ),
+      );
+    } catch {
+      setMeetingError("Failed to update meeting");
     }
-
-    setMeetings((prev) =>
-      prev.map((meeting) =>
-        meeting.id === m.id ? { ...meeting, status: nextStatus } : meeting,
-      ),
-    );
   };
 
   const handleDeleteMeeting = async (m: Meeting) => {
