@@ -6,7 +6,7 @@ import {
   formatAnswer,
   isChoiceType,
   type FormSchema,
-} from "@/lib/form-schema";
+} from "@/supabase/functions/_shared/form-schema";
 import type { AttendanceRow } from "@/lib/attendance-csv";
 
 /**

@@ -14,7 +14,7 @@ import {
   retypeQuestion,
   type FormQuestion,
   type QuestionType,
-} from "@/lib/form-schema";
+} from "@/supabase/functions/_shared/form-schema";
 
 /**
  * One question in the builder.

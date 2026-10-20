@@ -25,8 +25,8 @@ import {
   parseSchema,
   type AnswerMap,
   type FormSchema,
-} from "@/lib/form-schema";
-import { fromDateTimeLocal } from "@/lib/meeting-time";
+} from "@/supabase/functions/_shared/form-schema";
+import { fromDateTimeLocal } from "@/supabase/functions/_shared/meeting-time";
 import {
   attendanceFilename,
   buildAttendanceCsv,

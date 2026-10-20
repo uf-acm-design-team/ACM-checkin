@@ -1,8 +1,8 @@
 // Shared types + pure helpers for the member attendance stats feature.
 // No I/O — everything here is unit-tested and orchestrated by lib/stats-data.ts.
 
-import type { AnswerMap, FormSchema } from "./form-schema";
-import { fromDateTimeLocal, orgWallClock } from "./meeting-time";
+import type { AnswerMap, FormSchema } from "../supabase/functions/_shared/form-schema";
+import { fromDateTimeLocal, orgWallClock } from "../supabase/functions/_shared/meeting-time";
 
 export type Season = "Spring" | "Summer" | "Fall";
 export type Term = { key: string; label: string; season: Season; year: number };

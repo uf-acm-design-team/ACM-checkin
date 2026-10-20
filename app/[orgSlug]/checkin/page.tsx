@@ -8,8 +8,8 @@ import { memberCheckIn, resolveAndUpdateMembershipStatus } from "./actions";
 import { guestCheckIn } from "./guest-actions";
 import { verifyGeoLock, type GeoFailure } from "./geolock";
 import { DEFAULT_RADIUS_METERS, type Coordinates, type GeofenceFailure } from "@/lib/geo";
-import { membershipThreshold } from "@/lib/membership";
-import { isWithinMeetingWindow } from "@/lib/meeting-time";
+import { membershipThreshold } from "@/supabase/functions/_shared/membership";
+import { isWithinMeetingWindow } from "@/supabase/functions/_shared/meeting-time";
 import { cn } from "@/lib/utils";
 import { FormRenderer } from "@/components/forms/form-renderer";
 import {
@@ -45,7 +45,7 @@ import {
   type AnswerMap,
   type AnswerValue,
   type FormSchema,
-} from "@/lib/form-schema";
+} from "@/supabase/functions/_shared/form-schema";
 
 interface Organization {
   id: string;
