@@ -11,9 +11,9 @@ import { auth } from "@clerk/nextjs/server";
 // filtered by them, the same pattern app/[orgSlug]/checkin/guest-actions.ts
 // uses for the same reason.
 import { createServiceSupabaseClient } from "@/app/utils/supabase/server";
-import { resolveMembership } from "@/lib/membership";
-import { parseAnswers, parseSchema, type AnswerMap } from "@/lib/form-schema";
-import { orgWallClock } from "@/lib/meeting-time";
+import { resolveMembership } from "../supabase/functions/_shared/membership";
+import { parseAnswers, parseSchema, type AnswerMap } from "../supabase/functions/_shared/form-schema";
+import { orgWallClock } from "../supabase/functions/_shared/meeting-time";
 import {
   academicYearTerms,
   buildTermSummaries,

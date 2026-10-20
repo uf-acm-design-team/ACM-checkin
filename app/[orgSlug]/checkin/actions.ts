@@ -3,9 +3,9 @@
 import { auth } from "@clerk/nextjs/server";
 
 import { createClerkSupabaseClient } from "../../utils/supabase/server";
-import { membershipThreshold } from "@/lib/membership";
-import { parseSchema, validateAnswers } from "@/lib/form-schema";
-import { isWithinMeetingWindow } from "@/lib/meeting-time";
+import { membershipThreshold } from "@/supabase/functions/_shared/membership";
+import { parseSchema, validateAnswers } from "@/supabase/functions/_shared/form-schema";
+import { isWithinMeetingWindow } from "@/supabase/functions/_shared/meeting-time";
 import {
   checkGeofence,
   geofenceErrorMessage,

@@ -15,14 +15,14 @@ import {
   validateSchema,
   type FormSchema,
   type SchemaError,
-} from "@/lib/form-schema";
+} from "@/supabase/functions/_shared/form-schema";
 import {
   attendanceFilename,
   buildAttendanceCsv,
   downloadCsv,
   type AttendanceRow,
 } from "@/lib/attendance-csv";
-import { toDateTimeLocal, fromDateTimeLocal } from "@/lib/meeting-time";
+import { toDateTimeLocal, fromDateTimeLocal } from "@/supabase/functions/_shared/meeting-time";
 import { ResponsesPanel } from "./responses-panel";
 
 /**

@@ -13,7 +13,7 @@ import {
   type FormSchema,
   type QuestionType,
   type SchemaError,
-} from "@/lib/form-schema";
+} from "@/supabase/functions/_shared/form-schema";
 
 /**
  * The check-in form builder: a vertical stack of question cards with one

@@ -3,7 +3,7 @@
 // Split out of the admin dashboard so the Meetings tab and the meeting editor's
 // Responses tab produce byte-identical files rather than drifting apart.
 
-import { formatAnswer, type AnswerMap, type FormSchema } from "./form-schema";
+import { formatAnswer, type AnswerMap, type FormSchema } from "../supabase/functions/_shared/form-schema";
 
 export type AttendanceRow = {
   first_name: string;

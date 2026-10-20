@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { X } from "lucide-react";
 
 import { getMeetingDetails } from "@/lib/stats-data";
-import { formatAnswer } from "@/lib/form-schema";
+import { formatAnswer } from "@/supabase/functions/_shared/form-schema";
 import type { MeetingDetails } from "@/lib/stats-terms";
 import { Skeleton } from "@/components/ui/primitives";
 

@@ -3,8 +3,8 @@
 import { headers } from "next/headers";
 import { createClient } from "@supabase/supabase-js";
 
-import { parseSchema, validateAnswers } from "@/lib/form-schema";
-import { isWithinMeetingWindow } from "@/lib/meeting-time";
+import { parseSchema, validateAnswers } from "@/supabase/functions/_shared/form-schema";
+import { isWithinMeetingWindow } from "@/supabase/functions/_shared/meeting-time";
 import {
   checkGeofence,
   geofenceErrorMessage,
