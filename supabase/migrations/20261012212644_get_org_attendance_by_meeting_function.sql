@@ -11,9 +11,11 @@ RETURNS TABLE (
     members bigint,
     guests bigint
 )
-LANGUAGE sql
+LANGUAGE plpgsql
 SECURITY INVOKER
-AS $$
+set search_path = public
+as $$
+begin
 
     if not public.is_org_officer(p_org_id) then
         raise exception 'Unauthorized';
@@ -33,4 +35,5 @@ AS $$
       AND m.start_time <= p_end_time
     GROUP BY m.id, m.title, m.start_time
     ORDER BY m.start_time ASC;
+end;
 $$;
