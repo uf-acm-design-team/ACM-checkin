@@ -1,4 +1,4 @@
-import { createServiceSupabaseClient } from "@/app/utils/supabase/server";
+import { createClerkSupabaseClient } from "@/app/utils/supabase/server";
 
 export interface AttendanceRecord {
   meeting_id: string;
@@ -14,7 +14,7 @@ export async function getOrgAttendance(
   startTime: string, 
   endTime: string
 ): Promise<AttendanceRecord[]> {
-  const supabase = createServiceSupabaseClient();
+  const supabase = createClerkSupabaseClient();
 
   const { data, error } = await supabase
     .rpc('get_org_attendance_by_meeting', {
@@ -31,12 +31,12 @@ export async function getOrgAttendance(
 }
 
 export interface RetentionRecord {
-  meeting_id: string;
   meeting_title: string;
   meeting_start_time: string;
-  total_attendees: number;
-  member_count: number;
-  guest_count: number;
+  meeting_id: string;
+  first_time: number;
+  returning: number;
+  total: number;
 }
 
 export async function getOrgRetention(
@@ -44,7 +44,7 @@ export async function getOrgRetention(
   startTime: string, 
   endTime: string
 ): Promise<RetentionRecord[]> {
-  const supabase = createServiceSupabaseClient();
+  const supabase = createClerkSupabaseClient();
 
   const { data, error } = await supabase
     .rpc('get_org_retention_by_meeting', {
