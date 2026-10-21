@@ -16,9 +16,9 @@ security invoker
 set search_path = public
 as $$
 begin
-    -- if not public.is_org_officer(p_org_id) then
-    --     raise exception 'Unauthorized';
-    -- end if;
+    if not public.is_org_officer(p_org_id) then
+        raise exception 'Unauthorized';
+    end if;
 
     return query
     with range_meetings as (
