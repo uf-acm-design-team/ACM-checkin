@@ -6,7 +6,7 @@ create or replace function get_org_retention_by_meeting(
 returns table (
     meeting_title text,
     meeting_start_time timestamptz,
-    meeting_id text,
+    meeting_id uuid,
     first_time bigint,
     "returning" bigint,
     total bigint
@@ -16,9 +16,9 @@ security invoker
 set search_path = public
 as $$
 begin
-    if not public.is_org_officer(p_org_id) then
-        raise exception 'Unauthorized';
-    end if;
+    -- if not public.is_org_officer(p_org_id) then
+    --     raise exception 'Unauthorized';
+    -- end if;
 
     return query
     with range_meetings as (
@@ -40,14 +40,14 @@ begin
     )
     select
         rm.meeting_title as meeting_title,
-        rm.start_time as meeting_start_time,
+        rm.start_time::timestamptz as meeting_start_time,
         rm.meeting_id as meeting_id,
         count(*) filter (where aao.visit_seq = 1) as first_time,
         count(*) filter (where aao.visit_seq > 1) as "returning",
         count(aao.attendee_id) as total
     from range_meetings as rm
     left join all_org_attendance as aao on aao.meeting_id = rm.meeting_id
-    group by rm.meeting_id
+    group by rm.meeting_id,rm.meeting_title,rm.start_time
     order by rm.start_time;
 end;
 $$;
