@@ -1,12 +1,12 @@
-import { createClient } from "../app/utils/supabase/client"
+import { createServiceSupabaseClient } from "@/app/utils/supabase/server";
 
 export interface AttendanceRecord {
   meeting_id: string;
   meeting_title: string;
-  meeting_date: string;
+  meeting_start_time: string;
+  total_attendees: number;
   member_count: number;
   guest_count: number;
-  total_attendees: number;
 }
 
 export async function getOrgAttendance(
@@ -14,7 +14,7 @@ export async function getOrgAttendance(
   startTime: string, 
   endTime: string
 ): Promise<AttendanceRecord[]> {
-  const supabase = createClient();
+  const supabase = createServiceSupabaseClient();
 
   const { data, error } = await supabase
     .rpc('get_org_attendance_by_meeting', {
