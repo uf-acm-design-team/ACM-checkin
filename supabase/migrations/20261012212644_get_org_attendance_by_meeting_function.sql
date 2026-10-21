@@ -14,13 +14,18 @@ RETURNS TABLE (
 LANGUAGE sql
 SECURITY INVOKER
 AS $$
+
+    if not public.is_org_officer(p_org_id) then
+        raise exception 'Unauthorized';
+    end if;
+
     SELECT 
         m.id AS meeting_id,
         m.title,
         m.start_time,
         COUNT(a.id) AS total,
-        COUNT(a.id) FILTER (WHERE a.attendee_id IS NOT NULL) AS members,
-        COUNT(a.id) FILTER (WHERE a.attendee_id IS NULL) AS guests
+        COUNT(a.id) FILTER (WHERE a.source IS DISTINCT FROM 'guest') AS members,
+        COUNT(a.id) FILTER (WHERE a.source = 'guest') AS guests
     FROM meetings m
     LEFT JOIN attendance a ON m.id = a.meeting_id
     WHERE m.org_id = p_org_id
