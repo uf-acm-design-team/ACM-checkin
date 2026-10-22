@@ -41,6 +41,10 @@ import {
 
 const RATE_LIMIT_WINDOW_MS = 60_000;
 const RATE_LIMIT_MAX = 5;
+// Per address, much looser: a room on campus wifi or carrier NAT shares one
+// public IP, and a new guest spends two submits (email, then profile). At 5 the
+// sixth person to scan the QR in a minute was told "Too many attempts".
+const RATE_LIMIT_MAX_PER_IP = 60;
 
 // In-memory, per-server-instance. Good enough to stop a naive script hammering
 // the endpoint from one address; it does NOT survive a redeploy and is not
@@ -48,12 +52,12 @@ const RATE_LIMIT_MAX = 5;
 // (Upstash/Redis) or an edge rate limiter in front of this.
 const attempts = new Map<string, number[]>();
 
-function rateLimit(key: string): boolean {
+function rateLimit(key: string, max = RATE_LIMIT_MAX): boolean {
   const now = Date.now();
   const recent = (attempts.get(key) ?? []).filter(
     (t) => now - t < RATE_LIMIT_WINDOW_MS,
   );
-  if (recent.length >= RATE_LIMIT_MAX) {
+  if (recent.length >= max) {
     attempts.set(key, recent);
     return false;
   }
@@ -121,7 +125,7 @@ export async function guestCheckIn(input: {
     hdrs.get("x-real-ip") ||
     "unknown";
 
-  if (!rateLimit(`ip:${ip}`) || !rateLimit(`email:${email}`)) {
+  if (!rateLimit(`ip:${ip}`, RATE_LIMIT_MAX_PER_IP) || !rateLimit(`email:${email}`)) {
     return {
       ok: false,
       error: "Too many attempts. Wait a minute and try again.",
