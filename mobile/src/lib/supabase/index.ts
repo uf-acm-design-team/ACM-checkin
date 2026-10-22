@@ -15,6 +15,6 @@ export type { Attendee, HomeOrg, MyMembership, Organization } from "./queries";
 export {
     callMemberCheckIn, CheckInNetworkError, MEMBER_CHECK_IN_FUNCTION
 } from "./member-check-in";
-export type { MemberCheckInRequest, MemberCheckInResponse } from "./member-check-in";
+export type { MemberCheckInResult } from "./member-check-in";
 export { useSupabase } from "./useSupabase";
 
