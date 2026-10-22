@@ -281,7 +281,10 @@ export function NewVsReturningChart({
           </ResponsiveContainer>
         </div>
 
-        <p className="m-0 text-xs text-ink-muted">{RETURNING_NOTE}</p>
+        {/* Guests are counted (ADTCIA-49), so say so where the definition lives. */}
+        <p className="m-0 text-xs text-ink-muted">
+          {RETURNING_NOTE} Counts include guest check-ins.
+        </p>
 
         {/* Every value outside the tooltip, for keyboard and screen-reader
             users and anyone who can't separate the two fills. */}
