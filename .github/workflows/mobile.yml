@@ -1,19 +1,30 @@
 name: Mobile CI
 
 # Lint, typecheck and test the Expo app on every PR that could affect it.
-# app/globals.css is included because the mobile theme test checks the tokens
-# against it -- a web token change must not silently drift from mobile.
+# Besides mobile/, these web files are included because mobile depends on them:
+# - app/globals.css: the theme test checks mobile tokens against it
+# - lib/checkin-link.ts: the QR parser test round-trips web's link builder
+# - supabase/functions/member-check-in/contract.ts (+ the lib/ types it uses):
+#   the check-in screen is typed against it
 on:
   pull_request:
     paths:
       - "mobile/**"
       - "app/globals.css"
+      - "lib/checkin-link.ts"
+      - "lib/form-schema.ts"
+      - "lib/geo.ts"
+      - "supabase/functions/member-check-in/contract.ts"
       - ".github/workflows/mobile.yml"
   push:
     branches: [main]
     paths:
       - "mobile/**"
       - "app/globals.css"
+      - "lib/checkin-link.ts"
+      - "lib/form-schema.ts"
+      - "lib/geo.ts"
+      - "supabase/functions/member-check-in/contract.ts"
       - ".github/workflows/mobile.yml"
 
 concurrency:
