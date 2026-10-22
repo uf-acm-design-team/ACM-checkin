@@ -13,6 +13,9 @@ const isPublicRoute = createRouteMatcher([
   // Dev-only visual harness for the check-in states; the page itself 404s
   // outside development.
   "/(.*)/checkin/states-preview",
+  // Dev-only sandbox for the New vs. Returning chart; also 404s outside
+  // development.
+  "/new-vs-returning-demo",
 ]);
 
 // Routes a signed-in user may visit before completing their attendee profile.
