@@ -2,11 +2,11 @@ import { createClerkSupabaseClient } from "@/app/utils/supabase/server";
 
 export interface AttendanceRecord {
   meeting_id: string;
-  meeting_title: string;
-  meeting_start_time: string;
-  total_attendees: number;
-  member_count: number;
-  guest_count: number;
+  title: string;
+  start_time: string;
+  total: number;
+  members: number;
+  guests: number;
 }
 
 export async function getOrgAttendance(
