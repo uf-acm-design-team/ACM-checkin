@@ -45,9 +45,6 @@ supabase/.branches/
 .claude/
 /docs/
 
-# Agent orientation notes (local, not part of the shipped repo)
-AGENTS.md
-
 # Local database dumps from `supabase db dump`
 backup-*.sql
 *.dump
@@ -66,3 +63,6 @@ next-env.d.ts
 
 # clerk configuration (can include secrets)
 /.clerk/
+
+# graphify knowledge graph output (local, regenerate with /graphify)
+graphify-out/

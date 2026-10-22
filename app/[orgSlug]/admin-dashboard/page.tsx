@@ -10,7 +10,14 @@ import { resolveBranding } from "@/lib/branding";
 import AuditLogView from "@/app/components/AuditLogView";
 import MembersTab from "./members-tab";
 import { roleBadgeLabel } from "@/lib/org-roles";
-import { Chip, Identity, Spinner } from "@/components/ui/primitives";
+import {
+  Card,
+  Chip,
+  EmptyState,
+  Identity,
+  Skeleton,
+  Spinner,
+} from "@/components/ui/primitives";
 import BrandingTab from "./branding-tab";
 import QRCodeTab from "./qr-code-tab";
 import {
@@ -26,7 +33,14 @@ import {
   downloadCsv,
 } from "@/lib/attendance-csv";
 import { fetchOrgMembers, type OrgMember } from "@/lib/org-members";
-import { pageRange, hasMore as computeHasMore } from "@/lib/stats-terms";
+import {
+  isMeetingOpen,
+  mergeNewest,
+  msUntilClose,
+  olderThanFilter,
+  sourceLabel,
+} from "@/lib/live-checkins";
+import { useLiveCheckIns, type AttendanceInsert } from "./use-live-checkins";
 
 interface Organization {
   id: string;
@@ -82,6 +96,44 @@ interface CheckIn {
   checked_in_at: string;
   answers: AnswerMap;
 }
+
+interface FeedCheckIn extends CheckIn {
+  id: string;
+  source: string | null;
+}
+
+const FEED_SELECT =
+  "id, source, checked_in_at, answers, attendee:attendee_id(first_name, last_name, email, grad_year)";
+
+interface FeedAttendee {
+  first_name: string;
+  last_name: string;
+  email: string;
+  grad_year: string;
+}
+
+interface FeedRow {
+  id: string;
+  source: string | null;
+  checked_in_at: string;
+  answers: unknown;
+  // Untyped client infers embeds as arrays; a to-one join returns an object.
+  attendee: FeedAttendee | FeedAttendee[] | null;
+}
+
+const toFeedCheckIn = (row: FeedRow): FeedCheckIn => {
+  const attendee = Array.isArray(row.attendee) ? row.attendee[0] : row.attendee;
+  return {
+    id: row.id,
+    source: row.source ?? null,
+    first_name: attendee?.first_name ?? "",
+    last_name: attendee?.last_name ?? "",
+    email: attendee?.email ?? "",
+    grad_year: attendee?.grad_year ?? "",
+    checked_in_at: row.checked_in_at,
+    answers: parseAnswers(row.answers),
+  };
+};
 
 const TABS = [
   { key: "overview", label: "Overview" },
@@ -162,13 +214,9 @@ export default function AdminDashboard({
   const [attendanceMeetingId, setAttendanceMeetingId] = useState<string | null>(
     null
   );
-  const [checkIns, setCheckIns] = useState<Record<string, CheckIn[]>>({});
+  const [checkIns, setCheckIns] = useState<Record<string, FeedCheckIn[]>>({});
   const [checkInsLoading, setCheckInsLoading] = useState(false);
   const [checkInsLoadingMore, setCheckInsLoadingMore] = useState(false);
-  // Page currently loaded per meeting -- "Load more" appends the next page
-  // rather than re-fetching everything, same pattern as
-  // components/stats/stats-view.tsx.
-  const [checkInsPage, setCheckInsPage] = useState<Record<string, number>>({});
   const [checkInsTotal, setCheckInsTotal] = useState<Record<string, number>>({});
 
   // Members (Overview stats/officers panel only -- the Members tab itself
@@ -352,53 +400,57 @@ export default function AdminDashboard({
 
   const ATTENDANCE_PAGE_SIZE = 25;
 
-  const loadCheckInsPage = useCallback(
-    async (meetingId: string, page: number) => {
-      const { from, to } = pageRange(page, ATTENDANCE_PAGE_SIZE);
-      const { data, error, count } = await supabase
-        .from("attendance")
-        .select(
-          "checked_in_at, answers, attendee:attendee_id(first_name, last_name, email, grad_year)",
-          { count: "exact" },
-        )
-        .eq("meeting_id", meetingId)
-        .order("checked_in_at", { ascending: true })
-        .range(from, to);
-
-      if (error || !data) return;
-
-      const rows: CheckIn[] = data.map((row: any) => ({
-        first_name: row.attendee?.first_name ?? "",
-        last_name: row.attendee?.last_name ?? "",
-        email: row.attendee?.email ?? "",
-        grad_year: row.attendee?.grad_year ?? "",
-        checked_in_at: row.checked_in_at,
-        answers: parseAnswers(row.answers),
-      }));
-
+  // Merges rows into a meeting's feed; a non-null total also syncs its count.
+  const applyCheckIns = useCallback(
+    (meetingId: string, rows: FeedCheckIn[], total: number | null) => {
       setCheckIns((prev) => ({
         ...prev,
-        [meetingId]: page === 1 ? rows : [...(prev[meetingId] ?? []), ...rows],
+        [meetingId]: mergeNewest(prev[meetingId] ?? [], rows),
       }));
-      setCheckInsPage((prev) => ({ ...prev, [meetingId]: page }));
-      setCheckInsTotal((prev) => ({ ...prev, [meetingId]: count ?? rows.length }));
+      if (total === null) return;
+      setCheckInsTotal((prev) => ({ ...prev, [meetingId]: total }));
+      setMeetings((prev) =>
+        prev.map((m) =>
+          m.id === meetingId ? { ...m, attendance_count: total } : m,
+        ),
+      );
     },
-    [supabase],
+    [],
+  );
+
+  // Newest first, keyset-paged so live inserts at the top do not shift pages.
+  const loadCheckIns = useCallback(
+    async (meetingId: string, cursor?: FeedCheckIn) => {
+      let query = supabase
+        .from("attendance")
+        .select(FEED_SELECT, { count: "exact" })
+        .eq("meeting_id", meetingId);
+      if (cursor) query = query.or(olderThanFilter(cursor));
+      const { data, error, count } = await query
+        .order("checked_in_at", { ascending: false })
+        .order("id", { ascending: false })
+        .limit(ATTENDANCE_PAGE_SIZE);
+
+      if (error || !data) return;
+      applyCheckIns(meetingId, data.map(toFeedCheckIn), cursor ? null : count);
+    },
+    [supabase, applyCheckIns],
   );
 
   useEffect(() => {
     const meetingId = attendanceMeetingId;
     if (!meetingId || checkIns[meetingId]) return;
     setCheckInsLoading(true);
-    loadCheckInsPage(meetingId, 1).finally(() => setCheckInsLoading(false));
-  }, [attendanceMeetingId, checkIns, loadCheckInsPage]);
+    loadCheckIns(meetingId).finally(() => setCheckInsLoading(false));
+  }, [attendanceMeetingId, checkIns, loadCheckIns]);
 
   const loadMoreCheckIns = async () => {
     const meetingId = attendanceMeetingId;
-    if (!meetingId) return;
+    const loaded = meetingId ? checkIns[meetingId] : undefined;
+    if (!meetingId || !loaded?.length) return;
     setCheckInsLoadingMore(true);
     try {
-      await loadCheckInsPage(meetingId, (checkInsPage[meetingId] ?? 1) + 1);
+      await loadCheckIns(meetingId, loaded[loaded.length - 1]);
     } finally {
       setCheckInsLoadingMore(false);
     }
@@ -664,6 +716,73 @@ export default function AdminDashboard({
     return () => clearInterval(id);
   }, []);
 
+  const selectedMeeting = meetings.find((m) => m.id === attendanceMeetingId);
+  const selectedCheckIns = checkIns[attendanceMeetingId ?? ""];
+  const selectedOpen = selectedMeeting
+    ? isMeetingOpen(selectedMeeting, now)
+    : false;
+
+  // Re-check open state when the selected meeting's end time passes.
+  const selectedStatus = selectedMeeting?.status;
+  const selectedEnd = selectedMeeting?.end_time ?? null;
+  useEffect(() => {
+    if (!selectedStatus) return;
+    const ms = msUntilClose(selectedEnd, Date.now());
+    if (!ms) return;
+    const id = setTimeout(() => setNow(Date.now()), Math.min(ms + 1000, 2 ** 31 - 1));
+    return () => clearTimeout(id);
+  }, [selectedStatus, selectedEnd]);
+
+  const countCheckIns = async (meetingId: string) => {
+    const { count } = await supabase
+      .from("attendance")
+      .select("id", { count: "exact", head: true })
+      .eq("meeting_id", meetingId);
+    return count ?? null;
+  };
+
+  // Realtime payloads carry only the attendance row; fetch the attendee join.
+  const handleLiveInsert = async (row: AttendanceInsert) => {
+    const [{ data }, total] = await Promise.all([
+      supabase.from("attendance").select(FEED_SELECT).eq("id", row.id).maybeSingle(),
+      countCheckIns(row.meeting_id),
+    ]);
+    if (data) applyCheckIns(row.meeting_id, [toFeedCheckIn(data)], total);
+  };
+
+  // Polling fallback: fetch rows at or after the newest one shown.
+  const pollCheckIns = async () => {
+    const meetingId = attendanceMeetingId;
+    const loaded = meetingId ? checkIns[meetingId] : undefined;
+    if (!meetingId || !loaded) return;
+
+    let query = supabase
+      .from("attendance")
+      .select(FEED_SELECT)
+      .eq("meeting_id", meetingId)
+      .order("checked_in_at", { ascending: false })
+      .order("id", { ascending: false });
+    // gte so rows sharing the newest timestamp are not skipped; merge dedupes.
+    query = loaded.length
+      ? query.gte("checked_in_at", loaded[0].checked_in_at)
+      : query.limit(ATTENDANCE_PAGE_SIZE);
+
+    const [{ data, error }, total] = await Promise.all([
+      query,
+      countCheckIns(meetingId),
+    ]);
+    if (error || !data) return;
+    applyCheckIns(meetingId, data.map(toFeedCheckIn), total);
+  };
+
+  const feedMode = useLiveCheckIns({
+    supabase,
+    meetingId: attendanceMeetingId,
+    enabled: activeTab === "attendance" && selectedOpen,
+    onInsert: handleLiveInsert,
+    onPoll: pollCheckIns,
+  });
+
   // "Upcoming" keys off end_time, not start_time: a meeting that is currently
   // running is still upcoming as far as an officer is concerned -- people are
   // checking into it. Keying off start_time filed in-progress meetings under
@@ -753,8 +872,6 @@ export default function AdminDashboard({
     };
   }, [sidebarOpen]);
 
-  const selectedMeeting = meetings.find((m) => m.id === attendanceMeetingId);
-  const selectedCheckIns = checkIns[attendanceMeetingId ?? ""];
 
   const roleBadge = roleBadgeLabel(membershipRole, isGlobalAdmin);
 
@@ -1282,8 +1399,8 @@ export default function AdminDashboard({
               </div>
 
               {selectedMeeting ? (
-                <div className="overflow-hidden rounded-card border border-line bg-white">
-                  <div className="flex flex-col gap-1 border-b border-line px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+                <Card className="overflow-hidden">
+                  <div className="flex flex-col gap-2 border-b border-line px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
                     <div className="min-w-0">
                       <div className="text-base font-extrabold wrap-break-word">
                         {selectedMeeting.title}
@@ -1293,73 +1410,101 @@ export default function AdminDashboard({
                         {fmtTime(selectedMeeting.start_time)}
                       </div>
                     </div>
-                    <div className="flex-none text-[13px] font-bold text-ink-strong">
-                      {selectedMeeting.attendance_count} checked in
+                    <div className="flex flex-none items-center gap-2.5">
+                      {selectedOpen ? (
+                        <Chip tone={feedMode === "live" ? "good" : "neutral"}>
+                          {feedMode === "live"
+                            ? "Live"
+                            : feedMode === "polling"
+                              ? "Updates every 10s"
+                              : "Connecting"}
+                        </Chip>
+                      ) : (
+                        <Chip>Closed</Chip>
+                      )}
+                      <span className="text-[13px] font-bold text-ink-strong">
+                        {selectedMeeting.attendance_count} checked in
+                      </span>
                     </div>
                   </div>
-                  <div className="hidden grid-cols-[2fr_2fr_1fr_1.4fr] gap-4 border-b border-line px-5 py-3.5 text-xs font-bold tracking-wide text-ink-muted uppercase md:grid">
-                    <div>Attendee</div>
-                    <div>Email</div>
-                    <div>Class</div>
-                    <div>Checked In</div>
-                  </div>
+                  {!selectedOpen && (
+                    <EmptyState className="m-4" title="Check-in is closed">
+                      {selectedMeeting.attendance_count > 0
+                        ? "This meeting is no longer accepting check-ins. The list below is final."
+                        : "This meeting closed with no check-ins."}
+                    </EmptyState>
+                  )}
                   {checkInsLoading && !selectedCheckIns ? (
-                    <div className="p-10 text-center text-sm text-ink-muted">
-                      Loading attendees...
+                    <div className="flex flex-col gap-3 p-5">
+                      {[0, 1, 2].map((i) => (
+                        <Skeleton key={i} className="h-9 w-full" />
+                      ))}
                     </div>
                   ) : selectedCheckIns && selectedCheckIns.length > 0 ? (
-                    selectedCheckIns.map((row, idx) => (
-                      <div
-                        key={idx}
-                        className="flex flex-col gap-1.5 border-b border-line-soft px-4 py-3.5 text-sm last:border-b-0 sm:px-5 md:grid md:grid-cols-[2fr_2fr_1fr_1.4fr] md:items-center md:gap-4"
-                      >
-                        <div className="flex min-w-0 items-center gap-2.5 font-bold">
-                          <div className="flex h-8 w-8 flex-none items-center justify-center rounded-full bg-accent-soft text-[11px] font-bold text-accent">
-                            {initials(`${row.first_name} ${row.last_name}`)}
-                          </div>
-                          <span className="min-w-0 wrap-break-word">
-                            {row.first_name} {row.last_name}
-                          </span>
-                        </div>
-                        {/* Long addresses wrap on mobile rather than truncate --
-                            a stacked card has the room, and a clipped email is
-                            useless to an officer. */}
-                        <div className="text-[13px] font-medium break-all text-ink-strong md:truncate md:break-normal">
-                          {row.email}
-                        </div>
-                        <div className="font-medium text-ink-strong">
-                          {row.grad_year ? `Class of ${row.grad_year}` : "—"}
-                        </div>
-                        <div className="text-[13px] font-medium text-ink-strong">
-                          <span className="text-ink-faint md:hidden">
-                            Checked in:{" "}
-                          </span>
-                          {new Date(row.checked_in_at).toLocaleString()}
-                        </div>
+                    <>
+                      <div className="hidden grid-cols-[2fr_2fr_1fr_1.4fr] gap-4 border-b border-line px-5 py-3.5 text-xs font-bold tracking-wide text-ink-muted uppercase md:grid">
+                        <div>Attendee</div>
+                        <div>Email</div>
+                        <div>Class</div>
+                        <div>Checked In</div>
                       </div>
-                    ))
-                  ) : (
-                    <div className="p-10 text-center text-sm text-ink-muted">
-                      No attendees for this meeting.
+                      {selectedCheckIns.map((row) => {
+                        const tag = sourceLabel(row.source);
+                        return (
+                          <div
+                            key={row.id}
+                            className="flex flex-col gap-1.5 border-b border-line-soft px-4 py-3.5 text-sm last:border-b-0 sm:px-5 md:grid md:grid-cols-[2fr_2fr_1fr_1.4fr] md:items-center md:gap-4"
+                          >
+                            <div className="flex min-w-0 items-center gap-2.5 font-bold">
+                              <div className="flex h-8 w-8 flex-none items-center justify-center rounded-full bg-accent-soft text-[11px] font-bold text-accent">
+                                {initials(`${row.first_name} ${row.last_name}`)}
+                              </div>
+                              <span className="min-w-0 wrap-break-word">
+                                {row.first_name} {row.last_name}
+                              </span>
+                              {tag && (
+                                <Chip tone={tag === "member" ? "accent" : "neutral"}>
+                                  {tag}
+                                </Chip>
+                              )}
+                            </div>
+                            {/* Long addresses wrap on mobile rather than truncate --
+                                a stacked card has the room, and a clipped email is
+                                useless to an officer. */}
+                            <div className="text-[13px] font-medium break-all text-ink-strong md:truncate md:break-normal">
+                              {row.email}
+                            </div>
+                            <div className="font-medium text-ink-strong">
+                              {row.grad_year ? `Class of ${row.grad_year}` : "—"}
+                            </div>
+                            <div className="text-[13px] font-medium text-ink-strong">
+                              <span className="text-ink-faint md:hidden">
+                                Checked in:{" "}
+                              </span>
+                              {new Date(row.checked_in_at).toLocaleString()}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </>
+                  ) : selectedOpen ? (
+                    <EmptyState className="m-4" title="No one yet, share the QR code">
+                      New check-ins will appear here as they happen.
+                    </EmptyState>
+                  ) : null}
+                  {(selectedCheckIns?.length ?? 0) <
+                    (checkInsTotal[selectedMeeting.id] ?? 0) && (
+                    <div className="border-t border-line-soft p-4 text-center">
+                      <button
+                        onClick={loadMoreCheckIns}
+                        disabled={checkInsLoadingMore}
+                        className="cursor-pointer rounded-control border border-line bg-surface px-4 py-2 text-[13px] font-bold text-ink-strong hover:bg-surface-sunken disabled:opacity-50"
+                      >
+                        {checkInsLoadingMore ? "Loading…" : "Load more"}
+                      </button>
                     </div>
                   )}
-                  {selectedMeeting &&
-                    computeHasMore(
-                      checkInsPage[selectedMeeting.id] ?? 1,
-                      ATTENDANCE_PAGE_SIZE,
-                      checkInsTotal[selectedMeeting.id] ?? 0,
-                    ) && (
-                      <div className="border-t border-line-soft p-4 text-center">
-                        <button
-                          onClick={loadMoreCheckIns}
-                          disabled={checkInsLoadingMore}
-                          className="cursor-pointer rounded-control border border-line bg-white px-4 py-2 text-[13px] font-bold text-ink-strong hover:bg-canvas disabled:opacity-50"
-                        >
-                          {checkInsLoadingMore ? "Loading…" : "Load more"}
-                        </button>
-                      </div>
-                    )}
-                </div>
+                </Card>
               ) : (
                 <div className="rounded-card border border-line bg-white p-10 text-center text-sm text-ink-muted">
                   No meetings yet.

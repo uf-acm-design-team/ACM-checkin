@@ -7,6 +7,7 @@ import { createClient } from "../../utils/supabase/client";
 import { memberCheckIn, resolveAndUpdateMembershipStatus } from "./actions";
 import { guestCheckIn } from "./guest-actions";
 import { verifyGeoLock, type GeoFailure } from "./geolock";
+import { DEFAULT_RADIUS_METERS, type Coordinates, type GeofenceFailure } from "@/lib/geo";
 import { membershipThreshold } from "@/lib/membership";
 import { isWithinMeetingWindow } from "@/lib/meeting-time";
 import { cn } from "@/lib/utils";
@@ -362,19 +363,21 @@ export default function CheckinPage({
   }, [isLoaded, load]);
 
   /**
-   * Run the geolock. Returns true when the attendee may proceed; otherwise it
-   * has already routed to the screen that explains what to do about it.
+   * Run the geolock. Returns the attendee's fix (null when the meeting isn't
+   * geo-locked) when they may proceed, to forward to the server action, which
+   * repeats the check. Returns false when they may not; it has then already
+   * routed to the screen that explains what to do about it.
    */
-  const passesLocation = async (): Promise<boolean> => {
+  const passesLocation = async (): Promise<{ location: Coordinates | null } | false> => {
     if (
       !activeMeeting?.is_geo_locked ||
       activeMeeting.latitude == null ||
       activeMeeting.longitude == null
     ) {
-      return true;
+      return { location: null };
     }
 
-    const radius = activeMeeting.radius_meters || 200;
+    const radius = activeMeeting.radius_meters || DEFAULT_RADIUS_METERS;
 
     // Explain before the browser's permission sheet appears.
     if (!locationExplained.current) {
@@ -391,7 +394,7 @@ export default function CheckinPage({
     );
     setLocating(false);
 
-    if (result.allowed) return true;
+    if (result.allowed) return { location: result.location };
 
     const f: GeoFailure = result.failure;
     if (f.kind === "denied") setView({ kind: "location_denied" });
@@ -405,6 +408,18 @@ export default function CheckinPage({
       });
     else setCheckInError(f.message);
     return false;
+  };
+
+  /**
+   * Route a server-side geolock rejection. Normally the client check above has
+   * already caught it; this covers the two disagreeing (e.g. an officer moved
+   * the pin or turned geolock on after this page loaded). Returns true when
+   * it handled the failure.
+   */
+  const handleServerGeo = (geo: GeofenceFailure | undefined): boolean => {
+    if (geo?.kind !== "too_far") return false;
+    setView({ kind: "too_far", metresAway: geo.metresAway, radius: geo.radius });
+    return true;
   };
 
   const succeed = async (attendeeId: string | null) => {
@@ -445,7 +460,8 @@ export default function CheckinPage({
 
     const validated = validateForm();
     if (!validated) return;
-    if (!(await passesLocation())) return;
+    const gate = await passesLocation();
+    if (!gate) return;
 
     setCheckingIn(true);
     setCheckInError(null);
@@ -458,9 +474,11 @@ export default function CheckinPage({
         // Named explicitly so the server records the meeting the attendee
         // actually chose, rather than re-deriving "the earliest open one".
         meetingId: activeMeeting?.id,
+        location: gate.location,
       });
 
       if (!result.ok) {
+        if (handleServerGeo(result.geo)) return;
         if (/password/i.test(result.error)) {
           setPasswordAttempts((n) => n + 1);
           setPasswordError(result.error);
@@ -489,7 +507,8 @@ export default function CheckinPage({
   const submitGuest = async (withProfile: boolean) => {
     const validated = validateForm();
     if (!validated) return;
-    if (!(await passesLocation())) return;
+    const gate = await passesLocation();
+    if (!gate) return;
 
     setCheckInError(null);
     setPasswordError(null);
@@ -501,6 +520,7 @@ export default function CheckinPage({
         answers: validated,
         password: checkinPassword,
         meetingId: activeMeeting?.id,
+        location: gate.location,
         ...(withProfile ? { firstName, lastName, gradYear } : {}),
       });
 
@@ -508,6 +528,7 @@ export default function CheckinPage({
         await succeed(null);
         return;
       }
+      if (handleServerGeo(result.geo)) return;
       if (result.error === "NEEDS_PROFILE") {
         setStep("profile");
         return;
@@ -645,7 +666,7 @@ export default function CheckinPage({
       <LocationCheckingState />
     ) : (
       <LocationAskState
-        radius={activeMeeting?.radius_meters || 200}
+        radius={activeMeeting?.radius_meters || DEFAULT_RADIUS_METERS}
         where={activeMeeting?.description ?? undefined}
         onShare={retry}
         busy={busy}
