@@ -525,16 +525,15 @@ export default function CheckinPage({
       });
 
       if (result.ok) {
-        await succeed(null);
+        // A repeat scan comes back ok with alreadyCheckedIn set (the 23505
+        // path), not as an error -- route it to the same screen members get.
+        if (result.alreadyCheckedIn) setView({ kind: "already" });
+        else await succeed(null);
         return;
       }
       if (handleServerGeo(result.geo)) return;
       if (result.error === "NEEDS_PROFILE") {
         setStep("profile");
-        return;
-      }
-      if (/already checked in/i.test(result.error)) {
-        setView({ kind: "already" });
         return;
       }
       if (/password/i.test(result.error)) {
@@ -573,7 +572,10 @@ export default function CheckinPage({
       <NetworkErrorState
         detail={view.detail}
         reference={view.ref}
-        onRetry={organization ? retry : () => window.location.reload()}
+        // retry() re-submits the form, so it needs a meeting to submit against.
+        // A failure while loading (including the 6s timeout, which can fire
+        // after the org resolved but before meetings did) has none: reload.
+        onRetry={activeMeeting ? retry : () => window.location.reload()}
         busy={busy}
       />
     );
@@ -653,8 +655,9 @@ export default function CheckinPage({
   if (view.kind === "already")
     return (
       <AlreadyCheckedInState
+        // No `at`: the original check-in time isn't returned, and "now" would
+        // tell them they were logged at a time they weren't.
         meetingTitle={activeMeeting?.title ?? "this meeting"}
-        at={fmtTime(new Date().toISOString())}
         onStats={user ? () => router.push(`/${orgSlug}/stats`) : undefined}
       />
     );
@@ -700,8 +703,10 @@ export default function CheckinPage({
       badge={<Chip>Conditional</Chip>}
       error={
         passwordError
-          ? `That's not the password for this meeting. It's on the slide at the front of the room — case doesn't matter.${
-              passwordAttempts > 1 ? ` Attempt ${passwordAttempts} of 5.` : ""
+          ? // Both server checks compare exactly, so don't promise otherwise,
+            // and there is no attempt cap to count down to.
+            `That's not the password for this meeting. It's on the slide at the front of the room — check capital letters.${
+              passwordAttempts > 1 ? ` Attempt ${passwordAttempts}.` : ""
             }`
           : null
       }
