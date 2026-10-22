@@ -7,14 +7,14 @@ import { type Coordinates, parseCoordinates } from "../../../lib/geo.ts";
 // Reports every problem at once, keyed by field, so a caller fixing their
 // request sees the whole list in one round trip.
 
-/** What the check-in logic receives: the same inputs memberCheckIn() takes. */
+// What the check-in logic receives: the same inputs memberCheckIn() takes
 export type ParsedCheckIn = {
   orgSlug: string;
   meetingId?: string;
   password?: string;
-  /** Untouched: validateAnswers() parses it against the meeting's form. */
+  // validateAnswers() in lib/form-schema.ts parses it against the meeting's form.
   answers: unknown;
-  /** null when no location was sent. */
+  // null when no location was sent.
   location: Coordinates | null;
 };
 
@@ -35,7 +35,7 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-/** What the caller actually sent, for "expected X, got Y" messages. */
+// What the caller actually sent, for "expected X, got Y" messages.
 function describe(value: unknown): string {
   if (value === null) return "null";
   if (Array.isArray(value)) return "an array";
@@ -103,6 +103,7 @@ export function parseCheckInRequest(body: unknown): ParseResult {
     }
   }
 
+  // return errors if we encountered any
   if (Object.keys(errors).length > 0) {
     return { ok: false, fieldErrors: errors };
   }
