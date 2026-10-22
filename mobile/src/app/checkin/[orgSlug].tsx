@@ -10,7 +10,7 @@ import {
   CheckInNetworkError,
   getOrgBySlug,
   useSupabase,
-  type MemberCheckInResponse,
+  type MemberCheckInResult,
   type Organization,
 } from '@/lib/supabase';
 import { colors, radii, space } from '@/theme';
@@ -25,7 +25,7 @@ type CheckInState =
   | { status: 'idle' }
   | { status: 'sending' }
   | { status: 'network-error'; message: string }
-  | { status: 'answered'; response: MemberCheckInResponse };
+  | { status: 'answered'; result: MemberCheckInResult };
 
 /**
  * Where a valid scan lands: check-in for the scanned org. Shows the org's
@@ -69,8 +69,8 @@ export default function OrgCheckInScreen() {
     if (!supabase || !orgSlug) return;
     setCheckIn({ status: 'sending' });
     try {
-      const response = await callMemberCheckIn(supabase, { orgSlug, answers: {} });
-      setCheckIn({ status: 'answered', response });
+      const result = await callMemberCheckIn(supabase, { orgSlug, answers: {} });
+      setCheckIn({ status: 'answered', result });
     } catch (error) {
       setCheckIn({
         status: 'network-error',
@@ -140,7 +140,7 @@ export default function OrgCheckInScreen() {
           </View>
         ) : null}
 
-        {checkIn.status === 'answered' ? <CheckInReply response={checkIn.response} /> : null}
+        {checkIn.status === 'answered' ? <CheckInReply result={checkIn.result} /> : null}
 
         {scanAgain}
       </ScrollView>
@@ -148,30 +148,58 @@ export default function OrgCheckInScreen() {
   );
 }
 
+type Tone = 'good' | 'warn' | 'bad';
+
+/** Title and tone for each reply. Branches on the contract's stable `code`, never on `error` wording. */
+function describeReply({ reply }: MemberCheckInResult): { title: string; tone: Tone } {
+  if (!reply) return { title: 'Check-in service unavailable', tone: 'bad' };
+  if (reply.ok) {
+    return reply.alreadyCheckedIn
+      ? { title: 'You’re already checked in', tone: 'good' }
+      : { title: 'Checked in', tone: 'good' };
+  }
+  switch (reply.code) {
+    case 'not_implemented':
+      return { title: 'Check-in isn’t available yet', tone: 'warn' };
+    case 'unauthenticated':
+      return { title: 'Please sign in again', tone: 'bad' };
+    case 'no_profile':
+      return { title: 'Finish your profile first', tone: 'bad' };
+    case 'wrong_password':
+      return { title: 'Wrong meeting password', tone: 'bad' };
+    case 'outside_geofence':
+      return { title: 'You’re not at the meeting', tone: 'bad' };
+    case 'no_active_meeting':
+    case 'meeting_closed':
+      return { title: 'No meeting is open right now', tone: 'warn' };
+    case 'org_not_found':
+      return { title: 'We couldn’t find this club', tone: 'bad' };
+    default:
+      return { title: 'Check-in failed', tone: 'bad' };
+  }
+}
+
 /** Shows exactly what the server said, so the scan → server path is visible end to end. */
-function CheckInReply({ response }: { response: MemberCheckInResponse }) {
-  const notImplemented = response.status === 501;
-  const signedOut = response.status === 401;
-
-  const title = response.ok
-    ? 'Checked in'
-    : notImplemented
-      ? 'Check-in isn’t available yet'
-      : signedOut
-        ? 'Please sign in again'
-        : 'Check-in failed';
-
-  const tone = response.ok ? styles.goodPanel : notImplemented ? styles.warnPanel : styles.badPanel;
+function CheckInReply({ result }: { result: MemberCheckInResult }) {
+  const { title, tone } = describeReply(result);
+  const { reply } = result;
+  const message = reply && !reply.ok ? reply.error : null;
+  const toneStyles = { good: styles.goodPanel, warn: styles.warnPanel, bad: styles.badPanel };
 
   return (
-    <View accessibilityRole="alert" style={[styles.panel, tone]}>
+    <View accessibilityRole="alert" style={[styles.panel, toneStyles[tone]]}>
       <Text style={styles.panelTitle}>{title}</Text>
       <Text style={styles.muted}>
-        Server replied {response.status}
-        {response.error ? `: “${response.error}”` : ''}
+        Server replied {result.status}
+        {message ? `: “${message}”` : ''}
       </Text>
-      {notImplemented ? (
+      {reply && !reply.ok && reply.code === 'not_implemented' ? (
         <Text style={styles.muted}>The app reached the check-in service. Checking in arrives next sprint.</Text>
+      ) : null}
+      {!reply && result.status === 404 && __DEV__ ? (
+        <Text style={styles.muted}>
+          The member-check-in function isn’t running. Start it with `npm run dev:functions` in the repo root.
+        </Text>
       ) : null}
     </View>
   );

@@ -75,30 +75,52 @@ describe('calling member-check-in', () => {
     mockGetOrgBySlug.mockResolvedValue(acm);
   });
 
-  it("calls the endpoint for the org and shows the stub's reply", async () => {
-    mockCallMemberCheckIn.mockResolvedValue({
-      status: 501,
-      ok: false,
-      error: 'not implemented',
-      body: { ok: false, error: 'not implemented' },
-    });
+  async function pressCheckInWith(result: unknown) {
+    mockCallMemberCheckIn.mockResolvedValue(result);
     await render(<OrgCheckInScreen />);
     await waitFor(() => expect(screen.getByText('ACM')).toBeTruthy());
-
     await fireEvent.press(screen.getByText('Check in'));
+  }
+
+  it("calls the endpoint for the org and shows the stub's not_implemented reply", async () => {
+    await pressCheckInWith({
+      status: 501,
+      reply: { ok: false, code: 'not_implemented', error: 'not implemented' },
+    });
 
     await waitFor(() => expect(screen.getByText('Check-in isn’t available yet')).toBeTruthy());
     expect(screen.getByText('Server replied 501: “not implemented”')).toBeTruthy();
     expect(mockCallMemberCheckIn).toHaveBeenCalledWith(mockSupabase, { orgSlug: 'acm', answers: {} });
   });
 
-  it('asks the user to sign in again on a 401', async () => {
-    mockCallMemberCheckIn.mockResolvedValue({ status: 401, ok: false, error: 'You must be signed in.', body: {} });
-    await render(<OrgCheckInScreen />);
-    await waitFor(() => expect(screen.getByText('ACM')).toBeTruthy());
-
-    await fireEvent.press(screen.getByText('Check in'));
+  it('asks the user to sign in again when unauthenticated', async () => {
+    await pressCheckInWith({
+      status: 401,
+      reply: { ok: false, code: 'unauthenticated', error: 'You need to be signed in.' },
+    });
     await waitFor(() => expect(screen.getByText('Please sign in again')).toBeTruthy());
+  });
+
+  // Several codes share a status (403 = no_profile, wrong_password, outside_geofence),
+  // so the screen must branch on `code`, not the number.
+  it.each([
+    ['no_profile', 'Finish your profile first'],
+    ['wrong_password', 'Wrong meeting password'],
+    ['outside_geofence', 'You’re not at the meeting'],
+  ])('tells apart 403 %s', async (code, title) => {
+    await pressCheckInWith({ status: 403, reply: { ok: false, code, error: 'Not allowed.' } });
+    await waitFor(() => expect(screen.getByText(title)).toBeTruthy());
+  });
+
+  it('shows success, including already-checked-in', async () => {
+    await pressCheckInWith({ status: 200, reply: { ok: true, meetingId: 'm1', alreadyCheckedIn: true } });
+    await waitFor(() => expect(screen.getByText('You’re already checked in')).toBeTruthy());
+  });
+
+  it('explains when the function itself is not running', async () => {
+    await pressCheckInWith({ status: 404, reply: null });
+    await waitFor(() => expect(screen.getByText('Check-in service unavailable')).toBeTruthy());
+    expect(screen.getByText(/npm run dev:functions/)).toBeTruthy();
   });
 
   it('shows a network error when the server is unreachable', async () => {
