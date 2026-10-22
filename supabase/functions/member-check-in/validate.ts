@@ -68,8 +68,11 @@ export function parseCheckInRequest(body: unknown): ParseResult {
     errors.orgSlug = `Must be 1-${MAX_SLUG_LENGTH} characters.`;
   }
 
-  // meetingId: optional uuid. Checked here so a malformed id is a 400, not a
-  // Postgres "invalid input syntax for type uuid" 500 later.
+  // meetingId: optional uuid. 
+  // Lowercase checked here so a malformed id is a 400, not a
+  // Postgres "invalid input syntax for type uuid" 500 later. Lowercased because
+  // Postgres returns uuids lowercase and the meeting is picked by string match as of right now (I may change
+  // to a Supabase time-window meeting match in the future).
   let meetingId: string | undefined;
   if (body.meetingId != null) {
     if (typeof body.meetingId !== "string") {
@@ -77,7 +80,7 @@ export function parseCheckInRequest(body: unknown): ParseResult {
     } else if (!UUID.test(body.meetingId)) {
       errors.meetingId = "Expected a meeting UUID.";
     } else {
-      meetingId = body.meetingId;
+      meetingId = body.meetingId.toLowerCase();
     }
   }
 
