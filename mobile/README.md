@@ -123,13 +123,55 @@ npx expo start
 
 > **Windows:** the first time, Windows asks whether to let **Node.js** through the firewall. Click **Allow** (tick both Private and Public networks), or your phone can't connect.
 
-**If your phone can't connect** (some networks block devices from talking to each other), use the tunnel instead. It goes through the internet and works on any network:
+**If your phone can't connect**, try these in order:
+
+1. **Fresh start.** Fully close Expo Go, delete the old entries under **Recently opened**, and scan the QR code that's in your terminal *now*. Old entries often point at a server that no longer exists.
+2. **Your phone's hotspot.** Connect the laptop to your phone's Personal Hotspot and run `npx expo start` again. Nothing to install, and the database works too.
+3. **Tunnels** (below). These work on any network, including ones that block devices from talking to each other (some guest, apartment and hotel Wi-Fi).
+
+> **Windows PowerShell:** if `npx` or `npm` says *"running scripts is disabled on this system"*, use `npx.cmd` / `npm.cmd`, or run the commands in Command Prompt.
+
+#### Tunnel mode: app *and* database over the internet
+
+`npx expo start --tunnel` only tunnels the **app server** (port 8081), not the **database** (port 54321). On its own, the app loads but every database call fails with *"Network request failed"* (e.g. *"Couldn't load your orgs"*), because `127.0.0.1` on a phone means the phone itself. Give the database its own tunnel with Cloudflare's free `cloudflared`. Edge functions (onboarding, check-in) go through the same tunnel.
+
+**One-time setup** (Windows, then open a **new** terminal):
 
 ```bash
-npx expo start --tunnel
+winget install --id Cloudflare.cloudflared
 ```
 
-> In tunnel mode only the app goes through the tunnel, **not the database**. Sign-in still works (the "do you have a profile?" check gives up after 5 seconds and lets you in), but to test **onboarding** for a new account, use the normal `npx expo start`.
+On a Mac: `brew install cloudflared`.
+
+**Each time** (four terminals, keep them open):
+
+1. **Database** (main folder): `npx supabase start`
+2. **Database tunnel** (main folder):
+
+   ```bash
+   cloudflared tunnel --url http://localhost:54321
+   ```
+
+   It prints an address like `https://random-words-1234.trycloudflare.com` inside a box of log lines. Can't spot it? Open http://127.0.0.1:20241/quicktunnel on the laptop: it shows `{"hostname": "…"}`.
+3. **Point the app at it.** In `mobile/.env.local`, set:
+
+   ```
+   EXPO_PUBLIC_SUPABASE_URL=https://random-words-1234.trycloudflare.com
+   ```
+
+4. **Edge functions** (main folder, for onboarding and check-in): `npm run dev:functions`
+5. **App** (`mobile` folder). `--clear` is required so the app picks up the new address:
+
+   ```bash
+   npx expo start --tunnel --clear
+   ```
+
+**Good to know:**
+
+- **The address changes every time** you start `cloudflared`. Update `.env.local` and restart with `--clear` each time.
+- **While it runs, your local database API is reachable from the internet** by anyone with that address. Logins and RLS still apply, and it's only local test data, but stop `cloudflared` when you're done.
+- **When you're done, set `mobile/.env.local` back** to `EXPO_PUBLIC_SUPABASE_URL=http://127.0.0.1:54321`, or the next normal `npx expo start` will try a tunnel that no longer exists.
+- Free quick tunnels can be slow or drop. If requests start failing, restart `cloudflared` and repeat steps 3 and 5.
 
 ### Step 3: Open it on your phone
 
@@ -259,10 +301,11 @@ Find the message you're seeing:
 | **"Could not connect"** right away, no % | The server isn't running (Part B, Step 2), or you tapped the "Development servers" list instead of scanning the QR code. |
 | **"Could not connect"** keeps happening even though the server is running | The tunnel has gone stale (common after it's been running for hours). Stop the server (Ctrl + C), start it again, delete the old entries under **Recently opened** in Expo Go, and scan the **new** QR code. The address may change (e.g. `-8081` → `-8082`). |
 | iPhone: **"You're signed in to Expo CLI as … and to Expo Go as …"** | The phone and the computer running the server use different Expo accounts. Run the server on your own laptop with your own account (see the iPhone rule in Part A, Step 3). |
-| **Onboarding:** "Couldn't reach the server" when tapping Continue | The phone can't reach your laptop's database. Use `npx expo start` (not `--tunnel`), keep phone and laptop on the same Wi-Fi, and make sure `npx supabase start` and `npm run dev:functions` are running. |
+| **Onboarding:** "Couldn't reach the server" when tapping Continue | The phone can't reach your laptop's database. Use `npx expo start` on the same Wi-Fi (or your hotspot), or in tunnel mode give the database its own tunnel (Part B, Step 2, *Tunnel mode*). Make sure `npx supabase start` and `npm run dev:functions` are running. |
 | Expo Go says the project is **incompatible** / wrong SDK | Update Expo Go from the App Store or Google Play. This app needs SDK 57. |
-| **"Network request failed"** when the app loads data | Make sure `npx supabase start` is running and you started the app with `npx expo start` (not `--tunnel`). Leave `EXPO_PUBLIC_SUPABASE_URL` as `http://127.0.0.1:54321` (Part A, Step 7). |
+| **"Network request failed"** / **"Couldn't load your orgs"** | The app can't reach the database. Most often: you started with `--tunnel`, which doesn't carry the database. Use `npx expo start` on the same Wi-Fi, or set up the database tunnel (Part B, Step 2, *Tunnel mode*). Also check `npx supabase start` is running. |
 | `npx supabase start` fails on Windows with an error about **vector** or **analytics** | Run `npx supabase start -x vector,logflare` instead. It skips the logging services, which don't work on Windows. |
+| Tunnel mode stopped working after a while, or after restarting `cloudflared` | The database tunnel's address changed. Copy the new one into `EXPO_PUBLIC_SUPABASE_URL` in `mobile/.env.local` and restart with `npx expo start --tunnel --clear`. |
 | You changed `.env.local` but nothing changed | Restart with `npx expo start -c`. Settings are only read at startup. |
 
 Still stuck? Ask in the team channel and include a screenshot of the error.
