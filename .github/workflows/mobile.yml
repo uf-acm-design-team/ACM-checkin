@@ -4,8 +4,10 @@ name: Mobile CI
 # Besides mobile/, these web files are included because mobile depends on them:
 # - app/globals.css: the theme test checks mobile tokens against it
 # - lib/checkin-link.ts: the QR parser test round-trips web's link builder
-# - supabase/functions/member-check-in/contract.ts (+ the lib/ types it uses):
-#   the check-in screen is typed against it
+# - supabase/functions/member-check-in/contract.ts (+ the lib/ and _shared/
+#   types it uses): the check-in screen is typed against it. #61 moves
+#   lib/form-schema.ts into supabase/functions/_shared/; drop the lib/ entry
+#   once that has merged.
 on:
   pull_request:
     paths:
@@ -15,6 +17,7 @@ on:
       - "lib/form-schema.ts"
       - "lib/geo.ts"
       - "supabase/functions/member-check-in/contract.ts"
+      - "supabase/functions/_shared/**"
       - ".github/workflows/mobile.yml"
   push:
     branches: [main]
@@ -25,6 +28,7 @@ on:
       - "lib/form-schema.ts"
       - "lib/geo.ts"
       - "supabase/functions/member-check-in/contract.ts"
+      - "supabase/functions/_shared/**"
       - ".github/workflows/mobile.yml"
 
 concurrency:
