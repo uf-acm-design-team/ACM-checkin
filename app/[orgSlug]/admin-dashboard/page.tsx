@@ -2,7 +2,7 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
 import { createClient } from "../../utils/supabase/client";
 import { useBranding } from "@/app/components/BrandingProvider";
@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/primitives";
 import BrandingTab from "./branding-tab";
 import QRCodeTab from "./qr-code-tab";
-import AnalyticsTab from "./analytics-tab";
+import AnalyticsTab, { clearAnalyticsParams } from "./analytics-tab";
 import {
   parseAnswers,
   parseSchema,
@@ -181,12 +181,16 @@ export default function AdminDashboard({
   const { user, isLoaded } = useUser();
   const branding = useBranding();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const supabase = createClient();
 
   const [organization, setOrganization] = useState<Organization | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<TabKey>("overview");
+  // Only Analytics is deep-linkable (?tab=analytics).
+  const [activeTab, setActiveTab] = useState<TabKey>(() =>
+    searchParams.get("tab") === "analytics" ? "analytics" : "overview",
+  );
   // Mobile only: the sidebar collapses to an off-canvas drawer below lg.
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
@@ -858,12 +862,14 @@ export default function AdminDashboard({
   );
 
   // If the active tab is no longer visible (admin flag resolved to false after
-  // the tab was already selected), fall back to overview.
+  // the tab was already selected), fall back to overview. Waits for the role
+  // to load so a ?tab=analytics deep link isn't reset before access resolves.
   useEffect(() => {
+    if (loading) return;
     if (!visibleTabs.some((t) => t.key === activeTab)) {
       setActiveTab("overview");
     }
-  }, [visibleTabs, activeTab]);
+  }, [loading, visibleTabs, activeTab]);
 
   // While the mobile drawer is open, freeze the page behind it and let Escape
   // dismiss it -- otherwise the content scrolls under the overlay and the only
@@ -986,6 +992,7 @@ export default function AdminDashboard({
             <button
               key={tab.key}
               onClick={() => {
+                if (tab.key !== "analytics") clearAnalyticsParams();
                 setActiveTab(tab.key);
                 setSidebarOpen(false);
               }}
