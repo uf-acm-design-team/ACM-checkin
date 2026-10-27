@@ -31,3 +31,15 @@ Two related behaviours to keep in mind:
 - A geo-locked meeting with no pin (`latitude`/`longitude` NULL) is not
   enforced on either side, because there's nothing to measure against.
 - The reported `accuracy` is passed along but does not widen the radius.
+
+## Development-only demo routes
+
+The following routes are for local development and visual testing:
+
+- `/analytics-design-demo`
+- `/chart-demo`
+- `/attendance-chart-demo`
+
+These demo routes must not be accessible in production. Use `notFound()` from `next/navigation` to return a 404 outside development.
+
+The attendance chart demo is used to preview attendance analytics and test date ranges.

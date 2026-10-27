@@ -20,6 +20,7 @@ const isPublicRoute = createRouteMatcher([
 const isOnboardingExempt = createRouteMatcher([
   "/",
   "/onboarding(.*)",
+  "/api/analytics/attendance",
   "/sign-in(.*)",
   "/sign-up(.*)",
   "/(.*)/checkin",
@@ -90,18 +91,7 @@ export default clerkMiddleware(async (auth, request) => {
 
 export const config = {
   matcher: [
-    /*
-     * Match all request paths except for the ones starting with:
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     * - api routes (these handle auth separately)
-     * Feel free to modify this pattern to include more paths.
-     *
-     * An empty matcher array means this proxy never runs, so auth.protect()
-     * above is dead code and every route is publicly reachable. Keep at least
-     * one pattern here.
-     */
     "/((?!_next/static|_next/image|favicon.ico|api|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    "/api/analytics/attendance",
   ],
 };

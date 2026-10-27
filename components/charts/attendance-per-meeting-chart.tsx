@@ -1,6 +1,7 @@
 
 "use client";
 
+import { useEffect, useState } from "react";
 import {
   CartesianGrid,
   Line,
@@ -23,19 +24,22 @@ export type AttendanceByMeeting = {
   guests: number;
 };
 
-export type AttendanceDateRange = {
+// Temporary copy of Lethenial's shared types.
+// Import from lib/analytics-range.ts once his PR merges.
+export type AnalyticsRange = {
+  preset: "30d" | "90d" | "custom";
   from: string;
   to: string;
+  start: string;
+  end: string;
+};
+
+export type AnalyticsChartProps = {
+  orgId: string;
+  range: AnalyticsRange;
 };
 
 type ChartState = "normal" | "loading" | "empty" | "error";
-
-type AttendancePerMeetingChartProps = {
-  data: AttendanceByMeeting[];
-  dateRange: AttendanceDateRange;
-  state?: ChartState;
-  errorMessage?: string;
-};
 
 function formatMeetingDate(value: string) {
   const date = new Date(value);
@@ -52,44 +56,94 @@ function formatMeetingDate(value: string) {
 }
 
 export function AttendancePerMeetingChart({
-  data,
-  dateRange,
-  state = "normal",
-  errorMessage,
-}: AttendancePerMeetingChartProps) {
-  const fromTime = new Date(dateRange.from).getTime();
-  const toTime = new Date(dateRange.to).getTime();
+  orgId,
+  range,
+}: AnalyticsChartProps) {
+  const [data, setData] = useState<AttendanceByMeeting[]>([]);
+  const [state, setState] = useState<ChartState>("loading");
+  const [errorMessage, setErrorMessage] = useState("");
 
-  const filteredData = data
-    .filter((meeting) => {
-      const meetingTime = new Date(meeting.start_time).getTime();
+  useEffect(() => {
+    const controller = new AbortController();
 
-      return (
-        meetingTime >= fromTime &&
-        meetingTime <= toTime
-      );
-    })
+    async function loadAttendance() {
+      setState("loading");
+      setErrorMessage("");
+      setData([]);
+
+      try {
+        const params = new URLSearchParams({
+          orgId,
+          start: range.start,
+          end: range.end,
+        });
+
+        const response = await fetch(
+          `/api/analytics/attendance?${params.toString()}`,
+          {
+            signal: controller.signal,
+            cache: "no-store",
+          },
+        );
+
+        const result: unknown = await response.json();
+
+        if (!response.ok) {
+          const message =
+            typeof result === "object" &&
+            result !== null &&
+            "error" in result &&
+            typeof result.error === "string"
+              ? result.error
+              : "Unable to load attendance data.";
+
+          throw new Error(message);
+        }
+
+        if (!Array.isArray(result)) {
+          throw new Error("Invalid attendance response.");
+        }
+
+        if (controller.signal.aborted) return;
+
+        const attendance = result as AttendanceByMeeting[];
+
+        setData(attendance);
+        setState(attendance.length === 0 ? "empty" : "normal");
+      } catch (error) {
+        if (controller.signal.aborted) return;
+
+        setData([]);
+        setErrorMessage(
+          error instanceof Error
+            ? error.message
+            : "Unable to load attendance data.",
+        );
+        setState("error");
+      }
+    }
+
+    void loadAttendance();
+
+    return () => controller.abort();
+  }, [orgId, range.start, range.end]);
+
+  const chartData = [...data]
     .sort(
       (a, b) =>
         new Date(a.start_time).getTime() -
-        new Date(b.start_time).getTime()
-    );
-
-  const chartState: ChartState =
-    state === "normal" && filteredData.length === 0
-      ? "empty"
-      : state;
-
-  const chartData = filteredData.map((meeting) => ({
-    ...meeting,
-    meetingDate: formatMeetingDate(meeting.start_time),
-  }));
+        new Date(b.start_time).getTime(),
+    )
+    .map((meeting) => ({
+      ...meeting,
+      meetingDate: formatMeetingDate(meeting.start_time),
+    }));
 
   return (
     <ChartCard
       title="Attendance per Meeting"
       subtitle="How is meeting attendance changing over time?"
-      state={chartState}
+      state={state}
       errorMessage={errorMessage}
     >
       <div className="h-64 w-full">
@@ -122,9 +176,7 @@ export function AttendancePerMeetingChart({
 
             <Tooltip
               content={({ active, payload }) => {
-                if (!active || !payload?.length) {
-                  return null;
-                }
+                if (!active || !payload?.length) return null;
 
                 const meeting = payload[0]
                   .payload as AttendanceByMeeting & {

@@ -2,13 +2,9 @@
 import { redirect } from "next/navigation";
 import { auth } from "@clerk/nextjs/server";
 
-import {
-  AttendancePerMeetingChart,
-  type AttendanceByMeeting,
-  type AttendanceDateRange,
-} from "@/components/charts/attendance-per-meeting-chart";
-
-import { getAttendanceChartData } from "@/lib/attendance-chart-data";
+import { AttendancePerMeetingChart } from "@/components/charts/attendance-per-meeting-chart";
+import type { AnalyticsRange } from "@/components/charts/attendance-per-meeting-chart";
+import { createServiceSupabaseClient } from "@/app/utils/supabase/server";
 
 export const dynamic = "force-dynamic";
 
@@ -22,22 +18,35 @@ export default async function AnalyticsPage({
 
   if (!userId) redirect("/");
 
-  const dateRange: AttendanceDateRange = {
-    from: "2026-09-01T00:00:00Z",
-    to: "2026-11-01T00:00:00Z",
-  };
+  const supabase = createServiceSupabaseClient();
 
-  let data: AttendanceByMeeting[] = [];
-  let errorMessage: string | undefined;
+  const { data: organization, error } = await supabase
+    .from("organizations")
+    .select("id")
+    .eq("slug", orgSlug)
+    .single();
 
-  try {
-    data = await getAttendanceChartData(orgSlug, dateRange);
-  } catch (error) {
-    errorMessage =
-      error instanceof Error
-        ? error.message
-        : "Unable to retrieve attendance data.";
+  if (error || !organization) {
+    return (
+      <main className="min-h-screen bg-background p-8">
+        <p className="text-ink">
+          Organization not found.
+        </p>
+      </main>
+    );
   }
+
+  const now = new Date();
+  const start = new Date(now);
+  start.setUTCDate(start.getUTCDate() - 30);
+
+  const range: AnalyticsRange = {
+    preset: "30d",
+    from: start.toISOString().slice(0, 10),
+    to: now.toISOString().slice(0, 10),
+    start: start.toISOString(),
+    end: now.toISOString(),
+  };
 
   return (
     <main className="min-h-screen bg-background p-8">
@@ -47,10 +56,8 @@ export default async function AnalyticsPage({
         </h1>
 
         <AttendancePerMeetingChart
-          data={data}
-          dateRange={dateRange}
-          state={errorMessage ? "error" : "normal"}
-          errorMessage={errorMessage}
+          orgId={organization.id}
+          range={range}
         />
       </div>
     </main>
