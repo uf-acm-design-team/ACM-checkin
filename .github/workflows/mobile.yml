@@ -1,0 +1,48 @@
+name: Mobile CI
+
+# Lint, typecheck and test the Expo app on every PR that could affect it.
+# app/globals.css is included because the mobile theme test checks the tokens
+# against it -- a web token change must not silently drift from mobile.
+on:
+  pull_request:
+    paths:
+      - "mobile/**"
+      - "app/globals.css"
+      - ".github/workflows/mobile.yml"
+  push:
+    branches: [main]
+    paths:
+      - "mobile/**"
+      - "app/globals.css"
+      - ".github/workflows/mobile.yml"
+
+concurrency:
+  group: mobile-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Lint, typecheck, test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+
+      - run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test -- --ci
