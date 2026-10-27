@@ -176,12 +176,39 @@ describe("answers", () => {
 });
 
 describe("latitude / longitude", () => {
-  // TODO(human)
-  it.each([
-    
-  ])
-  
-  ("pairs latitude and longitude", () => {
+  const LOCATION_ERROR = {
+    location: "Send latitude (-90 to 90) and longitude (-180 to 180) together, as numbers.",
+  };
 
+  it.each([
+    ["latitude only", { latitude: 29.6 }],
+    ["longitude only", { longitude: -82.3 }],
+    // 0 is falsy but still "sent": the check is `!= null`, not truthiness.
+    ["latitude 0 only", { latitude: 0 }],
+    ["one of the pair null", { latitude: 29.6, longitude: null }],
+    ["latitude above 90", { latitude: 90.5, longitude: 0 }],
+    ["latitude below -90", { latitude: -91, longitude: 0 }],
+    ["longitude above 180", { latitude: 0, longitude: 180.5 }],
+    ["longitude below -180", { latitude: 0, longitude: -181 }],
+    ["numbers sent as strings", { latitude: "29.6", longitude: "-82.3" }],
+    ["an array instead of a number", { latitude: [29.6], longitude: -82.3 }],
+  ])("rejects %s", (_, coords) => {
+    expect(rejected({ orgSlug: "acm", ...coords })).toEqual(LOCATION_ERROR);
+  });
+
+  it.each([
+    ["neither sent", {}, null],
+    ["both null", { latitude: null, longitude: null }, null],
+    ["a valid pair", { latitude: 29.6481, longitude: -82.3437 }, { latitude: 29.6481, longitude: -82.3437 }],
+    ["0, 0 (falsy but valid)", { latitude: 0, longitude: 0 }, { latitude: 0, longitude: 0 }],
+    ["the upper bounds", { latitude: 90, longitude: 180 }, { latitude: 90, longitude: 180 }],
+    ["the lower bounds", { latitude: -90, longitude: -180 }, { latitude: -90, longitude: -180 }],
+  ])("accepts %s", (_, coords, location) => {
+    expect(accepted({ orgSlug: "acm", ...coords }).location).toEqual(location);
+  });
+
+  it("keeps only latitude and longitude (accuracy is not part of the request)", () => {
+    const { location } = accepted({ orgSlug: "acm", latitude: 1, longitude: 2, accuracy: 5 });
+    expect(location).toEqual({ latitude: 1, longitude: 2 });
   });
 });
