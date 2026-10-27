@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/primitives";
 import BrandingTab from "./branding-tab";
 import QRCodeTab from "./qr-code-tab";
+import AnalyticsTab from "./analytics-tab";
 import {
   parseAnswers,
   parseSchema,
@@ -139,6 +140,7 @@ const TABS = [
   { key: "overview", label: "Overview" },
   { key: "meetings", label: "Meetings" },
   { key: "attendance", label: "Attendance" },
+  { key: "analytics", label: "Analytics" },
   { key: "members", label: "Members" },
   { key: "qr-code", label: "QR Code" },
   { key: "audit-log", label: "Audit Log" },
@@ -838,13 +840,21 @@ export default function AdminDashboard({
   const canManageOrg =
     isGlobalAdmin || membershipRole === "owner" || membershipRole === "co-owner";
 
+  // Analytics mirrors is_org_officer(), which the analytics functions check.
+  const canViewAnalytics =
+    isGlobalAdmin ||
+    ["officer", "co-owner", "owner", "admin"].includes(
+      (membershipRole ?? "").toLowerCase(),
+    );
+
   const visibleTabs = useMemo(
     () =>
       TABS.filter((tab) => {
         if (tab.key === "audit-log" || tab.key === "branding") return canManageOrg;
+        if (tab.key === "analytics") return canViewAnalytics;
         return true;
       }),
-    [canManageOrg]
+    [canManageOrg, canViewAnalytics]
   );
 
   // If the active tab is no longer visible (admin flag resolved to false after
@@ -1512,6 +1522,9 @@ export default function AdminDashboard({
               )}
             </>
           )}
+
+          {/* ANALYTICS */}
+          {activeTab === "analytics" && canViewAnalytics && <AnalyticsTab />}
 
           {/* MEMBERS */}
           {activeTab === "members" && (
