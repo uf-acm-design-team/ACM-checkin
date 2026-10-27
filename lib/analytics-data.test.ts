@@ -15,11 +15,11 @@ describe('getOrgAttendance', () => {
     const rows = [
       {
         meeting_id: 'm1',
-        meeting_title: 'Weekly',
-        meeting_start_time: '2026-10-01T18:00:00Z',
-        total_attendees: 10,
-        member_count: 8,
-        guest_count: 2,
+        title: 'Weekly',
+        start_time: '2026-10-01T18:00:00Z',
+        total: 10,
+        members: 8,
+        guests: 2,
       },
     ];
     rpc.mockResolvedValue({ data: rows, error: null });
@@ -42,7 +42,7 @@ describe('getOrgAttendance', () => {
   it('throws when the RPC errors', async () => {
     rpc.mockResolvedValue({ data: null, error: { message: 'boom' } });
     await expect(getOrgAttendance('org_1', 'a', 'b')).rejects.toThrow(
-      'Failed to fetch attendance data: boom'
+      'Failed to fetch retention data: boom'
     );
   });
 });
