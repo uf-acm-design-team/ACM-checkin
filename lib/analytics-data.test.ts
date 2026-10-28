@@ -42,7 +42,7 @@ describe('getOrgAttendance', () => {
   it('throws when the RPC errors', async () => {
     rpc.mockResolvedValue({ data: null, error: { message: 'boom' } });
     await expect(getOrgAttendance('org_1', 'a', 'b')).rejects.toThrow(
-      'Failed to fetch retention data: boom'
+      'Failed to fetch attendance data: boom'
     );
   });
 });

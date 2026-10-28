@@ -54,7 +54,7 @@ export async function getOrgRetention(
     });
 
   if (error) {
-    throw new Error(`Failed to fetch attendance data: ${error.message}`);
+    throw new Error(`Failed to fetch retention data: ${error.message}`);
   }
 
   return (data as RetentionRecord[]) || [];
