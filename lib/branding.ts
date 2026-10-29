@@ -1,47 +1,12 @@
 import type { CSSProperties } from "react";
 
-// Per-organization branding template.
-//
-// Each org row carries a `branding` jsonb column shaped like `Branding`. Any
-// missing or malformed field falls back to the default ACM theme below, so
-// `resolveBranding` always returns a fully-populated object and never throws.
+import { DEFAULT_BRANDING, type Branding } from "../supabase/functions/_shared/branding";
 
-export type Branding = {
-  colors: {
-    primary: string;
-    background: string;
-    backgroundSecondary: string;
-    accent: string;
-    text: string;
-  };
-  particleColor: string;
-  logo: {
-    crest: string;
-    wordmark: string;
-  };
-};
-
-// Default ACM theme — the fallback for non-org pages and missing branding.
-// Mirrored by the :root defaults in app/globals.css.
-export const DEFAULT_BRANDING: Branding = {
-  colors: {
-    primary: "#FA4616", // UF/ACM orange — gradient top, headings, accents
-    background: "#0021A5", // UF blue — gradient bottom / base background
-    backgroundSecondary: "#001B87", // darker blue — cards/panels
-    accent: "#FA4616", // buttons/actions
-    text: "#FFFFFF", // main text/foreground
-  },
-  particleColor: "#FFFFFF", // particle dots + connecting lines
-  // Empty by default: an org that has not uploaded a logo shows NO logo, not
-  // ACM's. Falling back to /acm-logo.png meant every new club silently wore
-  // another club's crest on its landing page, nav and admin sidebar -- which
-  // reads as a bug, and misrepresents the org. Callers must treat "" as "no
-  // logo" and render nothing; see hasLogo().
-  logo: {
-    crest: "",
-    wordmark: "",
-  },
-};
+// The Branding shape and DEFAULT_BRANDING live in supabase/functions/_shared so
+// the create-org edge function uses the same defaults. Any missing or malformed
+// field falls back to them, so `resolveBranding` always returns a
+// fully-populated object and never throws.
+export { DEFAULT_BRANDING, type Branding };
 
 const HEX = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
 
