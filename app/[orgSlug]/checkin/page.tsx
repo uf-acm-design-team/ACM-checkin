@@ -7,7 +7,7 @@ import { createClient } from "../../utils/supabase/client";
 import { memberCheckIn, resolveAndUpdateMembershipStatus } from "./actions";
 import { guestCheckIn } from "./guest-actions";
 import { verifyGeoLock, type GeoFailure } from "./geolock";
-import { DEFAULT_RADIUS_METERS, type Coordinates, type GeofenceFailure } from "@/lib/geo";
+import { DEFAULT_RADIUS_METERS, type Coordinates, type GeofenceFailure } from "@/supabase/functions/_shared/geo";
 import { membershipThreshold } from "@/supabase/functions/_shared/membership";
 import { isWithinMeetingWindow } from "@/supabase/functions/_shared/meeting-time";
 import { cn } from "@/lib/utils";
