@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { createClerkClient } from "npm:@clerk/backend";
+import { escapeLikePattern, sameEmail } from "../_shared/email-match.ts";
 
 // Onboards an attendee from the mobile app and eventually web:
 // 1. Verifies caller identity via the Clerk JWT (using current_clerk_id() RPC).
@@ -30,6 +31,38 @@ function jsonResponse(body: unknown, status: number) {
     status,
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
+}
+
+// Claims the orphaned guest row (user_id IS NULL) whose email is exactly
+// `email`, case-insensitively. ilike takes a pattern, so candidates are found
+// with an escaped one and confirmed with sameEmail() before the single matching
+// row is updated by id -- updating straight through the ilike let
+// "john_doe@" take over johnxdoe's row and attendance history.
+async function claimGuestRow(
+  supabaseAdmin: ReturnType<typeof createClient>,
+  clerkId: string,
+  email: string,
+  profile: { first_name: string; last_name: string; grad_year: unknown },
+) {
+  const { data: candidates, error: findError } = await supabaseAdmin
+    .from("attendees")
+    .select("id, email")
+    .is("user_id", null)
+    .ilike("email", escapeLikePattern(email));
+  if (findError) return { data: null, error: findError };
+
+  const match = (candidates as { id: string; email: string | null }[] | null)?.find((a) =>
+    sameEmail(a.email, email)
+  );
+  if (!match) return { data: [], error: null };
+
+  // user_id IS NULL again so a concurrent claim can't be overwritten.
+  return await supabaseAdmin
+    .from("attendees")
+    .update({ user_id: clerkId, ...profile })
+    .eq("id", match.id)
+    .is("user_id", null)
+    .select("id, email, first_name, last_name, grad_year");
 }
 
 serve(async (req) => {
@@ -174,17 +207,12 @@ serve(async (req) => {
     }
 
     // 2. Claim orphaned guest row with matching lower(email) and user_id IS NULL
-    const { data: claimedRows, error: claimError } = await supabaseAdmin
-      .from("attendees")
-      .update({
-        user_id: clerkId,
-        first_name: firstName,
-        last_name: lastName,
-        grad_year: gradYear,
-      })
-      .is("user_id", null)
-      .ilike("email", email)
-      .select("id, email, first_name, last_name, grad_year");
+    const { data: claimedRows, error: claimError } = await claimGuestRow(
+      supabaseAdmin,
+      clerkId,
+      email,
+      { first_name: firstName, last_name: lastName, grad_year: gradYear },
+    );
 
     if (claimError) {
       console.error("Claim guest attendee error:", claimError);
@@ -224,17 +252,12 @@ serve(async (req) => {
             insertError.details?.includes("email"));
 
         if (isEmailConflict) {
-          const { data: retryClaimed, error: retryError } = await supabaseAdmin
-            .from("attendees")
-            .update({
-              user_id: clerkId,
-              first_name: firstName,
-              last_name: lastName,
-              grad_year: gradYear,
-            })
-            .is("user_id", null)
-            .ilike("email", email)
-            .select("id, email, first_name, last_name, grad_year");
+          const { data: retryClaimed, error: retryError } = await claimGuestRow(
+            supabaseAdmin,
+            clerkId,
+            email,
+            { first_name: firstName, last_name: lastName, grad_year: gradYear },
+          );
 
           if (retryClaimed && retryClaimed.length > 0) {
             claimed = true;
