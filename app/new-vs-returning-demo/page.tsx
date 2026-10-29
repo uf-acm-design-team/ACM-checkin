@@ -1,21 +1,14 @@
 import type { CSSProperties } from "react";
 import { notFound } from "next/navigation";
 
-import {
-  NewVsReturningChart,
-  type NewVsReturningDateRange,
-} from "@/components/charts/new-vs-returning-chart";
+import { NewVsReturningChartView } from "@/components/charts/new-vs-returning-chart";
 import type { RetentionRecord } from "@/lib/analytics-data";
 import { brandingToCssVars, cssVarsToStyle, DEFAULT_BRANDING } from "@/lib/branding";
 
 // Design sandbox for the New vs. Returning chart: every ChartCard state in both
 // the default purple and UF orange accents, on hard-coded data. Not a product
-// page -- 404s outside development.
-
-const RANGE: NewVsReturningDateRange = {
-  from: "2026-08-01T00:00:00Z",
-  to: "2026-12-31T23:59:59Z",
-};
+// page -- 404s outside development. The live chart (NewVsReturningChart) fetches
+// its own data and belongs in the Analytics tab.
 
 const SAMPLE: RetentionRecord[] = [
   { meeting_id: "m1", meeting_title: "Kickoff", meeting_start_time: "2026-08-27T23:00:00Z", first_time: 42, returning: 0, total: 42 },
@@ -40,15 +33,14 @@ export default function NewVsReturningDemoPage() {
         {THEMES.map((theme) => (
           <section key={theme.name} className="flex flex-col gap-4" style={theme.style}>
             <h2 className="text-xl font-bold text-ink">{theme.name}</h2>
-            <NewVsReturningChart data={SAMPLE} dateRange={RANGE} />
+            <NewVsReturningChartView data={SAMPLE} />
             <div className="grid gap-4 md:grid-cols-3">
-              <NewVsReturningChart data={SAMPLE} dateRange={RANGE} state="loading" />
-              <NewVsReturningChart data={[]} dateRange={RANGE} />
-              <NewVsReturningChart
+              <NewVsReturningChartView data={SAMPLE} state="loading" />
+              <NewVsReturningChartView data={[]} />
+              <NewVsReturningChartView
                 data={SAMPLE}
-                dateRange={RANGE}
                 state="error"
-                errorMessage="Failed to fetch attendance data: Unauthorized"
+                errorMessage="You do not have permission to view analytics."
               />
             </div>
           </section>

@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import {
   Bar,
   BarChart,
@@ -16,19 +17,32 @@ import { ChartCard } from "./chart-card";
 import type { RetentionRecord } from "@/lib/analytics-data";
 import { ORG_TIME_ZONE } from "@/lib/meeting-time";
 
-export type NewVsReturningDateRange = {
+// Temporary copy of the shared range contract from #70 (lib/analytics-range.ts).
+// Import from there once it merges.
+export type AnalyticsRange = {
+  preset: "30d" | "90d" | "custom";
   from: string;
   to: string;
+  /** ISO instant passed straight through as p_start_time. */
+  start: string;
+  /** ISO instant passed straight through as p_end_time. */
+  end: string;
+};
+
+export type AnalyticsChartProps = {
+  orgId: string;
+  range: AnalyticsRange;
 };
 
 type ChartState = "normal" | "loading" | "empty" | "error";
 
-type NewVsReturningChartProps = {
+type NewVsReturningChartViewProps = {
   data: RetentionRecord[];
-  dateRange: NewVsReturningDateRange;
   state?: ChartState;
   errorMessage?: string;
 };
+
+const LOAD_ERROR = "Unable to load new vs. returning data.";
 
 // New carries the org accent; returning steps back to a neutral so first-time
 // attendees are what the eye lands on. The pair was checked with the dataviz
@@ -129,21 +143,66 @@ function Swatch({ color }: { color: string }) {
   );
 }
 
-export function NewVsReturningChart({
+/**
+ * The chart as the Analytics tab uses it: fetches its own rows for the org and
+ * range from /api/analytics/retention (get_org_retention_by_meeting via
+ * getOrgRetention). The range is applied by the database function, so rows are
+ * not filtered by date again here.
+ */
+export function NewVsReturningChart({ orgId, range }: AnalyticsChartProps) {
+  const [data, setData] = useState<RetentionRecord[]>([]);
+  const [state, setState] = useState<ChartState>("loading");
+  const [errorMessage, setErrorMessage] = useState<string>();
+
+  useEffect(() => {
+    const controller = new AbortController();
+
+    async function load() {
+      setState("loading");
+      setErrorMessage(undefined);
+
+      try {
+        const params = new URLSearchParams({ orgId, start: range.start, end: range.end });
+        const response = await fetch(`/api/analytics/retention?${params}`, {
+          signal: controller.signal,
+          cache: "no-store",
+        });
+        const result: unknown = await response.json().catch(() => null);
+
+        if (!response.ok) {
+          const message =
+            result && typeof result === "object" && "error" in result &&
+            typeof result.error === "string"
+              ? result.error
+              : LOAD_ERROR;
+          throw new Error(message);
+        }
+        if (!Array.isArray(result)) throw new Error(LOAD_ERROR);
+
+        setData(result as RetentionRecord[]);
+        setState("normal");
+      } catch (error) {
+        if (controller.signal.aborted) return;
+        setData([]);
+        setErrorMessage(error instanceof Error ? error.message : LOAD_ERROR);
+        setState("error");
+      }
+    }
+
+    void load();
+    return () => controller.abort();
+  }, [orgId, range.start, range.end]);
+
+  return <NewVsReturningChartView data={data} state={state} errorMessage={errorMessage} />;
+}
+
+/** Rendering only, from rows already fetched. The demo sandbox drives this directly. */
+export function NewVsReturningChartView({
   data,
-  dateRange,
   state = "normal",
   errorMessage,
-}: NewVsReturningChartProps) {
-  const fromTime = new Date(dateRange.from).getTime();
-  const toTime = new Date(dateRange.to).getTime();
-
-  const rows: Row[] = data
-    .filter((meeting) => {
-      const meetingTime = new Date(meeting.meeting_start_time).getTime();
-
-      return meetingTime >= fromTime && meetingTime <= toTime;
-    })
+}: NewVsReturningChartViewProps) {
+  const rows: Row[] = [...data]
     .sort(
       (a, b) =>
         new Date(a.meeting_start_time).getTime() -
