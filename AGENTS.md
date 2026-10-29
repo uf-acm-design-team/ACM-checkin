@@ -7,7 +7,7 @@ Notes for anyone (human or agent) changing this codebase. Setup lives in
 
 Reads and simple writes use the browser Supabase client. Writes that need
 server-side validation or a server-derived identity go through server actions,
-such as meeting create, open/close, and delete in
+such as meeting create, update, open/close, and delete in
 `app/[orgSlug]/admin-dashboard/actions.ts`.
 
 Every exported server action is a public endpoint, callable from any page with
@@ -58,9 +58,3 @@ Two related behaviours to keep in mind:
 - A geo-locked meeting with no pin (`latitude`/`longitude` NULL) is not
   enforced on either side, because there's nothing to measure against.
 - The reported `accuracy` is passed along but does not widen the radius.
-
-### The meeting editor still writes from the browser
-
-`admin-dashboard/meetings/[meetingId]/page.tsx` saves with the browser client,
-not a server action. It runs `validateMeetingDraft` before the update and RLS
-limits it to officers, but the validation runs client-side only.
