@@ -1,5 +1,7 @@
 "use client";
 
+import { MembersVsGuestsChart } from "@/components/charts/members-vs-guests-chart";
+
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -1178,6 +1180,20 @@ export default function AdminDashboard({
                     </div>
                   )}
                 </div>
+              </div>
+
+              {/* Members vs. Guests analytics chart */}
+              <div className="mt-6">
+                <MembersVsGuestsChart
+                  orgId={organization.id}
+                  range={{
+                    preset: "custom",
+                    from: "2026-09-01",
+                    to: "2026-10-31",
+                    start: "2026-09-01T04:00:00.000Z",
+                    end: "2026-11-01T03:59:59.999Z",
+                  }}
+                />
               </div>
             </>
           )}
