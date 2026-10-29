@@ -17,7 +17,7 @@ admin dashboard. Signed-out guests can check in too.
 | Mobile   | Expo / React Native in `mobile/`, Expo Router, Jest            |
 | Auth     | Clerk, on both web and mobile                                  |
 | Data     | Supabase Postgres with RLS, Storage (`org-logos`), Edge Functions (Deno) |
-| Tests    | Vitest (web, `lib/**/*.test.ts`), Jest (mobile)                |
+| Tests    | Vitest (web, `lib/` + `supabase/functions/_shared/`), Jest (mobile) |
 
 ## Graphify: read the graph first
 
@@ -65,11 +65,13 @@ app/                      Next.js routes
   chart-demo/, analytics-design-demo/, [orgSlug]/checkin/states-preview/
                           design sandboxes, not product pages (see below)
 components/               shared UI (charts, check-in states, forms, stats, primitives)
-lib/                      pure logic + its *.test.ts (geo, roles, membership, branding, forms, CSV…)
+lib/                      web-only pure logic + its *.test.ts (roles, branding, CSV, stats…)
 proxy.ts                  Clerk middleware: public routes + onboarding redirect gate
 supabase/
   migrations/             the ONLY way the schema changes
   functions/              create-org, onboard-attendee, update-org-branding (Deno)
+    _shared/              rules shared by web, mobile and edge functions (membership,
+                          geo, forms, meeting time, branding defaults) + their tests
 mobile/                   Expo app: its own package.json, lockfile, tests, CI
 scripts/                  setup-dev, db backup/restore
 docs/                     analytics dashboard design + sprint tickets
@@ -126,8 +128,10 @@ npm run gen:types           # regenerate database.types.ts from the local DB
 - `lib/org-roles.ts` only mirrors the permission matrix so the UI can hide
   controls. The SECURITY DEFINER RPCs in migrations enforce it, so a role rule
   change goes in both places.
-- Edge Functions can't import from `lib/`. `create-org` keeps its own copy of
-  `DEFAULT_BRANDING`, so change it alongside `lib/branding.ts`.
+- Edge Functions can't import from `lib/`. Logic that web, mobile and edge
+  functions all need goes in `supabase/functions/_shared/`, with no imports of
+  its own. Edge functions import it with the `.ts` extension
+  (`../_shared/branding.ts`); mobile imports it as `@shared/*`.
 
 ### Schema changes
 
@@ -141,11 +145,12 @@ After a schema change, regenerate the mobile types (`npm run gen:types` in
 - `mobile/` has its own `package.json`, `package-lock.json`, ESLint config,
   and Jest setup. Install mobile deps from inside `mobile/` and never add them
   to the root `package.json` (or the other way round).
-- Root `npm test` (Vitest) only covers `lib/**/*.test.ts`. Mobile tests run
-  only with `npm test` inside `mobile/`.
-- Mobile CI (`.github/workflows/mobile.yml`) runs on changes to `mobile/**`
-  **and `app/globals.css`**, because a mobile test checks the theme tokens
-  against the web CSS. When you change a web color token, update
+- Root `npm test` (Vitest) covers `lib/` and `supabase/functions/_shared/`.
+  Mobile tests run only with `npm test` inside `mobile/`.
+- Mobile CI (`.github/workflows/mobile.yml`) runs on changes to `mobile/**`,
+  `supabase/functions/_shared/**` (mobile imports those rules) **and
+  `app/globals.css`**, because a mobile test checks the theme tokens against
+  the web CSS. When you change a web color token, update
   `mobile/src/theme/tokens.ts` too.
 
 ### Demo and preview routes
