@@ -8,7 +8,7 @@ Notes for anyone (human or agent) changing this codebase. Setup lives in
 ### Geolock trusts client-supplied coordinates
 
 The check-in geolock is enforced in two places, using the same math in
-`lib/geo.ts`:
+`supabase/functions/_shared/geo.ts`:
 
 - **Client** (`app/[orgSlug]/checkin/geolock.ts`): the fast UX path. It reads the
   browser's GPS fix and shows the "too far" / "location denied" screens without

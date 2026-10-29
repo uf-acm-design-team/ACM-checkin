@@ -10,7 +10,7 @@ import {
   geofenceErrorMessage,
   type Coordinates,
   type GeofenceFailure,
-} from "@/lib/geo";
+} from "@/supabase/functions/_shared/geo";
 
 /**
  * Guest check-in, performed server-side.
