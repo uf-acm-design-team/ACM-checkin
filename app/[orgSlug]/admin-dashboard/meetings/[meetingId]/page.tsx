@@ -28,6 +28,7 @@ import {
   RADIUS_MIN_METERS,
   validateMeetingDraft,
 } from "@/lib/meeting-validation";
+import { updateMeeting } from "../../actions";
 import { ResponsesPanel } from "./responses-panel";
 
 /**
@@ -327,8 +328,7 @@ export default function MeetingEditor({
       return;
     }
 
-    // Same rules as the create action and the meetings CHECK constraints. Times
-    // come back as instants and the pin is cleared when geolock is off.
+    // Checked here only to pick the tab; updateMeeting re-validates as the authority.
     const checked = validateMeetingDraft(settings);
     if (!checked.ok) {
       setActiveTab("settings");
@@ -340,13 +340,9 @@ export default function MeetingEditor({
 
     setSaving(true);
     try {
-      const { error: updateError } = await supabase
-        .from("meetings")
-        .update({ ...checked.value, form_schema: cleanSchema })
-        .eq("id", meeting.id);
-
-      if (updateError) {
-        setSaveError(updateError.message);
+      const result = await updateMeeting(orgSlug, meeting.id, settings, schema);
+      if (!result.ok) {
+        setSaveError(result.error);
         return;
       }
 
