@@ -22,7 +22,12 @@ import {
   downloadCsv,
   type AttendanceRow,
 } from "@/lib/attendance-csv";
-import { toDateTimeLocal, fromDateTimeLocal } from "@/lib/meeting-time";
+import { toDateTimeLocal } from "@/lib/meeting-time";
+import {
+  RADIUS_MAX_METERS,
+  RADIUS_MIN_METERS,
+  validateMeetingDraft,
+} from "@/lib/meeting-validation";
 import { ResponsesPanel } from "./responses-panel";
 
 /**
@@ -322,40 +327,12 @@ export default function MeetingEditor({
       return;
     }
 
-    if (!settings.title.trim()) {
+    // Same rules as the create action and the meetings CHECK constraints. Times
+    // come back as instants and the pin is cleared when geolock is off.
+    const checked = validateMeetingDraft(settings);
+    if (!checked.ok) {
       setActiveTab("settings");
-      setSaveError("A meeting needs a title.");
-      return;
-    }
-    if (settings.end_time && settings.start_time > settings.end_time) {
-      setActiveTab("settings");
-      setSaveError("End time must be after the start time.");
-      return;
-    }
-
-    // Convert up front so an unparseable value is caught here rather than
-    // becoming a NULL start_time in the database.
-    const startIso = fromDateTimeLocal(settings.start_time);
-    const endIso = fromDateTimeLocal(settings.end_time);
-    if (!startIso || !endIso) {
-      setActiveTab("settings");
-      setSaveError("Enter a valid start and end time.");
-      return;
-    }
-
-    const lat = settings.latitude.trim();
-    const lng = settings.longitude.trim();
-    if (settings.is_geo_locked && (!lat || !lng)) {
-      setActiveTab("settings");
-      setSaveError(
-        "Geo-locked meetings need a location. Use “Use current location” or enter coordinates.",
-      );
-      return;
-    }
-    const radius = Number(settings.radius_meters);
-    if (settings.is_geo_locked && (!Number.isFinite(radius) || radius <= 0)) {
-      setActiveTab("settings");
-      setSaveError("Radius must be a positive number of meters.");
+      setSaveError(checked.error);
       return;
     }
 
@@ -365,25 +342,7 @@ export default function MeetingEditor({
     try {
       const { error: updateError } = await supabase
         .from("meetings")
-        .update({
-          title: settings.title.trim(),
-          description: settings.description.trim() || null,
-          // Sent as explicit instants. A bare "YYYY-MM-DDTHH:mm" would be
-          // interpreted in the SERVER's zone (UTC on Supabase), storing 3:00 PM
-          // Eastern as 3:00 PM UTC.
-          start_time: startIso,
-          end_time: endIso,
-          status: settings.status,
-          is_geo_locked: settings.is_geo_locked,
-          // Only persist coordinates while geolocking is on, so un-geolocking
-          // doesn't leave stale coordinates behind.
-          latitude: settings.is_geo_locked ? Number(lat) : null,
-          longitude: settings.is_geo_locked ? Number(lng) : null,
-          radius_meters: settings.is_geo_locked ? radius : null,
-          is_officer_only: settings.is_officer_only,
-          checkin_password: settings.checkin_password.trim() || null,
-          form_schema: cleanSchema,
-        })
+        .update({ ...checked.value, form_schema: cleanSchema })
         .eq("id", meeting.id);
 
       if (updateError) {
@@ -642,7 +601,8 @@ export default function MeetingEditor({
                   <Field label="Radius (meters)" small>
                     <input
                       type="number"
-                      min={10}
+                      min={RADIUS_MIN_METERS}
+                      max={RADIUS_MAX_METERS}
                       step={10}
                       value={settings.radius_meters}
                       onChange={(e) =>

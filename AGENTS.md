@@ -61,13 +61,6 @@ Two related behaviours to keep in mind:
 
 ### The meeting editor still writes from the browser
 
-`admin-dashboard/meetings/[meetingId]/page.tsx` saves with the browser client
-and its own validation, not `lib/meeting-validation.ts`. RLS still limits it to
-officers, but it accepts values the dashboard rejects, such as a latitude of
-200 or a radius under 10 m.
-
-### The database doesn't range-check meetings
-
-There are no CHECK constraints on `latitude`, `longitude`, `radius_meters`, or
-end time after start time. Only the server action checks them, so the editor,
-the SQL editor, or a direct API call can still store bad values.
+`admin-dashboard/meetings/[meetingId]/page.tsx` saves with the browser client,
+not a server action. It runs `validateMeetingDraft` before the update and RLS
+limits it to officers, but the validation runs client-side only.
