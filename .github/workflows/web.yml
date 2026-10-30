@@ -1,0 +1,42 @@
+name: Web CI
+
+# Lint, typecheck and test the Next.js app on every PR into main. mobile/ has
+# its own workflow (mobile.yml) and is excluded from the root ESLint and
+# tsconfig, so a mobile-only change skips this job.
+on:
+  pull_request:
+    paths-ignore:
+      - "mobile/**"
+      - ".github/workflows/mobile.yml"
+  push:
+    branches: [main]
+    paths-ignore:
+      - "mobile/**"
+      - ".github/workflows/mobile.yml"
+
+concurrency:
+  group: web-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Lint, typecheck, test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test

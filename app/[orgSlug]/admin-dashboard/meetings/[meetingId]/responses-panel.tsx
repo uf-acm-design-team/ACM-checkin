@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 
 import {
   formatAnswer,
@@ -43,10 +43,13 @@ export function ResponsesPanel({
   const [individualPage, setIndividualPage] = useState(1);
 
   // A different meeting's rows loaded in -- don't stay scrolled past a page
-  // count that no longer applies.
-  useEffect(() => {
+  // count that no longer applies. Reset during render rather than in an
+  // effect, so the stale page never paints first.
+  const [pagedRows, setPagedRows] = useState(rows);
+  if (pagedRows !== rows) {
+    setPagedRows(rows);
     setIndividualPage(1);
-  }, [rows]);
+  }
 
   const summaries = useMemo(() => {
     if (!rows) return [];
