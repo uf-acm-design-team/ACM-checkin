@@ -7,6 +7,11 @@ import { createClient } from "../../utils/supabase/client";
 import { memberCheckIn, resolveAndUpdateMembershipStatus } from "./actions";
 import { guestCheckIn } from "./guest-actions";
 import { verifyGeoLock, type GeoFailure } from "./geolock";
+import {
+  EMAIL_MAX_LENGTH,
+  INVALID_EMAIL_MESSAGE,
+  validateEmail,
+} from "@/lib/email-validation";
 import { DEFAULT_RADIUS_METERS, type Coordinates, type GeofenceFailure } from "@/lib/geo";
 import { membershipThreshold } from "@/lib/membership";
 import { isWithinMeetingWindow } from "@/lib/meeting-time";
@@ -512,6 +517,15 @@ export default function CheckinPage({
   };
 
   const submitGuest = async (withProfile: boolean) => {
+    const validatedEmail = validateEmail(email);
+    if (!validatedEmail.ok) {
+      setPasswordError(null);
+      setCheckInError(INVALID_EMAIL_MESSAGE);
+      return;
+    }
+    const normalizedEmail = validatedEmail.value;
+    if (normalizedEmail !== email) setEmail(normalizedEmail);
+
     const validated = validateForm();
     if (!validated) return;
     const gate = await passesLocation();
@@ -523,7 +537,7 @@ export default function CheckinPage({
     try {
       const result = await guestCheckIn({
         orgSlug,
-        email,
+        email: normalizedEmail,
         answers: validated,
         password: checkinPassword,
         meetingId: activeMeeting?.id,
@@ -865,6 +879,7 @@ export default function CheckinPage({
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
+              maxLength={EMAIL_MAX_LENGTH}
               required
               autoFocus
               inputMode="email"
