@@ -4,6 +4,7 @@ import { headers } from "next/headers";
 import { createClient } from "@supabase/supabase-js";
 
 import { escapeLikePattern, sameEmail } from "@/lib/email-match";
+import { INVALID_EMAIL_MESSAGE, validateEmail } from "@/lib/email-validation";
 import { parseSchema, validateAnswers } from "@/lib/form-schema";
 import { isWithinMeetingWindow } from "@/lib/meeting-time";
 import {
@@ -110,10 +111,9 @@ export async function guestCheckIn(input: {
    */
   location?: Coordinates | null;
 }): Promise<GuestCheckInResult> {
-  const email = input.email.trim().toLowerCase();
-  if (!email || !email.includes("@")) {
-    return { ok: false, error: "Enter a valid email address." };
-  }
+  const validatedEmail = validateEmail(input.email);
+  if (!validatedEmail.ok) return { ok: false, error: INVALID_EMAIL_MESSAGE };
+  const email = validatedEmail.value;
 
   const hdrs = await headers();
   const ip =
