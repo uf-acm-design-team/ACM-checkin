@@ -11,9 +11,9 @@ import { auth } from "@clerk/nextjs/server";
 // filtered by them, the same pattern app/[orgSlug]/checkin/guest-actions.ts
 // uses for the same reason.
 import { createServiceSupabaseClient } from "@/app/utils/supabase/server";
-import { resolveMembership } from "../supabase/functions/_shared/membership";
-import { parseAnswers, parseSchema, type AnswerMap } from "../supabase/functions/_shared/form-schema";
-import { orgWallClock } from "../supabase/functions/_shared/meeting-time";
+import { resolveMembership } from "@/lib/membership";
+import { parseAnswers, parseSchema, type AnswerMap } from "@/lib/form-schema";
+import { orgWallClock } from "@/lib/meeting-time";
 import {
   academicYearTerms,
   buildTermSummaries,
@@ -101,9 +101,8 @@ export async function getMemberStats(orgSlug: string): Promise<MemberStats> {
   //
   // The query is one indexed `select id, start_time where org_id = ?`. That is
   // cheap enough that caching it is not worth a five-minute skew between the
-  // two halves of the same page. If this ever needs a cache again, move the
-  // meeting writes into server actions FIRST so the tag can actually be
-  // invalidated.
+  // two halves of the same page. Dashboard meeting writes now go through
+  // admin-dashboard/actions.ts; if this is cached again, invalidate it there.
   const { data: allOrgMeetings } = await supabase
     .from("meetings")
     .select("id, start_time")

@@ -5,7 +5,7 @@ import {
   type AnswerMap,
   type AnswerValue,
   type FormSchema,
-} from "@/supabase/functions/_shared/form-schema";
+} from "@/lib/form-schema";
 import { parseRichText } from "@/lib/rich-text";
 import { cn } from "@/lib/utils";
 import { FIELD_CLASS, Label } from "@/components/ui/primitives";
