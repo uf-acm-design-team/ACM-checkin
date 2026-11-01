@@ -6,7 +6,7 @@ import { useUser } from "@clerk/nextjs";
 import { createClient } from "../utils/supabase/client";
 import { useBranding } from "@/app/components/BrandingProvider";
 import Link from "next/link";
-import { membershipThreshold } from "@/supabase/functions/_shared/membership";
+import { membershipThreshold } from "@/lib/membership";
 import {
   Eyebrow,
   Identity,
