@@ -300,7 +300,7 @@ export default function AdminDashboard({
     };
 
     fetchOrganization();
-  }, [orgSlug, supabase, isLoaded, user, adminCheckFinished, isGlobalAdmin]);
+  }, [orgSlug, supabase, isLoaded, user, adminCheckFinished, isGlobalAdmin, router]);
 
   // Global admin status (attendees.admin) -- distinct from the per-org
   // memberships.role above. Bypasses org membership entirely (see
@@ -626,14 +626,18 @@ export default function AdminDashboard({
 
       if (error || !data) return;
 
-      const rows: CheckIn[] = data.map((row: any) => ({
-        first_name: row.attendee?.first_name ?? "",
-        last_name: row.attendee?.last_name ?? "",
-        email: row.attendee?.email ?? "",
-        grad_year: row.attendee?.grad_year ?? "",
-        checked_in_at: row.checked_in_at,
-        answers: parseAnswers(row.answers),
-      }));
+      const exportRows = data as Pick<FeedRow, "checked_in_at" | "answers" | "attendee">[];
+      const rows: CheckIn[] = exportRows.map((row) => {
+        const attendee = Array.isArray(row.attendee) ? row.attendee[0] : row.attendee;
+        return {
+          first_name: attendee?.first_name ?? "",
+          last_name: attendee?.last_name ?? "",
+          email: attendee?.email ?? "",
+          grad_year: attendee?.grad_year ?? "",
+          checked_in_at: row.checked_in_at,
+          answers: parseAnswers(row.answers),
+        };
+      });
 
       downloadCsv(
         buildAttendanceCsv(rows, meeting.form_schema),
