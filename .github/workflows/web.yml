@@ -22,6 +22,12 @@ jobs:
   check:
     name: Lint, typecheck, test
     runs-on: ubuntu-latest
+    # The club runs on Eastern time, and some tests (lib/stats-terms) use
+    # zone-less date strings that the runtime reads in local time. GitHub
+    # runners default to UTC, which shifts those dates across month and term
+    # boundaries.
+    env:
+      TZ: America/New_York
     steps:
       - uses: actions/checkout@v4
 
