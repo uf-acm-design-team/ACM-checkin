@@ -8,6 +8,9 @@
       ],
       "@/assets/*": [
         "./assets/*"
+      ],
+      "@shared/*": [
+        "../supabase/functions/_shared/*"
       ]
     },
     "types": [
