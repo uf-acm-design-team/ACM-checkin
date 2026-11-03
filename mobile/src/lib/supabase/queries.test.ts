@@ -4,6 +4,7 @@ import {
   DataError,
   getMyAttendee,
   getMyMemberships,
+  getMyOrgMeetings,
   getOrgBySlug,
 } from "./queries";
 import { anonKey, fakeJwt, jsonResponse, recordingFetch } from "./test-helpers";
@@ -123,5 +124,36 @@ describe("buildHomeOrgs", () => {
 
   it("returns nothing when you have no memberships", () => {
     expect(buildHomeOrgs([], ["org-a"])).toEqual([]);
+  });
+});
+
+describe("getMyOrgMeetings", () => {
+  it("returns attended meetings and the total from the RPC", async () => {
+    const { fetchImpl, requests } = recordingFetch((u) =>
+      u.includes("/rpc/get_member_meetings_page")
+        ? jsonResponse([
+            { id: "m1", title: "GBM", start_time: "2026-10-01T23:00:00Z", attended: true,
+              description: null, form_schema: null, total_count: 1 },
+          ])
+        : jsonResponse([{ id: "attendee_1", user_id: "user_1" }]),
+    );
+    const supabase = createSupabase(async () => fakeJwt({ sub: "user_1" }), {
+      url, anonKey, fetch: fetchImpl,
+    });
+
+    const result = await getMyOrgMeetings(supabase, "org_1", {
+      start: "2000-01-01T00:00:00Z", end: "2026-11-03T00:00:00Z",
+    });
+
+    expect(result).toEqual({
+      meetings: [{ id: "m1", title: "GBM", startTime: "2026-10-01T23:00:00Z" }],
+      total: 1,
+    });
+    expect(requests.some((r) => r.url.includes("/rpc/get_member_meetings_page"))).toBe(true);
+  });
+
+  it("returns nothing when signed out", async () => {
+    await expect(getMyOrgMeetings(null, "org_1", { start: "", end: "" }))
+      .resolves.toEqual({ meetings: [], total: 0 });
   });
 });
