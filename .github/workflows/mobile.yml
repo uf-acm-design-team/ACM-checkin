@@ -38,6 +38,11 @@ jobs:
 
       - run: npm ci
 
+      # Every expo-* / React Native package must be the version this SDK
+      # expects. `npm run upgrade:sdk` keeps them in line.
+      - name: Expo package versions
+        run: npx expo install --check
+
       - name: Lint
         run: npm run lint
 

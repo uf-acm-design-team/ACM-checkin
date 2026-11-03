@@ -9,7 +9,9 @@ type IconName = ComponentProps<typeof Ionicons>['name'];
 
 function tabIcon(name: IconName) {
   return function TabIcon({ color, size }: { color: ColorValue; size: number }) {
-    return <Ionicons name={name} color={color} size={size} />;
+    // React Native 0.88 widened ColorValue (null, numbers). The tab bar passes our
+    // theme tokens, which are strings; anything else falls back to the default.
+    return <Ionicons name={name} color={typeof color === 'string' ? color : undefined} size={size} />;
   };
 }
 
