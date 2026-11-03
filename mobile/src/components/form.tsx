@@ -45,8 +45,15 @@ export function FormScreen({
   );
 }
 
-/** Labelled text input with the web's focus treatment (accent border). */
-export function TextField({ label, ...inputProps }: { label: string } & TextInputProps) {
+/**
+ * Labelled text input with the web's focus treatment (accent border). `invalid`
+ * gives it the error border, for a field with an inline error under it.
+ */
+export function TextField({
+  label,
+  invalid = false,
+  ...inputProps
+}: { label: ReactNode; invalid?: boolean } & TextInputProps) {
   const [focused, setFocused] = useState(false);
   return (
     <View style={styles.field}>
@@ -62,7 +69,7 @@ export function TextField({ label, ...inputProps }: { label: string } & TextInpu
           setFocused(false);
           inputProps.onBlur?.(e);
         }}
-        style={[styles.input, focused && styles.inputFocused]}
+        style={[styles.input, inputProps.multiline && styles.inputMultiline, focused && styles.inputFocused, invalid && styles.inputInvalid]}
       />
     </View>
   );
@@ -92,7 +99,7 @@ export function PasswordField({
   label = 'Password',
   isNew = false,
   ...inputProps
-}: { label?: string; isNew?: boolean } & TextInputProps) {
+}: { label?: string; isNew?: boolean; invalid?: boolean } & TextInputProps) {
   const [visible, setVisible] = useState(false);
   return (
     <View>
@@ -199,8 +206,16 @@ const styles = StyleSheet.create({
     // 16+ keeps iOS from zooming, same reason as web's mobile input rule.
     fontSize: 16,
   },
+  inputMultiline: {
+    minHeight: 88,
+    paddingVertical: space[2],
+    textAlignVertical: 'top',
+  },
   inputFocused: {
     borderColor: colors.accent,
+  },
+  inputInvalid: {
+    borderColor: colors.bad,
   },
   toggle: {
     position: 'absolute',
