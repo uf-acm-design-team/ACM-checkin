@@ -56,7 +56,8 @@
     "typecheck": "tsc --noEmit",
     "test": "jest",
     "test:rls": "node scripts/test-rls.mjs",
-    "gen:types": "cd .. && npx supabase gen types typescript --local --schema public > mobile/src/lib/supabase/database.types.ts"
+    "gen:types": "cd .. && npx supabase gen types typescript --local --schema public > mobile/src/lib/supabase/database.types.ts",
+    "upgrade:sdk": "node scripts/upgrade-expo-sdk.mjs"
   },
   "private": true,
   "jest": {
