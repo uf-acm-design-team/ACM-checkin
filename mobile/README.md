@@ -143,7 +143,19 @@ winget install --id Cloudflare.cloudflared
 
 On a Mac: `brew install cloudflared`.
 
-**Each time** (four terminals, keep them open):
+**Each time, the easy way** (Docker Desktop open, one terminal in the **main folder**):
+
+```bash
+npm run demo:mobile
+```
+
+It starts the database (if needed), the edge functions and the database tunnel, opens a 3-hour meeting for ACM if none is open, and then starts `expo start --tunnel --clear` already pointed at the tunnel. It doesn't touch `.env.local`, so there's nothing to set back afterwards. **Ctrl + C** stops everything. Options:
+
+- `npm run demo:mobile -- --direct`: same Wi-Fi, no tunnels
+- `npm run demo:mobile -- --org <slug>`: open the meeting for another org
+- `npm run demo:mobile -- --functions-from ../other-checkout`: serve the edge functions from another checkout, e.g. a teammate's branch you want to try
+
+**Each time, by hand** (four terminals, keep them open):
 
 1. **Database** (main folder): `npx supabase start`
 2. **Database tunnel** (main folder):
