@@ -4,6 +4,8 @@ name: Mobile CI
 # Besides mobile/, these web files are included because mobile depends on them:
 # - app/globals.css: the theme test checks mobile tokens against it
 # - lib/checkin-link.ts: the QR parser test round-trips web's link builder
+# - lib/form-schema.ts, lib/meeting-time.ts: the check-in form copies their
+#   answer validation and open-meeting window, and its tests compare the copies
 # - supabase/functions/member-check-in/contract.ts (+ the lib/ and _shared/
 #   types it uses): the check-in screen is typed against it. #61 moves
 #   lib/form-schema.ts into supabase/functions/_shared/; drop the lib/ entry
@@ -16,6 +18,7 @@ on:
       - "lib/checkin-link.ts"
       - "lib/form-schema.ts"
       - "lib/geo.ts"
+      - "lib/meeting-time.ts"
       - "supabase/functions/member-check-in/contract.ts"
       - "supabase/functions/_shared/**"
       - ".github/workflows/mobile.yml"
@@ -27,6 +30,7 @@ on:
       - "lib/checkin-link.ts"
       - "lib/form-schema.ts"
       - "lib/geo.ts"
+      - "lib/meeting-time.ts"
       - "supabase/functions/member-check-in/contract.ts"
       - "supabase/functions/_shared/**"
       - ".github/workflows/mobile.yml"
