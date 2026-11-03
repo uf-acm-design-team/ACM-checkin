@@ -26,6 +26,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const MOBILE = join(dirname(fileURLToPath(import.meta.url)), "..");
+// Version ranges are quoted in commands: `^` is an escape character in cmd.exe.
 const run = (cmd, opts = {}) => execSync(cmd, { cwd: MOBILE, stdio: "inherit", ...opts });
 const read = (cmd) => execSync(cmd, { cwd: MOBILE, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
 const readJson = (path) => JSON.parse(readFileSync(join(MOBILE, path), "utf8"));
@@ -54,7 +55,7 @@ if (dirty) {
 
 step(`Expo SDK ${current} -> ${target}`);
 // Newest release of that SDK. (Only older SDKs get an `sdk-N` dist-tag.)
-const released = [read(`npm view expo@^${target}.0.0 version --json`)].flatMap((out) => JSON.parse(out || "[]"));
+const released = [read(`npm view "expo@^${target}.0.0" version --json`)].flatMap((out) => JSON.parse(out || "[]"));
 const expoVersion = released.at(-1);
 if (!expoVersion) {
   console.error(`No expo ${target}.x release on npm yet.`);
@@ -62,7 +63,7 @@ if (!expoVersion) {
 }
 
 function upgradeInPlace() {
-  run(`npm install expo@~${expoVersion}`);
+  run(`npm install "expo@~${expoVersion}"`);
   run("npx expo install --fix");
 }
 
@@ -72,7 +73,7 @@ function upgradeFromScratch() {
   console.log("\nnpm couldn't upgrade in place. Rebuilding the lockfile from package.json...");
   rmSync(join(MOBILE, "node_modules"), { recursive: true, force: true });
   rmSync(join(MOBILE, "package-lock.json"), { force: true });
-  run(`npm pkg set dependencies.expo=~${expoVersion}`);
+  run(`npm pkg set "dependencies.expo=~${expoVersion}"`);
   run("npm install");
   run("npx expo install --fix");
 }
@@ -92,11 +93,11 @@ const devUpdates = [];
 
 // jest-expo is built against one jest major; jest and @types/jest must match it.
 const jestMajor = major(installed("jest-expo")?.dependencies?.["babel-jest"]);
-if (jestMajor) devUpdates.push(`jest@^${jestMajor}`, `@types/jest@^${jestMajor}`);
+if (jestMajor) devUpdates.push(`"jest@^${jestMajor}"`, `"@types/jest@^${jestMajor}"`);
 
 // @types/react tracks react's minor version.
 const reactVersion = installed("react")?.version?.match(/^(\d+)\.(\d+)/);
-if (reactVersion) devUpdates.push(`@types/react@~${reactVersion[1]}.${reactVersion[2]}.0`);
+if (reactVersion) devUpdates.push(`"@types/react@~${reactVersion[1]}.${reactVersion[2]}.0"`);
 
 if (devUpdates.length) run(`npm install --save-dev ${devUpdates.join(" ")}`);
 
