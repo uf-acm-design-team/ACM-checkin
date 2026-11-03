@@ -1,0 +1,56 @@
+name: Expo SDK watch
+
+# Expo Go only opens projects on the SDK it was built for. When Expo ships a
+# new SDK, the app stores update Expo Go and our phones stop opening the app
+# until mobile/ is upgraded. This checks every Monday and opens an issue as
+# soon as a new SDK is out, so we upgrade before the demo breaks.
+# The upgrade itself: `npm run upgrade:sdk` in mobile/ (see mobile/README.md).
+on:
+  schedule:
+    - cron: "0 14 * * 1" # Mondays, 14:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  check:
+    name: Compare with the latest Expo SDK
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Open an issue if mobile/ is behind
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          current=$(node -p "require('./mobile/package.json').dependencies.expo.match(/\d+/)[0]")
+          latest=$(npm view expo@latest version | cut -d. -f1)
+          echo "mobile/ is on SDK $current; latest is SDK $latest"
+          [ "$latest" -gt "$current" ] || exit 0
+
+          title="Upgrade the mobile app to Expo SDK $latest"
+          existing=$(gh issue list --state open --search "\"$title\" in:title" --json number --jq '.[0].number')
+          if [ -n "$existing" ]; then
+            echo "Issue #$existing is already open."
+            exit 0
+          fi
+
+          gh issue create --title "$title" --body "$(cat <<EOF
+          Expo SDK $latest is out, and \`mobile/\` is on SDK $current. Once Expo Go updates on our phones, it won't open the app until we upgrade.
+
+          **To upgrade** (one person, on a new branch from \`main\`):
+
+          \`\`\`bash
+          cd mobile
+          npm run upgrade:sdk
+          \`\`\`
+
+          Then fix anything it reports as still failing, test on a phone with the new Expo Go, and open a PR.
+
+          **After it merges**, everyone runs \`npm ci\` in \`mobile/\` and updates Expo Go.
+
+          Release notes: https://expo.dev/changelog
+          EOF
+          )"
