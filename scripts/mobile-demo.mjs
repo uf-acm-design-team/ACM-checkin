@@ -91,7 +91,10 @@ function start(name, command, { cwd = ROOT, env = childEnv, inherit = false } = 
     cwd,
     env,
     shell: true,
-    detached: !IS_WIN, // own process group, so stopAll can kill the tree
+    // Background helpers get their own process group so stopAll can kill the
+    // tree. Expo stays in ours: on macOS/Linux a process outside the
+    // terminal's group is stopped as soon as it reads the keyboard.
+    detached: !IS_WIN && !inherit,
     stdio: inherit ? "inherit" : ["ignore", "pipe", "pipe"],
   });
   child.label = name;
