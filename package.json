@@ -12,6 +12,7 @@
     "supabase:stop": "supabase stop",
     "supabase:functions": "supabase functions serve --env-file supabase/functions/.env",
     "dev:functions": "npm run supabase:functions",
+    "demo:mobile": "node scripts/mobile-demo.mjs",
     "db:backup": "node scripts/backup-db.mjs",
     "db:restore": "node scripts/restore-db.mjs",
     "build": "next build",
