@@ -4,10 +4,13 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { colors, radii, shadows, space } from '@/theme';
 
-/** Full-screen canvas with safe-area padding. Every screen renders inside one. */
-export function Screen({ children }: { children: ReactNode }) {
+/**
+ * Full-screen canvas with safe-area padding. Every screen renders inside one.
+ * `transparent` drops the canvas colour, for content layered over a camera.
+ */
+export function Screen({ children, transparent = false }: { children: ReactNode; transparent?: boolean }) {
   return (
-    <SafeAreaView style={styles.screen} edges={['top', 'left', 'right']}>
+    <SafeAreaView style={[styles.screen, transparent && styles.transparent]} edges={['top', 'left', 'right']}>
       {children}
     </SafeAreaView>
   );
@@ -43,6 +46,9 @@ export function PlaceholderScreen({
 }
 
 const styles = StyleSheet.create({
+  transparent: {
+    backgroundColor: 'transparent',
+  },
   screen: {
     flex: 1,
     backgroundColor: colors.canvas,
