@@ -31,18 +31,15 @@ it('shows onboarding when the database has no profile', async () => {
   await waitFor(() => expect(result.current.status).toBe('missing'));
 });
 
-// Regression: finishing onboarding in stub mode updates the Clerk name, which
-// gives useAuth() a new getToken. That used to re-run the check, get 'missing'
-// from the database again, and bounce the user back to onboarding.
-it('stays complete after markComplete even when Clerk hands out a new getToken', async () => {
-  check.mockResolvedValue('missing');
+// Regression: updating the Clerk user (e.g. user.reload() after onboarding)
+// gives useAuth() a new getToken. That alone must not re-run the check and
+// risk bouncing the user back to onboarding.
+it('does not re-check when Clerk hands out a new getToken', async () => {
+  check.mockResolvedValue('complete');
   const { result, rerender } = await renderStatus();
-  await waitFor(() => expect(result.current.status).toBe('missing'));
+  await waitFor(() => expect(result.current.status).toBe('complete'));
 
-  await act(() => result.current.markComplete());
-  expect(result.current.status).toBe('complete');
-
-  mockAuth.getToken = jest.fn(async () => 'new-token'); // what user.update() causes
+  mockAuth.getToken = jest.fn(async () => 'new-token'); // what user.reload() causes
   await rerender(undefined);
   await act(async () => {}); // let any (wrongly) re-triggered check settle
 
@@ -50,14 +47,10 @@ it('stays complete after markComplete even when Clerk hands out a new getToken',
   expect(check).toHaveBeenCalledTimes(1);
 });
 
-// Regression: the stub pass used to survive sign-out, so signing back in as
-// the same user skipped both the database check and onboarding.
-it('forgets the stub pass on sign-out and asks the database again on sign-in', async () => {
+it('asks the database again after signing out and back in as the same user', async () => {
   check.mockResolvedValue('missing');
   const { result, rerender } = await renderStatus();
   await waitFor(() => expect(result.current.status).toBe('missing'));
-  await act(() => result.current.markComplete());
-  expect(result.current.status).toBe('complete');
 
   mockAuth.isSignedIn = false; // Profile → Sign out
   mockAuth.userId = null;

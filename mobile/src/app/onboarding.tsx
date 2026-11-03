@@ -1,12 +1,12 @@
-import { useAuth, useClerk, useUser } from '@clerk/expo';
+import { useClerk, useUser } from '@clerk/expo';
 import { useState } from 'react';
 
 import { useFormAction } from '@/components/auth/use-form-action';
 import { Button } from '@/components/button';
 import { FooterText, FormError, FormScreen, TextField, TextLink } from '@/components/form';
-import { env } from '@/lib/env';
 import { submitOnboardingProfile } from '@/lib/onboarding';
 import { useProfileStatus } from '@/lib/profile-status';
+import { useSupabase } from '@/lib/supabase';
 
 /**
  * Shown to signed-in users with no attendees row (see the root layout).
@@ -14,9 +14,9 @@ import { useProfileStatus } from '@/lib/profile-status';
  */
 export default function OnboardingScreen() {
   const { user } = useUser();
-  const { getToken } = useAuth();
+  const supabase = useSupabase();
   const { signOut } = useClerk();
-  const { markComplete, refresh } = useProfileStatus();
+  const { refresh } = useProfileStatus();
 
   // Google sign-ups already have a name in Clerk -- start from it.
   const [firstName, setFirstName] = useState(user?.firstName ?? '');
@@ -28,27 +28,14 @@ export default function OnboardingScreen() {
   // invalid input comes back as an error without calling the server.
   const onSubmit = () =>
     run(async () => {
-      const result = await submitOnboardingProfile({ firstName, lastName, gradYear }, () => getToken(), {
-        supabaseUrl: env.supabaseUrl,
-        supabaseAnonKey: env.supabaseAnonKey,
-      });
+      const result = await submitOnboardingProfile({ firstName, lastName, gradYear }, supabase);
       if (!result.ok) return result.error;
 
-      if (result.saved) {
-        // The edge function wrote the attendees row and updated the Clerk
-        // name server-side. Pull the new name, then re-run the gate: it now
-        // finds the row and the root navigator moves to the tabs.
-        await user?.reload().catch(() => undefined);
-        refresh();
-        return null;
-      }
-
-      // Edge function not deployed yet (stub mode): set the name in Clerk
-      // ourselves and let the user through for this app session.
-      await user
-        ?.update({ firstName: firstName.trim(), lastName: lastName.trim() })
-        .catch((err) => console.warn('Could not update Clerk name', err));
-      markComplete();
+      // The edge function wrote the attendees row and updated the Clerk name
+      // server-side. Pull the new name, then re-run the gate: it now finds the
+      // row and the root navigator moves to the tabs.
+      await user?.reload().catch(() => undefined);
+      refresh();
       return null;
     });
 
