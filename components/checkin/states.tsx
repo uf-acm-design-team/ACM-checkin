@@ -425,6 +425,76 @@ export function LocationCheckingState() {
 }
 
 /**
+ * GPS took too long. Distinct from state 12: the server was never asked, and
+ * "couldn't reach the server" sent people chasing wifi when the fix is to
+ * move somewhere the phone can see the sky.
+ */
+export function LocationTimeoutState({
+  onRetry,
+  onAskOfficer,
+  busy,
+}: {
+  onRetry: () => void;
+  onAskOfficer?: () => void;
+  busy?: boolean;
+}) {
+  return (
+    <CenteredScreen>
+      <Notice
+        tone="warn"
+        eyebrow="Location timed out"
+        title="Your phone couldn't find your location"
+      >
+        It didn&apos;t get a GPS fix within 10 seconds. That&apos;s common deep
+        inside a building. Try again, near a window if you can — nothing you
+        typed is lost.
+      </Notice>
+      <div className="flex flex-col gap-2.5">
+        <PrimaryButton onClick={onRetry} disabled={busy}>
+          {busy ? "Checking…" : "Try again"}
+        </PrimaryButton>
+        {onAskOfficer && (
+          <GhostButton onClick={onAskOfficer}>Ask an officer instead</GhostButton>
+        )}
+      </div>
+      <p className="m-0 text-[13px] leading-relaxed text-ink-muted">
+        Still stuck? An officer can check you in manually from the Attendance
+        tab.
+      </p>
+    </CenteredScreen>
+  );
+}
+
+/**
+ * Signed in, but no attendee profile yet (abandoned onboarding, or signed up
+ * before it existed). Without this the page fell through to the guest form,
+ * which asks a signed-in person for the email their account already has.
+ */
+export function NeedsProfileState({
+  orgName,
+  onContinue,
+}: {
+  orgName: string;
+  onContinue: () => void;
+}) {
+  return (
+    <CenteredScreen>
+      <div className="flex flex-col gap-1.5">
+        <h1 className="m-0 text-2xl font-bold tracking-[-0.02em] text-ink">
+          Finish your profile first
+        </h1>
+        <p className="m-0 text-sm leading-relaxed text-ink-muted">
+          You&apos;re signed in, but your account doesn&apos;t have a profile
+          yet. It&apos;s three fields, and then you&apos;ll come straight back
+          here to check in to {orgName}.
+        </p>
+      </div>
+      <PrimaryButton onClick={onContinue}>Finish profile</PrimaryButton>
+    </CenteredScreen>
+  );
+}
+
+/**
  * State 12 — says what actually failed. This is the state the old build showed
  * as "Club does not exist": a network failure wearing a wrong-club message.
  */
