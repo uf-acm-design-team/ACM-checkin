@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
 import { submitOnboardingProfile, syncOnboardingStatus } from "./actions";
+import { checkinReturnPath } from "@/lib/checkin-return";
 import {
   Button,
   Field,
@@ -14,6 +15,15 @@ import {
 
 const MAX_NAME_LENGTH = 50;
 
+/**
+ * Where to go once onboarding is done. Read from the URL at call time rather
+ * than from `returnTo` state: the sync effect below can finish before the
+ * effect that sets it has re-rendered.
+ */
+const destination = () =>
+  checkinReturnPath(new URLSearchParams(window.location.search).get("redirect_url")) ??
+  "/dashboard";
+
 export default function OnboardingPage() {
   const { user, isLoaded } = useUser();
   const [firstName, setFirstName] = useState("");
@@ -23,7 +33,18 @@ export default function OnboardingPage() {
   const [checkingExisting, setCheckingExisting] = useState(true);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
+  // Set when the check-in page sent them here mid-check-in, so finishing the
+  // profile returns them to it rather than to /dashboard.
+  const [returnTo, setReturnTo] = useState<string | null>(null);
   const router = useRouter();
+
+  useEffect(() => {
+    setReturnTo(
+      checkinReturnPath(
+        new URLSearchParams(window.location.search).get("redirect_url"),
+      ),
+    );
+  }, []);
 
   // Users who already have an attendees row but no onboarding flag (they
   // signed up before this gate existed) shouldn't be asked to re-enter a
@@ -61,7 +82,7 @@ export default function OnboardingPage() {
         if (alreadyOnboarded) {
           setSuccess(true);
           setTimeout(() => {
-            window.location.href = "/dashboard";
+            window.location.href = destination();
           }, 1200);
         }
       })
@@ -96,7 +117,7 @@ export default function OnboardingPage() {
     return (
       <div className="flex min-h-dvh flex-col items-center justify-center gap-4 px-4">
         <Notice tone="good" title="Successfully authenticated!" className="max-w-sm text-center">
-          Taking you to your dashboard…
+          {returnTo ? "Taking you back to check in…" : "Taking you to your dashboard…"}
         </Notice>
         <Spinner size={22} />
       </div>
@@ -159,7 +180,7 @@ export default function OnboardingPage() {
       // existing React tree and the cached session token, so the proxy can
       // still see the pre-onboarding claims and bounce straight back here.
       setTimeout(() => {
-        window.location.href = "/dashboard";
+        window.location.href = destination();
       }, 1200);
     } catch (err) {
       setError("An unexpected error occurred");
