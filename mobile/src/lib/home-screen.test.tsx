@@ -7,8 +7,6 @@ const mockGetMyHomeOrgs = jest.fn<Promise<HomeOrg[]>, []>();
 const mockSupabase = {};
 const mockPush = jest.fn();
 
-jest.mock('expo-router', () => ({ router: { push: (...args: unknown[]) => mockPush(...args) } }));
-
 jest.mock('@clerk/expo', () => ({ useUser: () => ({ user: { firstName: 'Jaedyn' } }) }));
 // Stands in for the navigator: runs the focus callback on mount, as a first
 // focus does, and keeps it so a test can focus Home again.
@@ -16,6 +14,7 @@ let mockFocus: () => void = () => {};
 jest.mock('expo-router', () => {
   const { useEffect } = jest.requireActual<typeof import('react')>('react');
   return {
+    router: { push: (...args: unknown[]) => mockPush(...args) },
     useFocusEffect: (onFocus: () => void) => {
       mockFocus = onFocus;
       useEffect(() => onFocus(), [onFocus]);
