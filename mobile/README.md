@@ -164,6 +164,26 @@ npm test
 
 ✅ All three should finish **without errors**. If one fails, read the message: it names the file and line to fix.
 
+## Upgrading the Expo SDK
+
+Expo Go only opens apps built for **its own** SDK, and the App Store / Google Play update it to each new SDK a few weeks after Expo releases it. When that happens, nobody's phone can open the app until it's upgraded. A GitHub check runs every Monday and opens an issue ("Upgrade the mobile app to Expo SDK N") as soon as a new SDK is out, so one person can upgrade before it bites.
+
+**One person upgrades**, on a new branch from `main`, in the `mobile` folder:
+
+```bash
+npm run upgrade:sdk
+```
+
+It moves `expo` and every package that comes with it to the new SDK, rebuilds `package-lock.json` if npm can't do it in place (the *ERESOLVE* error), matches `jest`, `@types/jest` and `@types/react`, and then runs `expo-doctor`, lint, typecheck and the tests. To pick a specific SDK: `npm run upgrade:sdk -- 59`.
+
+Then:
+
+1. Fix anything it lists as **still failing**. These are usually small type changes in the new React Native, e.g. `ColorValue`.
+2. Update Expo Go on your phone and try sign-in, Home and the Check in tab.
+3. Open a PR with the changes. Other open mobile PRs will need to rebase, since `package-lock.json` changes a lot.
+
+**Everyone else**, after it merges: pull `main`, run `npm ci` in `mobile`, and update Expo Go.
+
 ---
 
 ## Part D: How the code is organized
@@ -260,7 +280,7 @@ Find the message you're seeing:
 | **"Could not connect"** keeps happening even though the server is running | The tunnel has gone stale (common after it's been running for hours). Stop the server (Ctrl + C), start it again, delete the old entries under **Recently opened** in Expo Go, and scan the **new** QR code. The address may change (e.g. `-8081` → `-8082`). |
 | iPhone: **"You're signed in to Expo CLI as … and to Expo Go as …"** | The phone and the computer running the server use different Expo accounts. Run the server on your own laptop with your own account (see the iPhone rule in Part A, Step 3). |
 | **Onboarding:** "Couldn't reach the server" when tapping Continue | The phone can't reach your laptop's database. Use `npx expo start` (not `--tunnel`), keep phone and laptop on the same Wi-Fi, and make sure `npx supabase start` and `npm run dev:functions` are running. |
-| Expo Go says the project is **incompatible** / wrong SDK | Update Expo Go from the App Store or Google Play. This app needs SDK 57. |
+| Expo Go says the project is **incompatible** / wrong SDK | Update Expo Go from the App Store or Google Play. If Expo Go is already up to date, it has moved to a newer SDK than the app (the app's SDK is the major version of `expo` in `package.json`), and the app needs upgrading: see [Upgrading the Expo SDK](#upgrading-the-expo-sdk). |
 | **"Network request failed"** when the app loads data | Make sure `npx supabase start` is running and you started the app with `npx expo start` (not `--tunnel`). Leave `EXPO_PUBLIC_SUPABASE_URL` as `http://127.0.0.1:54321` (Part A, Step 7). |
 | `npx supabase start` fails on Windows with an error about **vector** or **analytics** | Run `npx supabase start -x vector,logflare` instead. It skips the logging services, which don't work on Windows. |
 | You changed `.env.local` but nothing changed | Restart with `npx expo start -c`. Settings are only read at startup. |

@@ -3,6 +3,7 @@
 import { auth, clerkClient } from "@clerk/nextjs/server";
 
 import { createServiceSupabaseClient } from "../utils/supabase/server";
+import { escapeLikePattern, sameEmail } from "../../lib/email-match";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 /**
@@ -19,7 +20,10 @@ import type { SupabaseClient } from "@supabase/supabase-js";
  * it. Service role sidesteps whatever that gap is.
  *
  * Matched with ilike() to line up with the unique index on lower(email);
- * .eq() would miss "Ada@ufl.edu" vs "ada@ufl.edu".
+ * .eq() would miss "Ada@ufl.edu" vs "ada@ufl.edu". ilike takes a pattern,
+ * though, so this finds candidates with an escaped one, keeps only an exact
+ * sameEmail() match, and claims that single row by id. Updating straight
+ * through the ilike let "john_doe@" take over johnxdoe's row and history.
  */
 async function claimGuestAttendeeRow(
   supabase: SupabaseClient,
@@ -27,11 +31,22 @@ async function claimGuestAttendeeRow(
   email: string,
 ): Promise<{ claimed: boolean; error?: string }> {
   if (!email) return { claimed: false };
+  const { data: candidates, error: findError } = await supabase
+    .from("attendees")
+    .select("id, email")
+    .is("user_id", null)
+    .ilike("email", escapeLikePattern(email));
+  if (findError) return { claimed: false, error: findError.message };
+
+  const match = candidates?.find((a) => sameEmail(a.email, email));
+  if (!match) return { claimed: false };
+
+  // user_id IS NULL again so a concurrent claim can't be overwritten.
   const { data, error } = await supabase
     .from("attendees")
     .update({ user_id: userId })
+    .eq("id", match.id)
     .is("user_id", null)
-    .ilike("email", email)
     .select("id");
 
   if (error) return { claimed: false, error: error.message };
