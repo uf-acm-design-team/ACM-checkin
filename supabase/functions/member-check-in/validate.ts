@@ -1,4 +1,4 @@
-import { type Coordinates, parseCoordinates } from "../../../lib/geo.ts";
+import { type Coordinates, parseCoordinates } from "../_shared/geo.ts";
 
 // Shape checks for the POST body fields lib/ doesn't already cover. Answers are
 // passed through untouched for validateAnswers (lib/form-schema.ts), and the

@@ -8,7 +8,7 @@
 // so Metro never has to resolve a file outside mobile/.
 
 import type { AnswerMap, AnswerValue } from "../_shared/form-schema.ts";
-import type { GeofenceFailure } from "../../../lib/geo.ts";
+import type { GeofenceFailure } from "../_shared/geo.ts";
 
 export type { AnswerMap, AnswerValue, GeofenceFailure };
 
