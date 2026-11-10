@@ -1,7 +1,8 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useEffect, useState, type ReactNode } from 'react';
-import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
+import { BottomSheet } from '@/components/bottom-sheet';
 import { daysAway, formatAnswer } from '@/lib/meeting-details';
 import { getMyMeetingCheckIn, useSupabase, type MeetingCheckIn, type OrgMeeting } from '@/lib/supabase';
 import { getTerm, ORG_TIME_ZONE } from '@/lib/terms';
@@ -36,15 +37,12 @@ const longDate = (iso: string) =>
 // date and description; the end time and your own check-in load when it opens.
 export function MeetingDetails({ meeting, orgName, now, onClose }: Props) {
   return (
-    <Modal visible={meeting !== null} transparent animationType="slide" onRequestClose={onClose}>
-      <View style={styles.fill}>
-        <Pressable style={styles.shade} onPress={onClose} accessibilityLabel="Close meeting details" />
-        {meeting ? (
-          // Keyed so a different meeting starts from "loading", not the last one's details.
-          <Sheet key={meeting.id} meeting={meeting} orgName={orgName} now={now} onClose={onClose} />
-        ) : null}
-      </View>
-    </Modal>
+    <BottomSheet onClose={onClose} backdropLabel="Close meeting details" style={styles.sheet}>
+      {meeting ? (
+        // Keyed so a different meeting starts from "loading", not the last one's details.
+        <Sheet key={meeting.id} meeting={meeting} orgName={orgName} now={now} onClose={onClose} />
+      ) : null}
+    </BottomSheet>
   );
 }
 
@@ -78,7 +76,7 @@ function Sheet({ meeting, orgName, now, onClose }: Props & { meeting: OrgMeeting
     .filter((question) => question.answer);
 
   return (
-    <View style={styles.sheet} accessibilityViewIsModal>
+    <>
       <View style={styles.grabber} />
       <View style={styles.titleRow}>
         <View style={styles.titleBlock}>
@@ -143,7 +141,7 @@ function Sheet({ meeting, orgName, now, onClose }: Props & { meeting: OrgMeeting
           <Text style={[styles.muted, styles.loading]}>Couldn&apos;t load the rest of this meeting&apos;s details.</Text>
         ) : null}
       </ScrollView>
-    </View>
+    </>
   );
 }
 
@@ -181,19 +179,6 @@ function Detail({ icon, children }: { icon: keyof typeof Ionicons.glyphMap; chil
 }
 
 const styles = StyleSheet.create({
-  fill: {
-    flex: 1,
-    justifyContent: 'flex-end',
-  },
-  shade: {
-    position: 'absolute',
-    top: 0,
-    right: 0,
-    bottom: 0,
-    left: 0,
-    backgroundColor: colors.ink,
-    opacity: 0.4,
-  },
   sheet: {
     maxHeight: '78%',
     paddingHorizontal: space[4],
