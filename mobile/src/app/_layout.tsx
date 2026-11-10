@@ -52,6 +52,7 @@ function RootNavigator() {
       <Stack.Protected guard={status === 'complete'}>
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="checkin/[orgSlug]" />
+        <Stack.Screen name="org/[orgSlug]" />
       </Stack.Protected>
       <Stack.Protected guard={status === 'missing'}>
         <Stack.Screen name="onboarding" />

@@ -189,3 +189,34 @@ export async function getMyHomeOrgs(
     (data ?? []).map((row) => row.org_id),
   );
 }
+
+
+export type OrgMeeting = { id: string; title: string; startTime: string; attended: boolean };
+
+export async function getMyOrgMeetings(
+  supabase: MobileSupabase | null,
+  orgId: string,
+  window: { start: string; end: string },
+): Promise<{ meetings: OrgMeeting[]; total: number }> {
+  if (!supabase) return { meetings: [], total: 0 };
+  const attendee = await getMyAttendee(supabase);
+  if (!attendee) return { meetings: [], total: 0 };
+
+  const { data, error } = await supabase.client.rpc("get_member_meetings_page", {
+    p_org_id: orgId,
+    p_attendee_id: attendee.id,
+    p_start: window.start,
+    p_end: window.end,
+    p_view: "all",
+    p_limit: 100,
+    p_offset: 0,
+  });
+  if (error) throw new DataError("getMyOrgMeetings", error);
+
+  const rows = data ?? [];
+  return {
+    meetings: rows.map((row) => ({ id: row.id, title: row.title, startTime: row.start_time, attended: row.attended })),
+    // total_count is the same on every row; 0 when there are none.
+    total: rows.length > 0 ? Number(rows[0].total_count) : 0,
+  };
+}
