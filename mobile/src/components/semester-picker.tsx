@@ -1,6 +1,6 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { useState } from 'react';
-import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useRef, useState } from 'react';
+import { Modal, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 
 import type { Term } from '@/lib/terms';
 import { colors, radii, shadows, space } from '@/theme';
@@ -11,15 +11,27 @@ type Props = {
   onSelect: (term: Term) => void;
 };
 
-// The semester pill at the top of the history screen. Tapping it opens a
-// small menu of this academic year's semesters.
+type Anchor = { top: number; right: number };
+
+// The semester pill at the top of the history screen. Tapping it drops a menu
+// of this academic year's semesters down from the pill.
 export function SemesterPicker({ terms, selected, onSelect }: Props) {
-  const [open, setOpen] = useState(false);
+  const pill = useRef<View>(null);
+  const { width: windowWidth } = useWindowDimensions();
+  const [anchor, setAnchor] = useState<Anchor | null>(null);
+
+  const open = () => {
+    pill.current?.measureInWindow((x, y, width, height) => {
+      setAnchor({ top: y + height + space[1], right: windowWidth - (x + width) });
+    });
+  };
+  const close = () => setAnchor(null);
 
   return (
     <>
       <Pressable
-        onPress={() => setOpen(true)}
+        ref={pill}
+        onPress={open}
         accessibilityRole="button"
         accessibilityLabel={`Semester: ${selected.label}. Change semester`}
         style={({ pressed }) => [styles.pill, pressed && styles.pressed]}
@@ -28,22 +40,17 @@ export function SemesterPicker({ terms, selected, onSelect }: Props) {
         <Ionicons name="chevron-down" size={14} color={colors.inkMuted} />
       </Pressable>
 
-      <Modal transparent visible={open} animationType="fade" onRequestClose={() => setOpen(false)}>
-        <Pressable
-          style={styles.backdrop}
-          onPress={() => setOpen(false)}
-          accessibilityLabel="Close semester menu"
-        >
-          <View style={styles.scrim} />
-          <View style={styles.menu}>
-            <Text style={styles.menuTitle}>Semester</Text>
+      <Modal transparent visible={anchor !== null} animationType="fade" onRequestClose={close}>
+        <Pressable style={styles.backdrop} onPress={close} accessibilityLabel="Close semester menu" />
+        {anchor ? (
+          <View style={[styles.menu, anchor]}>
             {terms.map((term) => {
               const active = term.key === selected.key;
               return (
                 <Pressable
                   key={term.key}
                   onPress={() => {
-                    setOpen(false);
+                    close();
                     onSelect(term);
                   }}
                   accessibilityRole="button"
@@ -57,11 +64,12 @@ export function SemesterPicker({ terms, selected, onSelect }: Props) {
                   <Text style={[styles.optionText, active && styles.optionTextActive]}>
                     {term.label}
                   </Text>
+                  {active ? <Ionicons name="checkmark" size={16} color={colors.accentOnSoft} /> : null}
                 </Pressable>
               );
             })}
           </View>
-        </Pressable>
+        ) : null}
       </Modal>
     </>
   );
@@ -88,32 +96,22 @@ const styles = StyleSheet.create({
     opacity: 0.85,
   },
   backdrop: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: space[5],
-  },
-  scrim: {
     ...StyleSheet.absoluteFill,
-    backgroundColor: colors.ink,
-    opacity: 0.3,
   },
   menu: {
-    alignSelf: 'stretch',
-    gap: space[1],
-    padding: space[3],
+    position: 'absolute',
+    minWidth: 180,
+    padding: space[1],
     backgroundColor: colors.surface,
+    borderColor: colors.line,
+    borderWidth: StyleSheet.hairlineWidth,
     borderRadius: radii.panel,
     ...shadows.raised,
   },
-  menuTitle: {
-    color: colors.inkMuted,
-    fontSize: 13,
-    fontWeight: '600',
-    paddingHorizontal: space[2],
-    paddingBottom: space[1],
-  },
   option: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: space[3],
     paddingVertical: space[3],
     borderRadius: radii.control,
@@ -123,7 +121,7 @@ const styles = StyleSheet.create({
   },
   optionText: {
     color: colors.ink,
-    fontSize: 16,
+    fontSize: 15,
   },
   optionTextActive: {
     color: colors.accentOnSoft,
