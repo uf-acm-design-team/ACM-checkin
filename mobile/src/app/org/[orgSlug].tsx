@@ -3,18 +3,52 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
 
 import { Button } from '@/components/button';
+import { MeetingCalendar } from '@/components/meeting-calendar';
+import { MembershipProgress } from '@/components/membership-progress';
 import { Screen } from '@/components/screen';
 import { SemesterPicker } from '@/components/semester-picker';
-import { getMyOrgMeetings, getOrgBySlug, useSupabase, type OrgMeeting } from '@/lib/supabase';
-import { academicYearTerms, getTerm, termBounds, type Term } from '@/lib/terms';
+import { ViewSwitch } from '@/components/view-switch';
+import { addMonths } from '@/lib/calendar';
+import { membershipProgress, orgAccent, type MembershipProgress as Progress } from '@/lib/org-display';
+import { getMyHomeOrgs, getMyOrgMeetings, getOrgBySlug, useSupabase, type OrgMeeting } from '@/lib/supabase';
+import {
+  academicYearTerms,
+  firstMonth,
+  getTerm,
+  orgDate,
+  termBounds,
+  termForMonth,
+  type Term,
+  type YearMonth,
+} from '@/lib/terms';
 import { colors, radii, space } from '@/theme';
 
 const ORG_TIME_ZONE = 'America/New_York';
 
+const VIEWS = [
+  { value: 'list', label: 'List' },
+  { value: 'calendar', label: 'Calendar' },
+] as const;
+type HistoryView = (typeof VIEWS)[number]['value'];
+
 type HistoryState =
   | { status: 'loading' }
   | { status: 'error'; message: string }
-  | { status: 'ready'; orgName: string; meetings: OrgMeeting[]; total: number };
+  | {
+      status: 'ready';
+      orgName: string;
+      accent: string;
+      progress: Progress;
+      // Every meeting in the semester, attended or not, past or upcoming.
+      meetings: OrgMeeting[];
+    };
+
+// The month the calendar opens on for a semester: this month if it's the
+// current semester, otherwise the semester's first month.
+function openingMonth(term: Term, now: string): YearMonth {
+  const today = orgDate(now);
+  return termForMonth(today).key === term.key ? today : firstMonth(term);
+}
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString('en-US', {
@@ -32,9 +66,33 @@ export default function OrgHistoryScreen() {
   const [state, setState] = useState<HistoryState>({ status: 'loading' });
   const [reloadKey, setReloadKey] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
+  const [view, setView] = useState<HistoryView>('list');
   // Start on the current semester; the picker offers this academic year's three.
-  const terms = useMemo(() => academicYearTerms(new Date().toISOString()), []);
-  const [term, setTerm] = useState<Term>(() => getTerm(new Date().toISOString()));
+  const now = useMemo(() => new Date().toISOString(), []);
+  const terms = useMemo(() => academicYearTerms(now), [now]);
+  const [term, setTerm] = useState<Term>(() => getTerm(now));
+  const [month, setMonth] = useState<YearMonth>(() => openingMonth(getTerm(now), now));
+
+  // Picking a semester moves the calendar to it.
+  const selectTerm = useCallback(
+    (next: Term) => {
+      setTerm(next);
+      setMonth(openingMonth(next, now));
+    },
+    [now],
+  );
+
+  // Paging the calendar into another semester switches the dropdown to it.
+  // The arrows stop at the ends of this academic year.
+  const canMove = (count: number) =>
+    terms.some((t) => t.key === termForMonth(addMonths(month, count)).key);
+  const moveMonth = (count: number) => {
+    const next = addMonths(month, count);
+    const nextTerm = termForMonth(next);
+    if (!terms.some((t) => t.key === nextTerm.key)) return;
+    setMonth(next);
+    if (nextTerm.key !== term.key) setTerm(nextTerm);
+  };
 
   useEffect(() => {
     if (!supabase) return;
@@ -45,13 +103,19 @@ export default function OrgHistoryScreen() {
       try {
         const org = await getOrgBySlug(supabase, orgSlug);
         if (!org) throw new Error('This org no longer exists.');
-        const { meetings } = await getMyOrgMeetings(supabase, org.id, termBounds(term));
-        const attended = meetings.filter((meeting) => meeting.attended);
+        const [{ meetings }, homeOrgs] = await Promise.all([
+          getMyOrgMeetings(supabase, org.id, termBounds(term)),
+          getMyHomeOrgs(supabase),
+        ]);
+        // Membership counts every check-in, not just this semester's -- the
+        // same numbers as the org's card on Home.
+        const home = homeOrgs.find((entry) => entry.org.id === org.id);
         next = {
           status: 'ready',
           orgName: org.name ?? org.slug ?? 'Organization',
-          meetings: attended,
-          total: attended.length,
+          accent: orgAccent(org.branding) ?? colors.accent,
+          progress: membershipProgress(org.slug, home?.attended ?? 0, home?.status ?? null),
+          meetings,
         };
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Something went wrong.';
@@ -89,10 +153,13 @@ export default function OrgHistoryScreen() {
     );
   }
 
+  const attended =
+    state.status === 'ready' ? state.meetings.filter((meeting) => meeting.attended) : [];
+
   return (
     <Screen>
       <FlatList
-        data={state.status === 'ready' ? state.meetings : []}
+        data={view === 'list' ? attended : []}
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.list}
         ItemSeparatorComponent={() => <View style={styles.separator} />}
@@ -105,14 +172,18 @@ export default function OrgHistoryScreen() {
               <Pressable onPress={() => router.back()} accessibilityRole="button" hitSlop={8}>
                 <Text style={styles.back}>‹ Back</Text>
               </Pressable>
-              <SemesterPicker terms={terms} selected={term} onSelect={setTerm} />
+              <SemesterPicker terms={terms} selected={term} onSelect={selectTerm} />
             </View>
             {state.status === 'ready' ? (
               <>
                 <Text style={styles.title}>{state.orgName}</Text>
                 <Text style={styles.muted}>
-                  {state.total} {state.total === 1 ? 'check-in' : 'check-ins'} in {term.label}
+                  {attended.length} {attended.length === 1 ? 'check-in' : 'check-ins'} in {term.label}
                 </Text>
+                <View style={styles.progress}>
+                  <MembershipProgress progress={state.progress} accent={state.accent} />
+                </View>
+                <ViewSwitch options={VIEWS} value={view} onChange={setView} />
               </>
             ) : null}
           </View>
@@ -132,6 +203,15 @@ export default function OrgHistoryScreen() {
               <Text style={styles.muted}>{state.message}</Text>
               <Button label="Try again" variant="secondary" onPress={retry} />
             </View>
+          ) : view === 'calendar' && state.status === 'ready' ? (
+            <MeetingCalendar
+              month={month}
+              meetings={state.meetings}
+              now={now}
+              canGoBack={canMove(-1)}
+              canGoForward={canMove(1)}
+              onMove={moveMonth}
+            />
           ) : (
             <View style={styles.panel}>
               <Text style={styles.panelTitle}>No check-ins this term yet</Text>
@@ -177,6 +257,9 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontWeight: '700',
     letterSpacing: -0.4,
+  },
+  progress: {
+    marginVertical: space[3],
   },
   separator: {
     height: space[2],

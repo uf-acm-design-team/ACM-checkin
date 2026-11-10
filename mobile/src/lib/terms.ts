@@ -44,11 +44,30 @@ function makeTerm(season: Season, year: number): Term {
   return { key: `${year}-${season}`, label: `${season} ${year}`, season, year };
 }
 
-// Jan–May is Spring, Jun–Jul is Summer, Aug–Dec is Fall, by the org's calendar.
-export function getTerm(iso: string): Term {
-  const { year, month } = orgWallClock(new Date(iso));
+// A calendar month, with month counted 1-12.
+export type YearMonth = { year: number; month: number };
+
+// The month and day an instant falls on in the org's time zone.
+export function orgDate(iso: string): YearMonth & { day: number } {
+  const { year, month, day } = orgWallClock(new Date(iso));
+  return { year, month, day };
+}
+
+// Jan–May is Spring, Jun–Jul is Summer, Aug–Dec is Fall.
+export function termForMonth({ year, month }: YearMonth): Term {
   const season: Season = month <= 5 ? 'Spring' : month <= 7 ? 'Summer' : 'Fall';
   return makeTerm(season, year);
+}
+
+// The semester an instant falls in, by the org's calendar.
+export function getTerm(iso: string): Term {
+  return termForMonth(orgDate(iso));
+}
+
+// The first month of a semester.
+export function firstMonth(term: Term): YearMonth {
+  const month = term.season === 'Spring' ? 1 : term.season === 'Summer' ? 6 : 8;
+  return { year: term.year, month };
 }
 
 // The first and last instant of a semester, to pass to get_member_meetings_page.
