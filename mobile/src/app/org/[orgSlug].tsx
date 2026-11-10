@@ -1,10 +1,12 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
 
 import { Button } from '@/components/button';
 import { Screen } from '@/components/screen';
+import { SemesterPicker } from '@/components/semester-picker';
 import { getMyOrgMeetings, getOrgBySlug, useSupabase, type OrgMeeting } from '@/lib/supabase';
+import { academicYearTerms, getTerm, termBounds, type Term } from '@/lib/terms';
 import { colors, radii, space } from '@/theme';
 
 const ORG_TIME_ZONE = 'America/New_York';
@@ -30,6 +32,9 @@ export default function OrgHistoryScreen() {
   const [state, setState] = useState<HistoryState>({ status: 'loading' });
   const [reloadKey, setReloadKey] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
+  // Start on the current semester; the picker offers this academic year's three.
+  const terms = useMemo(() => academicYearTerms(new Date().toISOString()), []);
+  const [term, setTerm] = useState<Term>(() => getTerm(new Date().toISOString()));
 
   useEffect(() => {
     if (!supabase) return;
@@ -40,10 +45,7 @@ export default function OrgHistoryScreen() {
       try {
         const org = await getOrgBySlug(supabase, orgSlug);
         if (!org) throw new Error('This org no longer exists.');
-        const { meetings } = await getMyOrgMeetings(supabase, org.id, {
-          start: '2000-01-01T00:00:00Z',
-          end: new Date().toISOString(),
-        });
+        const { meetings } = await getMyOrgMeetings(supabase, org.id, termBounds(term));
         const attended = meetings.filter((meeting) => meeting.attended);
         next = {
           status: 'ready',
@@ -64,7 +66,7 @@ export default function OrgHistoryScreen() {
     return () => {
       cancelled = true;
     };
-  }, [supabase, orgSlug, reloadKey]);
+  }, [supabase, orgSlug, term, reloadKey]);
 
   const refresh = useCallback(() => {
     setRefreshing(true);
@@ -99,14 +101,17 @@ export default function OrgHistoryScreen() {
         }
         ListHeaderComponent={
           <View style={styles.header}>
-            <Pressable onPress={() => router.back()} accessibilityRole="button" hitSlop={8}>
-              <Text style={styles.back}>‹ Back</Text>
-            </Pressable>
+            <View style={styles.topBar}>
+              <Pressable onPress={() => router.back()} accessibilityRole="button" hitSlop={8}>
+                <Text style={styles.back}>‹ Back</Text>
+              </Pressable>
+              <SemesterPicker terms={terms} selected={term} onSelect={setTerm} />
+            </View>
             {state.status === 'ready' ? (
               <>
                 <Text style={styles.title}>{state.orgName}</Text>
                 <Text style={styles.muted}>
-                  {state.total} {state.total === 1 ? 'check-in' : 'check-ins'}
+                  {state.total} {state.total === 1 ? 'check-in' : 'check-ins'} in {term.label}
                 </Text>
               </>
             ) : null}
@@ -156,11 +161,16 @@ const styles = StyleSheet.create({
     gap: space[1],
     marginBottom: space[4],
   },
+  topBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: space[2],
+  },
   back: {
     color: colors.accent,
     fontSize: 15,
     fontWeight: '600',
-    marginBottom: space[2],
   },
   title: {
     color: colors.ink,
