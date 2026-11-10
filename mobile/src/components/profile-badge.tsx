@@ -1,6 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
+import { BottomSheet } from '@/components/bottom-sheet';
 import { orgAccent } from '@/lib/org-display';
 import { eventCount, type ProfileBadge as Badge } from '@/lib/profile-badges';
 import { colors, radii, space } from '@/theme';
@@ -60,74 +61,62 @@ export function ProfileBadgeDetails({
   onClose: () => void;
 }) {
   return (
-    <Modal visible={badge !== null} transparent animationType="slide" onRequestClose={onClose}>
-      <View style={styles.overlay}>
-        <Pressable
-          style={styles.backdrop}
-          onPress={onClose}
-          accessibilityRole="button"
-          accessibilityLabel="Dismiss badge details"
-        />
-        {badge ? (
-          <View style={styles.sheet} accessibilityViewIsModal>
-            <ScrollView contentContainerStyle={styles.sheetContent}>
-              <View style={styles.sheetHeader}>
-                <View style={[styles.circle, badge.earned
-                  ? { backgroundColor: orgAccent(badge.org.branding) ?? colors.accent }
-                  : styles.circleGrey]}>
-                  <Ionicons
-                    name="ribbon"
-                    size={26}
-                    color={badge.earned ? colors.accentInk : colors.inkFaint}
-                  />
-                </View>
-                <Pressable onPress={onClose} accessibilityRole="button" hitSlop={8} style={styles.close}>
-                  <Text style={styles.closeText}>Close</Text>
-                </Pressable>
-              </View>
-              <Text accessibilityRole="header" style={styles.title}>
-                {badge.org.name ?? badge.org.slug ?? 'Org'} semester badge
-              </Text>
-              <Text style={styles.body}>{semester}</Text>
-              <Text style={[styles.status, badge.earned && styles.earned]}>
-                {badge.earned ? 'Earned' : ended ? 'Not earned' : 'In progress'}
-              </Text>
-              <Text style={styles.body}>
-                Earn this badge by checking in to {eventCount(badge.threshold)} hosted by this org during the semester.
-              </Text>
-              <Text style={styles.progressLabel}>
-                {Math.min(badge.count, badge.threshold)} of {badge.threshold} required check-ins
-              </Text>
-              {badge.earned || !ended ? (
-                <View
-                  style={[styles.track, styles.sheetTrack]}
-                  accessible
-                  accessibilityRole="progressbar"
-                  accessibilityLabel="Badge progress"
-                  accessibilityValue={{ min: 0, max: badge.threshold, now: Math.min(badge.count, badge.threshold) }}
-                >
-                  <View style={[styles.fill, {
-                    backgroundColor: orgAccent(badge.org.branding) ?? colors.accent,
-                    width: `${Math.min(badge.count / badge.threshold, 1) * 100}%`,
-                  }]} />
-                </View>
-              ) : null}
-              <Text style={styles.body}>
-                {badge.earned || ended
-                  ? `${eventCount(badge.count)} this semester`
-                  : `${badge.threshold - badge.count} more ${badge.threshold - badge.count === 1 ? 'event' : 'events'} to earn this badge`}
-              </Text>
-            </ScrollView>
+    <BottomSheet onClose={onClose} backdropLabel="Dismiss badge details" style={styles.sheet}>
+      {badge ? (
+        <ScrollView contentContainerStyle={styles.sheetContent}>
+          <View style={styles.sheetHeader}>
+            <View style={[styles.circle, badge.earned
+              ? { backgroundColor: orgAccent(badge.org.branding) ?? colors.accent }
+              : styles.circleGrey]}>
+              <Ionicons
+                name="ribbon"
+                size={26}
+                color={badge.earned ? colors.accentInk : colors.inkFaint}
+              />
+            </View>
+            <Pressable onPress={onClose} accessibilityRole="button" hitSlop={8} style={styles.close}>
+              <Text style={styles.closeText}>Close</Text>
+            </Pressable>
           </View>
-        ) : null}
-      </View>
-    </Modal>
+          <Text accessibilityRole="header" style={styles.title}>
+            {badge.org.name ?? badge.org.slug ?? 'Org'} semester badge
+          </Text>
+          <Text style={styles.body}>{semester}</Text>
+          <Text style={[styles.status, badge.earned && styles.earned]}>
+            {badge.earned ? 'Earned' : ended ? 'Not earned' : 'In progress'}
+          </Text>
+          <Text style={styles.body}>
+            Earn this badge by checking in to {eventCount(badge.threshold)} hosted by this org during the semester.
+          </Text>
+          <Text style={styles.progressLabel}>
+            {Math.min(badge.count, badge.threshold)} of {badge.threshold} required check-ins
+          </Text>
+          {badge.earned || !ended ? (
+            <View
+              style={[styles.track, styles.sheetTrack]}
+              accessible
+              accessibilityRole="progressbar"
+              accessibilityLabel="Badge progress"
+              accessibilityValue={{ min: 0, max: badge.threshold, now: Math.min(badge.count, badge.threshold) }}
+            >
+              <View style={[styles.fill, {
+                backgroundColor: orgAccent(badge.org.branding) ?? colors.accent,
+                width: `${Math.min(badge.count / badge.threshold, 1) * 100}%`,
+              }]} />
+            </View>
+          ) : null}
+          <Text style={styles.body}>
+            {badge.earned || ended
+              ? `${eventCount(badge.count)} this semester`
+              : `${badge.threshold - badge.count} more ${badge.threshold - badge.count === 1 ? 'event' : 'events'} to earn this badge`}
+          </Text>
+        </ScrollView>
+      ) : null}
+    </BottomSheet>
   );
 }
 
 const styles = StyleSheet.create({
-  overlay: { flex: 1, justifyContent: 'flex-end' },
-  backdrop: { ...StyleSheet.absoluteFill, backgroundColor: colors.ink, opacity: 0.4 },
   sheet: {
     maxHeight: '80%',
     backgroundColor: colors.surface,
