@@ -9,7 +9,7 @@ export type {
 } from "./database.types";
 export {
     buildHomeOrgs,
-    DataError, getMyAttendee, getMyHomeOrgs, getMyMeetingCheckIn, getMyMemberships, getMyOrgMeetings, getOrgBySlug
+    DataError, getMyAttendee, getMyHomeOrgs, getMyMeetingCheckIn, getMyMemberships, getMyOrgMeetings, getMyProfile, getOrgBySlug
 } from "./queries";
 export { useSupabase } from "./useSupabase";
-export type { Attendee, HomeOrg, MeetingCheckIn, MeetingQuestion, MyMembership, OrgMeeting, Organization } from "./queries";
+export type { Attendee, HomeOrg, MeetingCheckIn, MeetingQuestion, MyCheckIn, MyMembership, MyProfile, OrgMeeting, Organization } from "./queries";

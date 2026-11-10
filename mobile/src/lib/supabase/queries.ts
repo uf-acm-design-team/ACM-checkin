@@ -137,6 +137,42 @@ export async function getMyHomeOrgs(
   );
 }
 
+// One of your check-ins: which org, and when that meeting started.
+export type MyCheckIn = { orgId: string; startTime: string };
+
+export type MyProfile = {
+  attendee: Attendee | null;
+  memberships: MyMembership[];
+  checkIns: MyCheckIn[];
+};
+
+// Everything the profile tab needs. meetings only grants listed columns, so
+// the join names start_time rather than selecting *.
+export async function getMyProfile(
+  supabase: MobileSupabase | null,
+): Promise<MyProfile> {
+  const empty: MyProfile = { attendee: null, memberships: [], checkIns: [] };
+  if (!supabase) return empty;
+
+  const [memberships, attendee] = await Promise.all([
+    getMyMemberships(supabase),
+    getMyAttendee(supabase),
+  ]);
+  if (!attendee) return { ...empty, memberships };
+
+  const { data, error } = await supabase.client
+    .from("attendance")
+    .select("org_id, meeting:meetings(start_time)")
+    .eq("attendee_id", attendee.id);
+  if (error) throw new DataError("getMyProfile", error);
+
+  const checkIns = (data ?? []).flatMap((row) =>
+    row.meeting?.start_time
+      ? [{ orgId: row.org_id, startTime: row.meeting.start_time }]
+      : [],
+  );
+  return { attendee, memberships, checkIns };
+}
 
 export type MeetingQuestion = { id: string; label: string };
 
