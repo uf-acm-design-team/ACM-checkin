@@ -3,7 +3,8 @@ import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { Button } from '@/components/button';
-import { CheckInReply, LocationProblem } from '@/components/checkin/check-in-reply';
+import { CheckInReply, LocationProblem, membershipProgress } from '@/components/checkin/check-in-reply';
+import { CheckInSuccess } from '@/components/checkin/check-in-success';
 import { ChosenMeeting, MeetingPicker, NoOpenMeetings } from '@/components/checkin/meeting-picker';
 import { Eyebrow, Muted, Panel } from '@/components/checkin/panel';
 import { Questions } from '@/components/checkin/questions';
@@ -41,7 +42,7 @@ type SubmitState =
   | { status: 'sending' }
   | { status: 'location-failed'; failure: LocationFailure }
   | { status: 'network-error'; message: string }
-  | { status: 'answered'; result: MemberCheckInResult };
+  | { status: 'answered'; result: MemberCheckInResult; at: Date };
 
 const errorMessage = (error: unknown) => (error instanceof Error ? error.message : 'Something went wrong.');
 
@@ -188,7 +189,7 @@ export default function OrgCheckInScreen() {
         if (reply.code === 'invalid_answers') setAnswerErrors(reply.answerErrors);
         if (reply.code === 'wrong_password') setPasswordError('That’s not the password for this meeting.');
       }
-      setSubmit({ status: 'answered', result });
+      setSubmit({ status: 'answered', result, at: new Date() });
     } catch (error) {
       setSubmit({
         status: 'network-error',
@@ -231,8 +232,22 @@ export default function OrgCheckInScreen() {
   const accent = orgAccent(org.org.branding) ?? colors.accent;
   const orgName = org.org.name || orgSlug;
   const busy = submit.status === 'locating' || submit.status === 'sending';
-  const checkedIn = submit.status === 'answered' && submit.result.reply?.ok === true;
   const questionCount = meeting?.form_schema.length ?? 0;
+
+  // Checked in (or already was): the form is done, so the success screen takes over.
+  if (submit.status === 'answered' && submit.result.reply?.ok && meeting) {
+    const { alreadyCheckedIn } = submit.result.reply;
+    return (
+      <CheckInSuccess
+        orgName={orgName}
+        meetingTitle={meeting.title}
+        alreadyCheckedIn={alreadyCheckedIn}
+        checkedInAt={submit.at}
+        membership={alreadyCheckedIn ? null : membershipProgress(submit.result)}
+        onDone={() => router.dismissTo('/')}
+      />
+    );
+  }
 
   return (
     <Screen>
@@ -270,7 +285,7 @@ export default function OrgCheckInScreen() {
 
           {openMeetings.length > 1 && !meeting ? <MeetingPicker meetings={openMeetings} onPick={chooseMeeting} /> : null}
 
-          {meeting && !checkedIn ? (
+          {meeting ? (
             <Panel>
               <ChosenMeeting
                 meeting={meeting}

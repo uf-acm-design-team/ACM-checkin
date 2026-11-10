@@ -29,8 +29,9 @@ jest.mock('expo-location', () => ({
 }));
 
 const mockBack = jest.fn();
+const mockDismissTo = jest.fn();
 jest.mock('expo-router', () => ({
-  router: { back: () => mockBack() },
+  router: { back: () => mockBack(), dismissTo: (href: string) => mockDismissTo(href) },
   useLocalSearchParams: () => ({ orgSlug: 'acm' }),
 }));
 
@@ -87,6 +88,7 @@ beforeEach(() => {
   mockRequestLocation.mockReset();
   mockGetPosition.mockReset();
   mockBack.mockReset();
+  mockDismissTo.mockReset();
 });
 
 /** Render, and wait until the org and its meetings have loaded. */
@@ -177,7 +179,7 @@ describe('choosing a meeting', () => {
     expect(screen.queryByText('Not this one? Choose a different meeting')).toBeNull();
 
     await pressCheckIn();
-    await waitFor(() => expect(screen.getByText('Checked in')).toBeTruthy());
+    await waitFor(() => expect(screen.getByText('You’re in')).toBeTruthy());
     expect(sentRequest()).toEqual({ orgSlug: 'acm', meetingId: 'meeting-1', answers: {} });
   });
 
@@ -200,7 +202,7 @@ describe('choosing a meeting', () => {
     await fireEvent.press(screen.getByLabelText('Check in to Officer Workshop'));
     await fireEvent.changeText(screen.getByPlaceholderText('Shown at the front of the room'), 'room42');
     await pressCheckIn();
-    await waitFor(() => expect(screen.getByText('Checked in')).toBeTruthy());
+    await waitFor(() => expect(screen.getByText('You’re in')).toBeTruthy());
     expect(sentRequest()).toMatchObject({ meetingId: 'meeting-2', password: 'room42' });
   });
 });
@@ -226,7 +228,7 @@ describe('meeting password', () => {
 
     await fireEvent.changeText(screen.getByPlaceholderText('Shown at the front of the room'), 'room42');
     await pressCheckIn();
-    await waitFor(() => expect(screen.getByText('Checked in')).toBeTruthy());
+    await waitFor(() => expect(screen.getByText('You’re in')).toBeTruthy());
     expect(sentRequest()).toMatchObject({ password: 'room42' });
   });
 
@@ -291,7 +293,7 @@ describe("the meeting's questions", () => {
     await fireEvent.press(screen.getByLabelText('Rate it: 4'));
 
     await pressCheckIn();
-    await waitFor(() => expect(screen.getByText('Checked in')).toBeTruthy());
+    await waitFor(() => expect(screen.getByText('You’re in')).toBeTruthy());
     expect(sentRequest()).toEqual({
       orgSlug: 'acm',
       meetingId: 'meeting-1',
@@ -334,7 +336,7 @@ describe('location', () => {
   it('is never asked for when the meeting is not geo-locked', async () => {
     await renderScreen();
     await pressCheckIn();
-    await waitFor(() => expect(screen.getByText('Checked in')).toBeTruthy());
+    await waitFor(() => expect(screen.getByText('You’re in')).toBeTruthy());
 
     expect(mockRequestLocation).not.toHaveBeenCalled();
     expect(sentRequest()).not.toHaveProperty('latitude');
@@ -344,7 +346,7 @@ describe('location', () => {
     mockGetOpenMeetings.mockResolvedValue([meeting({ is_geo_locked: true })]);
     await renderScreen();
     await pressCheckIn();
-    await waitFor(() => expect(screen.getByText('Checked in')).toBeTruthy());
+    await waitFor(() => expect(screen.getByText('You’re in')).toBeTruthy());
     expect(mockRequestLocation).not.toHaveBeenCalled();
   });
 
@@ -357,7 +359,7 @@ describe('location', () => {
     expect(mockRequestLocation).not.toHaveBeenCalled();
 
     await pressCheckIn();
-    await waitFor(() => expect(screen.getByText('Checked in')).toBeTruthy());
+    await waitFor(() => expect(screen.getByText('You’re in')).toBeTruthy());
     expect(mockRequestLocation).toHaveBeenCalledTimes(1);
     expect(sentRequest()).toEqual({
       orgSlug: 'acm',
@@ -412,19 +414,49 @@ describe('the reply', () => {
 
   it('shows success and hides the form', async () => {
     await checkInWith(checkedIn);
-    await waitFor(() => expect(screen.getByText('Checked in')).toBeTruthy());
-    expect(screen.getByText('You’re checked in to General Body Meeting.')).toBeTruthy();
+    await waitFor(() => expect(screen.getByText('You’re in')).toBeTruthy());
+    expect(screen.getByText('General Body Meeting')).toBeTruthy();
+    expect(screen.getByText(/^ACM · /)).toBeTruthy();
     expect(screen.queryByText('Check in')).toBeNull();
+    expect(screen.queryByText('Scan another code')).toBeNull();
   });
 
-  it('shows progress toward membership when the server sends it', async () => {
-    await checkInWith({ ...checkedIn, reply: { ...checkedIn.reply, membership: { attended: 2, threshold: 5 } } });
-    await waitFor(() => expect(screen.getByText('2 of 5 meetings toward membership.')).toBeTruthy());
+  it('goes back to Home from the success screen', async () => {
+    await checkInWith(checkedIn);
+    await waitFor(() => expect(screen.getByText('You’re in')).toBeTruthy());
+    await fireEvent.press(screen.getByText('Back to Home'));
+    expect(mockDismissTo).toHaveBeenCalledWith('/');
   });
 
-  it('shows already-checked-in as a success', async () => {
+  const withMembership = (attended: number, threshold: number) => ({
+    ...checkedIn,
+    reply: { ...checkedIn.reply, membership: { attended, threshold } },
+  });
+
+  it.each([
+    [2, 3, '2 of 3 toward membership', 'One more to become a member'],
+    [2, 5, '2 of 5 toward membership', '3 more to become a member'],
+    [3, 3, '3 check-ins', 'You’re now a member!'],
+    [4, 3, '4 check-ins', 'You’re a member'],
+  ])('shows membership progress for %i of %i', async (attended, threshold, count, line) => {
+    await checkInWith(withMembership(attended, threshold));
+    await waitFor(() => expect(screen.getByText(count)).toBeTruthy());
+    expect(screen.getByText(line)).toBeTruthy();
+  });
+
+  it('leaves progress off when the server sends none', async () => {
+    await checkInWith(checkedIn);
+    await waitFor(() => expect(screen.getByText('You’re in')).toBeTruthy());
+    expect(screen.queryByText(/member/)).toBeNull();
+  });
+
+  it('gives already-checked-in its own friendly screen, not an error', async () => {
     await checkInWith({ status: 200, reply: { ok: true, meetingId: 'meeting-1', alreadyCheckedIn: true } });
     await waitFor(() => expect(screen.getByText('You’re already checked in')).toBeTruthy());
+    expect(screen.getByText('General Body Meeting')).toBeTruthy();
+    expect(screen.getByText('Your check-in was recorded earlier. You’re all set.')).toBeTruthy();
+    expect(screen.queryByText('Check in')).toBeNull();
+    expect(screen.getByText('Back to Home')).toBeTruthy();
   });
 
   it("shows the stub's not_implemented reply", async () => {

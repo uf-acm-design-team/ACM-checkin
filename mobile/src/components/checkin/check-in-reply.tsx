@@ -45,7 +45,7 @@ export function describeReply({ reply }: MemberCheckInResult): { title: string; 
  * Progress toward membership, which #77 adds to a new check-in's success
  * reply. Read structurally until this branch's contract has the field.
  */
-function membershipProgress(result: MemberCheckInResult): { attended: number; threshold: number } | null {
+export function membershipProgress(result: MemberCheckInResult): { attended: number; threshold: number } | null {
   const membership = (result.reply as { membership?: unknown } | null)?.membership;
   if (!membership || typeof membership !== 'object') return null;
   const { attended, threshold } = membership as Record<string, unknown>;
