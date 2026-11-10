@@ -138,7 +138,7 @@ export async function getMyHomeOrgs(
 }
 
 
-export type OrgMeeting = { id: string; title: string; startTime: string };
+export type OrgMeeting = { id: string; title: string; startTime: string; attended: boolean };
 
 export async function getMyOrgMeetings(
   supabase: MobileSupabase | null,
@@ -154,7 +154,7 @@ export async function getMyOrgMeetings(
     p_attendee_id: attendee.id,
     p_start: window.start,
     p_end: window.end,
-    p_view: "attended",
+    p_view: "all",
     p_limit: 100,
     p_offset: 0,
   });
@@ -162,7 +162,7 @@ export async function getMyOrgMeetings(
 
   const rows = data ?? [];
   return {
-    meetings: rows.map((row) => ({ id: row.id, title: row.title, startTime: row.start_time })),
+    meetings: rows.map((row) => ({ id: row.id, title: row.title, startTime: row.start_time, attended: row.attended })),
     // total_count is the same on every row; 0 when there are none.
     total: rows.length > 0 ? Number(rows[0].total_count) : 0,
   };

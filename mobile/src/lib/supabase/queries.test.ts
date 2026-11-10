@@ -128,12 +128,14 @@ describe("buildHomeOrgs", () => {
 });
 
 describe("getMyOrgMeetings", () => {
-  it("returns attended meetings and the total from the RPC", async () => {
+  it("returns every meeting with whether you attended it", async () => {
     const { fetchImpl, requests } = recordingFetch((u) =>
       u.includes("/rpc/get_member_meetings_page")
         ? jsonResponse([
             { id: "m1", title: "GBM", start_time: "2026-10-01T23:00:00Z", attended: true,
-              description: null, form_schema: null, total_count: 1 },
+              description: null, form_schema: null, total_count: 2 },
+            { id: "m2", title: "Workshop", start_time: "2026-09-20T23:00:00Z", attended: false,
+              description: null, form_schema: null, total_count: 2 },
           ])
         : jsonResponse([{ id: "attendee_1", user_id: "user_1" }]),
     );
@@ -146,8 +148,11 @@ describe("getMyOrgMeetings", () => {
     });
 
     expect(result).toEqual({
-      meetings: [{ id: "m1", title: "GBM", startTime: "2026-10-01T23:00:00Z" }],
-      total: 1,
+      meetings: [
+        { id: "m1", title: "GBM", startTime: "2026-10-01T23:00:00Z", attended: true },
+        { id: "m2", title: "Workshop", startTime: "2026-09-20T23:00:00Z", attended: false },
+      ],
+      total: 2,
     });
     expect(requests.some((r) => r.url.includes("/rpc/get_member_meetings_page"))).toBe(true);
   });

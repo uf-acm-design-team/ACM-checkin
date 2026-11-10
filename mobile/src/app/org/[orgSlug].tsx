@@ -40,11 +40,17 @@ export default function OrgHistoryScreen() {
       try {
         const org = await getOrgBySlug(supabase, orgSlug);
         if (!org) throw new Error('This org no longer exists.');
-        const { meetings, total } = await getMyOrgMeetings(supabase, org.id, {
+        const { meetings } = await getMyOrgMeetings(supabase, org.id, {
           start: '2000-01-01T00:00:00Z',
           end: new Date().toISOString(),
         });
-        next = { status: 'ready', orgName: org.name ?? org.slug ?? 'Organization', meetings, total };
+        const attended = meetings.filter((meeting) => meeting.attended);
+        next = {
+          status: 'ready',
+          orgName: org.name ?? org.slug ?? 'Organization',
+          meetings: attended,
+          total: attended.length,
+        };
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Something went wrong.';
         next = { status: 'error', message };
