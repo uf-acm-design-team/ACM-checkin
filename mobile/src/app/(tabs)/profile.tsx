@@ -10,6 +10,7 @@ import {
   View,
 } from 'react-native';
 
+import { AnimatedListHeight } from '@/components/animated-list-height';
 import { Button } from '@/components/button';
 import { ProfileBadge, ProfileBadgeDetails } from '@/components/profile-badge';
 import { Screen } from '@/components/screen';
@@ -137,17 +138,20 @@ export default function ProfileScreen() {
             <SemesterPicker terms={terms} selected={term} onSelect={setTerm} />
           </View>
           <Text style={styles.muted}>{summary}</Text>
-          {badges.length === 0 ? (
-            <Text style={styles.muted}>None of your orgs give badges yet.</Text>
-          ) : allBadges ? (
-            <View style={styles.grid}>{badgeViews}</View>
-          ) : (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.row}>
-              {badgeViews}
-            </ScrollView>
-          )}
+          <AnimatedListHeight>
+            {badges.length === 0 ? (
+              <Text style={styles.muted}>None of your orgs give badges yet.</Text>
+            ) : allBadges ? (
+              <View style={styles.grid}>{badgeViews}</View>
+            ) : (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.row}>
+                {badgeViews}
+              </ScrollView>
+            )}
+          </AnimatedListHeight>
           {badges.length > BADGES_PER_ROW ? (
             <TextLink
+              expanded={allBadges}
               label={allBadges ? 'Show less' : `See all ${badges.length} badges`}
               onPress={() => setAllBadges((open) => !open)}
             />
@@ -156,18 +160,21 @@ export default function ProfileScreen() {
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Your orgs</Text>
-          <View style={styles.card}>
-            {shownOrgs.map(({ org, count }, index) => (
-              <View key={org.id} style={[styles.orgRow, index > 0 && styles.orgRowDivider]}>
-                <Text style={styles.orgName} numberOfLines={1}>
-                  {org.name ?? org.slug}
-                </Text>
-                <Text style={styles.muted}>{eventCount(count)}</Text>
-              </View>
-            ))}
-          </View>
+          <AnimatedListHeight>
+            <View style={styles.card}>
+              {shownOrgs.map(({ org, count }, index) => (
+                <View key={org.id} style={[styles.orgRow, index > 0 && styles.orgRowDivider]}>
+                  <Text style={styles.orgName} numberOfLines={1}>
+                    {org.name ?? org.slug}
+                  </Text>
+                  <Text style={styles.muted}>{eventCount(count)}</Text>
+                </View>
+              ))}
+            </View>
+          </AnimatedListHeight>
           {orgs.length > VISIBLE_ORGS ? (
             <TextLink
+              expanded={allOrgs}
               label={allOrgs ? 'Show less' : `See all ${orgs.length} orgs`}
               onPress={() => setAllOrgs((open) => !open)}
             />
@@ -222,9 +229,15 @@ export default function ProfileScreen() {
   );
 }
 
-function TextLink({ label, onPress }: { label: string; onPress: () => void }) {
+function TextLink({ expanded, label, onPress }: { expanded: boolean; label: string; onPress: () => void }) {
   return (
-    <Pressable accessibilityRole="button" onPress={onPress} hitSlop={8} style={styles.link}>
+    <Pressable
+      accessibilityRole="button"
+      accessibilityState={{ expanded }}
+      onPress={onPress}
+      hitSlop={8}
+      style={styles.link}
+    >
       <Text style={styles.linkText}>{label}</Text>
     </Pressable>
   );

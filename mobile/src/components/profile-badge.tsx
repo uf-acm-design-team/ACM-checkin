@@ -62,7 +62,7 @@ export function ProfileBadgeDetails({
 }) {
   return (
     <BottomSheet onClose={onClose} backdropLabel="Dismiss badge details" style={styles.sheet}>
-      {badge ? (
+      {badge ? (dismiss) => (
         <ScrollView contentContainerStyle={styles.sheetContent}>
           <View style={styles.sheetHeader}>
             <View style={[styles.circle, badge.earned
@@ -74,7 +74,7 @@ export function ProfileBadgeDetails({
                 color={badge.earned ? colors.accentInk : colors.inkFaint}
               />
             </View>
-            <Pressable onPress={onClose} accessibilityRole="button" hitSlop={8} style={styles.close}>
+            <Pressable onPress={dismiss} accessibilityRole="button" hitSlop={8} style={styles.close}>
               <Text style={styles.closeText}>Close</Text>
             </Pressable>
           </View>

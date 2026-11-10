@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import {
   Animated, Easing, Modal, Platform, Pressable, StyleSheet, View, useWindowDimensions,
   type LayoutChangeEvent, type StyleProp, type ViewStyle,
@@ -6,58 +6,71 @@ import {
 
 import { colors } from '@/theme';
 
-export function BottomSheet({
-  children,
-  onClose,
-  backdropLabel,
-  style,
-}: {
-  children: ReactNode;
+type Props = {
+  children: ((dismiss: () => void) => ReactNode) | null;
   onClose: () => void;
   backdropLabel: string;
   style: StyleProp<ViewStyle>;
-}) {
-  const open = children != null;
+};
 
-  return (
-    <Modal visible={open} transparent animationType="none" onRequestClose={onClose}>
-      {open ? (
-        <View style={styles.overlay}>
-          <Pressable style={styles.backdrop} onPress={onClose} accessibilityLabel={backdropLabel} />
-          <SlidingPanel style={style}>{children}</SlidingPanel>
-        </View>
-      ) : null}
-    </Modal>
-  );
+export function BottomSheet({ children, ...props }: Props) {
+  return children ? <OpenBottomSheet {...props}>{children}</OpenBottomSheet> : null;
 }
 
-function SlidingPanel({ children, style }: { children: ReactNode; style: StyleProp<ViewStyle> }) {
+function OpenBottomSheet({
+  children, onClose, backdropLabel, style,
+}: Omit<Props, 'children'> & { children: NonNullable<Props['children']> }) {
   const { height } = useWindowDimensions();
   const [translateY] = useState(() => new Animated.Value(height));
-  const started = useRef(false);
+  const [panelHeight, setPanelHeight] = useState(0);
+  const [closing, setClosing] = useState(false);
+  const useNativeDriver = Platform.OS !== 'web';
 
   useEffect(() => () => translateY.stopAnimation(), [translateY]);
 
   function slideIn({ nativeEvent: { layout } }: LayoutChangeEvent) {
-    if (started.current || layout.height === 0) return;
-    started.current = true;
+    if (layout.height === 0 || closing) return;
+    setPanelHeight(layout.height);
+    if (panelHeight !== 0) return;
     translateY.setValue(layout.height);
     Animated.timing(translateY, {
       toValue: 0,
       duration: 240,
       easing: Easing.out(Easing.cubic),
-      useNativeDriver: Platform.OS !== 'web',
+      useNativeDriver,
     }).start();
   }
 
+  function dismiss() {
+    if (closing) return;
+    setClosing(true);
+    if (panelHeight === 0) {
+      onClose();
+      return;
+    }
+    Animated.timing(translateY, {
+      toValue: panelHeight,
+      duration: 200,
+      easing: Easing.in(Easing.cubic),
+      useNativeDriver,
+    }).start(({ finished }) => {
+      if (finished) onClose();
+    });
+  }
+
   return (
-    <Animated.View
-      style={[style, { transform: [{ translateY }] }]}
-      accessibilityViewIsModal
-      onLayout={slideIn}
-    >
-      {children}
-    </Animated.View>
+    <Modal visible transparent animationType="none" onRequestClose={dismiss}>
+      <View style={styles.overlay}>
+        <Pressable style={styles.backdrop} onPress={dismiss} accessibilityLabel={backdropLabel} />
+        <Animated.View
+          style={[style, { transform: [{ translateY }] }]}
+          accessibilityViewIsModal
+          onLayout={slideIn}
+        >
+          {children(dismiss)}
+        </Animated.View>
+      </View>
+    </Modal>
   );
 }
 
