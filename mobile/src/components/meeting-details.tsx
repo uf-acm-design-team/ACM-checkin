@@ -38,9 +38,9 @@ const longDate = (iso: string) =>
 export function MeetingDetails({ meeting, orgName, now, onClose }: Props) {
   return (
     <BottomSheet onClose={onClose} backdropLabel="Close meeting details" style={styles.sheet}>
-      {meeting ? (
+      {meeting ? (dismiss) => (
         // Keyed so a different meeting starts from "loading", not the last one's details.
-        <Sheet key={meeting.id} meeting={meeting} orgName={orgName} now={now} onClose={onClose} />
+        <Sheet key={meeting.id} meeting={meeting} orgName={orgName} now={now} onClose={dismiss} />
       ) : null}
     </BottomSheet>
   );
