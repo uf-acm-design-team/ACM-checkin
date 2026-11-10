@@ -5,6 +5,9 @@ import type { HomeOrg } from '@/lib/supabase';
 
 const mockGetMyHomeOrgs = jest.fn<Promise<HomeOrg[]>, []>();
 const mockSupabase = {};
+const mockPush = jest.fn();
+
+jest.mock('expo-router', () => ({ router: { push: (...args: unknown[]) => mockPush(...args) } }));
 
 jest.mock('@clerk/expo', () => ({ useUser: () => ({ user: { firstName: 'Jaedyn' } }) }));
 jest.mock('react-native-safe-area-context', () => ({
@@ -33,6 +36,14 @@ it('lists your orgs with check-ins and progress', async () => {
   expect(screen.getByText('2 check-ins')).toBeTruthy();
   expect(screen.getByText('Officer')).toBeTruthy();
   expect(screen.getByText('1 more check-in to become a member')).toBeTruthy();
+});
+
+it('opens the attendance history when you tap an org', async () => {
+  mockGetMyHomeOrgs.mockResolvedValue([acm]);
+  await render(<HomeScreen />);
+
+  await fireEvent.press(await screen.findByText('ACM'));
+  expect(mockPush).toHaveBeenCalledWith({ pathname: '/org/[orgSlug]', params: { orgSlug: 'acm' } });
 });
 
 it('shows an active member with only 1 check-in as a member', async () => {
