@@ -97,6 +97,29 @@ it('shows semester badges and event counts and updates both when the semester ch
   expect(screen.queryByText('3 events')).toBeNull();
 });
 
+it('opens details for earned, in-progress, and past-semester badges', async () => {
+  mockGetMyProfile.mockResolvedValue(profile);
+  await render(<ProfileScreen />);
+
+  await fireEvent.press(await screen.findByRole('button', { name: 'ACM: earned, 3 events' }));
+  expect(screen.getByRole('header', { name: 'ACM semester badge' })).toBeTruthy();
+  expect(screen.getByText('Earned')).toBeTruthy();
+  expect(screen.getByText('3 of 3 required check-ins')).toBeTruthy();
+  await fireEvent.press(screen.getByRole('button', { name: 'Close' }));
+
+  await fireEvent.press(screen.getByRole('button', { name: 'IEEE: not earned, 1 of 3' }));
+  expect(screen.getByText('In progress')).toBeTruthy();
+  expect(screen.getByText('2 more events to earn this badge')).toBeTruthy();
+  expect(screen.getByRole('progressbar', { name: 'Badge progress' })).toBeTruthy();
+  await fireEvent.press(screen.getByRole('button', { name: 'Close' }));
+
+  await fireEvent.press(screen.getByRole('button', { name: 'Fall 2026' }));
+  await fireEvent.press(screen.getByRole('button', { name: 'ACM: not earned, 1 of 3' }));
+  expect(screen.getByText('Not earned')).toBeTruthy();
+  expect(screen.getByText('1 of 3 required check-ins')).toBeTruthy();
+  expect(screen.queryByRole('progressbar', { name: 'Badge progress' })).toBeNull();
+});
+
 it('shows the empty state and still allows sign out', async () => {
   mockGetMyProfile.mockResolvedValue(emptyProfile);
   await render(<ProfileScreen />);

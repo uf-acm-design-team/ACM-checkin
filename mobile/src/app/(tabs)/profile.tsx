@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 
 import { Button } from '@/components/button';
-import { ProfileBadge } from '@/components/profile-badge';
+import { ProfileBadge, ProfileBadgeDetails } from '@/components/profile-badge';
 import { Screen } from '@/components/screen';
 import { SemesterPicker } from '@/components/semester-picker';
 import { eventCount, semesterProfile } from '@/lib/profile-badges';
@@ -42,6 +42,7 @@ export default function ProfileScreen() {
   const [reloadKey, setReloadKey] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
   const [allBadges, setAllBadges] = useState(false);
+  const [selectedBadgeOrg, setSelectedBadgeOrg] = useState<string | null>(null);
   const [allOrgs, setAllOrgs] = useState(false);
 
   // Start on the current semester; the picker offers this academic year's three.
@@ -90,6 +91,7 @@ export default function ProfileScreen() {
     [state, term, now],
   );
 
+  const selectedBadge = semester?.badges.find(({ org }) => org.id === selectedBadgeOrg) ?? null;
   const name = user?.fullName || 'Your profile';
   const gradYear = state.status === 'ready' ? state.profile.attendee?.grad_year : null;
 
@@ -123,7 +125,7 @@ export default function ProfileScreen() {
     const shownOrgs = allOrgs ? orgs : orgs.slice(0, VISIBLE_ORGS);
     const badgeViews = badges.map((badge) => (
       <View key={badge.org.id} style={allBadges ? styles.gridCell : null}>
-        <ProfileBadge badge={badge} inProgress={!ended} />
+        <ProfileBadge badge={badge} inProgress={!ended} onPress={() => setSelectedBadgeOrg(badge.org.id)} />
       </View>
     ));
 
@@ -210,6 +212,12 @@ export default function ProfileScreen() {
           }}
         />
       </ScrollView>
+      <ProfileBadgeDetails
+        badge={selectedBadge}
+        semester={term.label}
+        ended={semester?.ended ?? false}
+        onClose={() => setSelectedBadgeOrg(null)}
+      />
     </Screen>
   );
 }
