@@ -1,5 +1,6 @@
 import { useUser } from '@clerk/expo';
-import { useCallback, useEffect, useState } from 'react';
+import { useFocusEffect } from 'expo-router';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, FlatList, RefreshControl, StyleSheet, Text, View } from 'react-native';
 
 import { Button } from '@/components/button';
@@ -42,6 +43,17 @@ export default function HomeScreen() {
       cancelled = true;
     };
   }, [supabase, reloadKey]);
+
+  // Tabs stay mounted, so coming back from a check-in wouldn't refetch on its
+  // own. Reload quietly on every return to Home; the first focus is the mount,
+  // which the effect above already loads.
+  const hasFocused = useRef(false);
+  useFocusEffect(
+    useCallback(() => {
+      if (hasFocused.current) setReloadKey((key) => key + 1);
+      hasFocused.current = true;
+    }, []),
+  );
 
   const refresh = useCallback(() => {
     setRefreshing(true);
