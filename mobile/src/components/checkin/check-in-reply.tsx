@@ -15,10 +15,8 @@ export function describeReply({ reply }: MemberCheckInResult): { title: string; 
       ? { title: 'You’re already checked in', tone: 'good' }
       : { title: 'Checked in', tone: 'good' };
   }
-  // not_implemented was the stub's code before #77 (the real check-in logic)
-  // and is gone from its contract; widened so this compiles either side of it.
-  const code: MemberCheckInErrorCode | 'not_implemented' = reply.code;
-  switch (code) {
+  // Older deployments can still return the stub's not_implemented code.
+  switch (reply.code as MemberCheckInErrorCode | 'not_implemented') {
     case 'not_implemented':
       return { title: 'Check-in isn’t available yet', tone: 'warn' };
     case 'unauthenticated':
