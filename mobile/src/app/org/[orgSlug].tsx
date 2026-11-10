@@ -1,14 +1,17 @@
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
 
 import { Button } from '@/components/button';
 import { MeetingCalendar } from '@/components/meeting-calendar';
+import { MeetingDetails } from '@/components/meeting-details';
 import { MembershipProgress } from '@/components/membership-progress';
 import { Screen } from '@/components/screen';
 import { SemesterPicker } from '@/components/semester-picker';
 import { ViewSwitch } from '@/components/view-switch';
 import { addMonths } from '@/lib/calendar';
+import { daysAway } from '@/lib/meeting-details';
 import { membershipProgress, orgAccent, type MembershipProgress as Progress } from '@/lib/org-display';
 import { getMyHomeOrgs, getMyOrgMeetings, getOrgBySlug, useSupabase, type OrgMeeting } from '@/lib/supabase';
 import {
@@ -60,6 +63,31 @@ function formatDate(iso: string) {
   });
 }
 
+// One meeting in the list or under the calendar. Tapping it opens its details.
+function MeetingRow({ meeting, now, onPress }: { meeting: OrgMeeting; now: string; onPress: () => void }) {
+  const upcoming = !meeting.attended && new Date(meeting.startTime).getTime() > new Date(now).getTime();
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityHint="Opens meeting details"
+      style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
+    >
+      <View style={styles.rowText}>
+        <Text style={styles.rowTitle} numberOfLines={1}>
+          {meeting.title}
+        </Text>
+        <Text style={styles.muted}>{formatDate(meeting.startTime)}</Text>
+      </View>
+      {meeting.attended ? (
+        <Ionicons name="checkmark" size={18} color={colors.good} accessibilityLabel="Checked in" />
+      ) : upcoming ? (
+        <Text style={styles.badge}>{daysAway(meeting.startTime, now)}</Text>
+      ) : null}
+    </Pressable>
+  );
+}
+
 export default function OrgHistoryScreen() {
   const { orgSlug } = useLocalSearchParams<{ orgSlug: string }>();
   const supabase = useSupabase();
@@ -72,12 +100,16 @@ export default function OrgHistoryScreen() {
   const terms = useMemo(() => academicYearTerms(now), [now]);
   const [term, setTerm] = useState<Term>(() => getTerm(now));
   const [month, setMonth] = useState<YearMonth>(() => openingMonth(getTerm(now), now));
+  // The calendar day whose meetings are listed under it, and the meeting open in the sheet.
+  const [selectedDay, setSelectedDay] = useState<number | null>(null);
+  const [detail, setDetail] = useState<OrgMeeting | null>(null);
 
   // Picking a semester moves the calendar to it.
   const selectTerm = useCallback(
     (next: Term) => {
       setTerm(next);
       setMonth(openingMonth(next, now));
+      setSelectedDay(null);
     },
     [now],
   );
@@ -91,6 +123,7 @@ export default function OrgHistoryScreen() {
     const nextTerm = termForMonth(next);
     if (!terms.some((t) => t.key === nextTerm.key)) return;
     setMonth(next);
+    setSelectedDay(null);
     if (nextTerm.key !== term.key) setTerm(nextTerm);
   };
 
@@ -155,6 +188,13 @@ export default function OrgHistoryScreen() {
 
   const attended =
     state.status === 'ready' ? state.meetings.filter((meeting) => meeting.attended) : [];
+  const dayMeetings =
+    state.status === 'ready' && selectedDay !== null
+      ? state.meetings.filter((meeting) => {
+          const date = orgDate(meeting.startTime);
+          return date.year === month.year && date.month === month.month && date.day === selectedDay;
+        })
+      : [];
 
   return (
     <Screen>
@@ -188,14 +228,7 @@ export default function OrgHistoryScreen() {
             ) : null}
           </View>
         }
-        renderItem={({ item }) => (
-          <View style={styles.row}>
-            <Text style={styles.rowTitle} numberOfLines={1}>
-              {item.title}
-            </Text>
-            <Text style={styles.muted}>{formatDate(item.startTime)}</Text>
-          </View>
-        )}
+        renderItem={({ item }) => <MeetingRow meeting={item} now={now} onPress={() => setDetail(item)} />}
         ListEmptyComponent={
           state.status === 'error' ? (
             <View style={[styles.panel, styles.errorPanel]}>
@@ -204,14 +237,25 @@ export default function OrgHistoryScreen() {
               <Button label="Try again" variant="secondary" onPress={retry} />
             </View>
           ) : view === 'calendar' && state.status === 'ready' ? (
-            <MeetingCalendar
-              month={month}
-              meetings={state.meetings}
-              now={now}
-              canGoBack={canMove(-1)}
-              canGoForward={canMove(1)}
-              onMove={moveMonth}
-            />
+            <View style={styles.calendar}>
+              <MeetingCalendar
+                month={month}
+                meetings={state.meetings}
+                now={now}
+                canGoBack={canMove(-1)}
+                canGoForward={canMove(1)}
+                onMove={moveMonth}
+                selectedDay={selectedDay}
+                onSelectDay={(day) => setSelectedDay(day === selectedDay ? null : day)}
+              />
+              {dayMeetings.length > 0 ? (
+                dayMeetings.map((meeting) => (
+                  <MeetingRow key={meeting.id} meeting={meeting} now={now} onPress={() => setDetail(meeting)} />
+                ))
+              ) : (
+                <Text style={styles.muted}>Tap a day to see its meetings</Text>
+              )}
+            </View>
           ) : (
             <View style={styles.panel}>
               <Text style={styles.panelTitle}>No check-ins this term yet</Text>
@@ -222,6 +266,9 @@ export default function OrgHistoryScreen() {
           )
         }
       />
+      {state.status === 'ready' ? (
+        <MeetingDetails meeting={detail} orgName={state.orgName} now={now} onClose={() => setDetail(null)} />
+      ) : null}
     </Screen>
   );
 }
@@ -264,13 +311,35 @@ const styles = StyleSheet.create({
   separator: {
     height: space[2],
   },
+  calendar: {
+    gap: space[2],
+  },
   row: {
-    gap: space[1],
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space[3],
     padding: space[4],
     backgroundColor: colors.surface,
     borderColor: colors.line,
     borderWidth: StyleSheet.hairlineWidth,
     borderRadius: radii.card,
+  },
+  rowPressed: {
+    backgroundColor: colors.surfaceSunken,
+  },
+  rowText: {
+    flex: 1,
+    gap: space[1],
+  },
+  badge: {
+    paddingHorizontal: space[2],
+    paddingVertical: 2,
+    overflow: 'hidden',
+    color: colors.accentOnSoft,
+    backgroundColor: colors.accentSoft,
+    borderRadius: radii.pill,
+    fontSize: 12,
+    fontWeight: '600',
   },
   rowTitle: {
     color: colors.ink,

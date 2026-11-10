@@ -12,13 +12,26 @@ type Props = {
   canGoBack: boolean;
   canGoForward: boolean;
   onMove: (count: number) => void;
+  // The day whose meetings are listed under the calendar, if any.
+  selectedDay: number | null;
+  onSelectDay: (day: number) => void;
 };
 
 const WEEKDAYS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 const STATUS_TEXT = { attended: 'checked in', missed: 'missed', upcoming: 'upcoming' } as const;
 
 // One month of meetings: filled = checked in, outlined = missed, dashed = upcoming.
-export function MeetingCalendar({ month, meetings, now, canGoBack, canGoForward, onMove }: Props) {
+// A day with meetings can be tapped to pick it.
+export function MeetingCalendar({
+  month,
+  meetings,
+  now,
+  canGoBack,
+  canGoForward,
+  onMove,
+  selectedDay,
+  onSelectDay,
+}: Props) {
   const cells = monthGrid(month, meetings, now);
 
   return (
@@ -37,7 +50,9 @@ export function MeetingCalendar({ month, meetings, now, canGoBack, canGoForward,
         ))}
         {cells.map((cell, index) => (
           <View key={cell ? `day-${cell.day}` : `blank-${index}`} style={styles.cell}>
-            {cell ? <Day cell={cell} /> : null}
+            {cell ? (
+              <Day cell={cell} selected={cell.day === selectedDay} onPress={() => onSelectDay(cell.day)} />
+            ) : null}
           </View>
         ))}
       </View>
@@ -51,15 +66,19 @@ export function MeetingCalendar({ month, meetings, now, canGoBack, canGoForward,
   );
 }
 
-function Day({ cell }: { cell: CalendarDay }) {
+function Day({ cell, selected, onPress }: { cell: CalendarDay; selected: boolean; onPress: () => void }) {
   const label = cell.status
     ? `${cell.day}: ${cell.titles.join(', ')}, ${STATUS_TEXT[cell.status]}`
     : String(cell.day);
   return (
-    <View
+    <Pressable
+      // Only days with a meeting do anything.
+      onPress={cell.status ? onPress : undefined}
       accessible
+      accessibilityRole={cell.status ? 'button' : undefined}
+      accessibilityState={cell.status ? { selected } : undefined}
       accessibilityLabel={cell.isToday ? `Today, ${label}` : label}
-      style={[styles.day, cell.status && styles[cell.status]]}
+      style={[styles.day, cell.status && styles[cell.status], selected && styles.selected]}
     >
       <Text
         style={[
@@ -75,7 +94,7 @@ function Day({ cell }: { cell: CalendarDay }) {
       {cell.isToday ? (
         <View style={[styles.todayDot, cell.status === 'attended' && styles.todayDotOnAccent]} />
       ) : null}
-    </View>
+    </Pressable>
   );
 }
 
@@ -187,6 +206,11 @@ const styles = StyleSheet.create({
   },
   todayText: {
     fontWeight: '700',
+  },
+  selected: {
+    borderColor: colors.ink,
+    borderWidth: 2,
+    borderStyle: 'solid',
   },
   todayDot: {
     position: 'absolute',
