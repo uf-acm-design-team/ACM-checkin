@@ -81,6 +81,7 @@ Web (repo root):
 
 ```bash
 npm run setup               # first-time: Docker, Supabase, migrations, .env files
+npm run setup:env           # rewrite .env files only (no db reset), Supabase must be running
 npm run supabase:start      # local Supabase (Docker)
 npm run dev                 # Next.js on :3000
 npm run dev:functions       # Edge Functions locally
