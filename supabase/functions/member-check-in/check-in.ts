@@ -1,7 +1,7 @@
-import { parseSchema, validateAnswers } from "../../../lib/form-schema.ts";
+import { parseSchema, validateAnswers } from "../_shared/form-schema.ts";
 import { checkGeofence, geofenceErrorMessage } from "../../../lib/geo.ts";
-import { isWithinMeetingWindow } from "../../../lib/meeting-time.ts";
-import { membershipThreshold } from "../../../lib/membership.ts";
+import { isWithinMeetingWindow } from "../_shared/meeting-time.ts";
+import { membershipThreshold } from "../_shared/membership.ts";
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import type { MemberCheckInResponse, MemberCheckInSuccess } from "./contract.ts";
 import type { ParsedCheckIn } from "./validate.ts";
