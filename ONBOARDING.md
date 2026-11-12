@@ -127,7 +127,7 @@ npm run supabase:start   # if Supabase isn't already running
 npm run dev              # starts Next.js
 ```
 
-If you also need Edge Functions:
+Onboarding (`/onboarding`) and the org admin tools call Edge Functions, so run them too:
 
 ```bash
 # In another terminal
