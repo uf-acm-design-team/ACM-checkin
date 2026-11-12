@@ -1,5 +1,7 @@
 "use client";
 
+import AnalyticsTab, { clearAnalyticsParams } from "./analytics-tab";
+
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -144,6 +146,7 @@ const TABS = [
   { key: "overview", label: "Overview" },
   { key: "meetings", label: "Meetings" },
   { key: "attendance", label: "Attendance" },
+    { key: "analytics", label: "Analytics" },
   { key: "members", label: "Members" },
   { key: "qr-code", label: "QR Code" },
   { key: "audit-log", label: "Audit Log" },
@@ -1128,6 +1131,8 @@ export default function AdminDashboard({
                   )}
                 </div>
               </div>
+
+
             </>
           )}
 
@@ -1460,6 +1465,10 @@ export default function AdminDashboard({
                 </div>
               )}
             </>
+          )}
+          {/* ANALYTICS */}
+          {activeTab === "analytics" && (
+            <AnalyticsTab orgId={organization.id} />
           )}
 
           {/* MEMBERS */}
