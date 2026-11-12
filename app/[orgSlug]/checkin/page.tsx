@@ -16,6 +16,7 @@ import { DEFAULT_RADIUS_METERS, type Coordinates, type GeofenceFailure } from "@
 import { membershipThreshold } from "@/lib/membership";
 import { isWithinMeetingWindow } from "@/lib/meeting-time";
 import { escapeLikePattern, hasUnescapableWildcard } from "@/lib/email-match";
+import { withTimeout } from "@/lib/timeout";
 import { cn } from "@/lib/utils";
 import { FormRenderer } from "@/components/forms/form-renderer";
 import {
@@ -39,6 +40,8 @@ import {
   LocationAskState,
   LocationCheckingState,
   LocationDeniedState,
+  LocationTimeoutState,
+  NeedsProfileState,
   NetworkErrorState,
   NoActiveMeetingState,
   OrgNotFoundState,
@@ -90,6 +93,9 @@ type View =
   | { kind: "form" }
   | { kind: "location_ask" }
   | { kind: "location_denied" }
+  | { kind: "location_timeout" }
+  // Signed in with no attendee profile -- sent to /onboarding, not the guest form.
+  | { kind: "needs_profile" }
   | { kind: "too_far"; metresAway: number; radius: number }
   | { kind: "already" }
   | { kind: "network_error"; detail?: string; ref?: string }
@@ -102,21 +108,32 @@ type View =
 
 type Step = "email" | "profile";
 
-/** EST, always — meetings are stored without a timezone. */
-const EST = "America/New_York";
+/** Meeting times are always shown in Gainesville time, whatever the phone's zone. */
+const MEETING_TZ = "America/New_York";
 const timeFmt = new Intl.DateTimeFormat("en-US", {
   hour: "numeric",
   minute: "2-digit",
-  timeZone: EST,
+  timeZone: MEETING_TZ,
 });
 const dayFmt = new Intl.DateTimeFormat("en-US", {
   weekday: "short",
   month: "short",
   day: "numeric",
-  timeZone: EST,
+  timeZone: MEETING_TZ,
+});
+// timeZoneName picks EST or EDT for the date being formatted. A hard-coded
+// "EST" was wrong for every meeting from March to November.
+const zonedTimeFmt = new Intl.DateTimeFormat("en-US", {
+  hour: "numeric",
+  minute: "2-digit",
+  timeZone: MEETING_TZ,
+  timeZoneName: "short",
 });
 
-const fmtTime = (iso: string) => `${timeFmt.format(new Date(iso))} EST`;
+const fmtTime = (iso: string) => zonedTimeFmt.format(new Date(iso));
+
+/** A slow network shouldn't leave the Check in button spinning forever. */
+const SUBMIT_TIMEOUT_MS = 15_000;
 
 /** "in 24 minutes" / "in 2 hours" — what a guest who arrived early needs. */
 function opensIn(iso: string): string | undefined {
@@ -297,6 +314,8 @@ export default function CheckinPage({
       setNextMeeting(upcoming?.[0] ?? null);
     }
 
+    // Read below instead of userAttendee, which won't update until next render.
+    let hasProfile = false;
     if (user) {
       const { data: attendee } = await supabase
         .from("attendees")
@@ -305,6 +324,7 @@ export default function CheckinPage({
         .maybeSingle();
 
       if (attendee) {
+        hasProfile = true;
         setUserAttendee(attendee);
       } else {
         const userEmail =
@@ -336,9 +356,21 @@ export default function CheckinPage({
             .ilike("email", escapeLikePattern(userEmail))
             .select("id, first_name, last_name, email")
             .maybeSingle();
-          if (linked) setUserAttendee(linked);
+          if (linked) {
+            hasProfile = true;
+            setUserAttendee(linked);
+          }
         }
       }
+    }
+
+    // Signed in but nothing to check in as. The guest form would ask them for
+    // the email their account already has, and the check-in wouldn't be
+    // linked to them. Only when there is something to check in to: with no
+    // meeting open, the "arrived early" screen is still the right answer.
+    if (user && !hasProfile && parsed.length > 0) {
+      setView({ kind: "needs_profile" });
+      return;
     }
 
     setView(
@@ -412,12 +444,7 @@ export default function CheckinPage({
     if (f.kind === "denied") setView({ kind: "location_denied" });
     else if (f.kind === "too_far")
       setView({ kind: "too_far", metresAway: f.metresAway, radius: f.radius });
-    else if (f.kind === "timeout")
-      setView({
-        kind: "network_error",
-        detail: "geolocation · timeout after 10s",
-        ref: errorRef(),
-      });
+    else if (f.kind === "timeout") setView({ kind: "location_timeout" });
     else setCheckInError(f.message);
     return false;
   };
@@ -439,10 +466,9 @@ export default function CheckinPage({
     const threshold = membershipThreshold(orgSlug);
     if (attendeeId && organization && threshold !== null) {
       try {
-        const r = await resolveAndUpdateMembershipStatus(
-          attendeeId,
-          organization.id,
-          orgSlug,
+        const r = await withTimeout(
+          resolveAndUpdateMembershipStatus(attendeeId, organization.id, orgSlug),
+          SUBMIT_TIMEOUT_MS,
         );
         membership = { attended: r.attendanceCount, threshold };
       } catch {
@@ -479,15 +505,18 @@ export default function CheckinPage({
     setCheckInError(null);
     setPasswordError(null);
     try {
-      const result = await memberCheckIn({
-        orgSlug,
-        answers: validated,
-        password: checkinPassword,
-        // Named explicitly so the server records the meeting the attendee
-        // actually chose, rather than re-deriving "the earliest open one".
-        meetingId: activeMeeting?.id,
-        location: gate.location,
-      });
+      const result = await withTimeout(
+        memberCheckIn({
+          orgSlug,
+          answers: validated,
+          password: checkinPassword,
+          // Named explicitly so the server records the meeting the attendee
+          // actually chose, rather than re-deriving "the earliest open one".
+          meetingId: activeMeeting?.id,
+          location: gate.location,
+        }),
+        SUBMIT_TIMEOUT_MS,
+      );
 
       if (!result.ok) {
         if (handleServerGeo(result.geo)) return;
@@ -535,27 +564,29 @@ export default function CheckinPage({
     setPasswordError(null);
     setCheckingIn(true);
     try {
-      const result = await guestCheckIn({
-        orgSlug,
-        email: normalizedEmail,
-        answers: validated,
-        password: checkinPassword,
-        meetingId: activeMeeting?.id,
-        location: gate.location,
-        ...(withProfile ? { firstName, lastName, gradYear } : {}),
-      });
+      const result = await withTimeout(
+        guestCheckIn({
+          orgSlug,
+          email: normalizedEmail,
+          answers: validated,
+          password: checkinPassword,
+          meetingId: activeMeeting?.id,
+          location: gate.location,
+          ...(withProfile ? { firstName, lastName, gradYear } : {}),
+        }),
+        SUBMIT_TIMEOUT_MS,
+      );
 
       if (result.ok) {
-        await succeed(null);
+        // A repeat scan comes back ok with alreadyCheckedIn set (the 23505
+        // path), not as an error -- route it to the same screen members get.
+        if (result.alreadyCheckedIn) setView({ kind: "already" });
+        else await succeed(null);
         return;
       }
       if (handleServerGeo(result.geo)) return;
       if (result.error === "NEEDS_PROFILE") {
         setStep("profile");
-        return;
-      }
-      if (/already checked in/i.test(result.error)) {
-        setView({ kind: "already" });
         return;
       }
       if (/password/i.test(result.error)) {
@@ -594,7 +625,10 @@ export default function CheckinPage({
       <NetworkErrorState
         detail={view.detail}
         reference={view.ref}
-        onRetry={organization ? retry : () => window.location.reload()}
+        // retry() re-submits the form, so it needs a meeting to submit against.
+        // A failure while loading (including the 6s timeout, which can fire
+        // after the org resolved but before meetings did) has none: reload.
+        onRetry={activeMeeting ? retry : () => window.location.reload()}
         busy={busy}
       />
     );
@@ -674,8 +708,9 @@ export default function CheckinPage({
   if (view.kind === "already")
     return (
       <AlreadyCheckedInState
+        // No `at`: the original check-in time isn't returned, and "now" would
+        // tell them they were logged at a time they weren't.
         meetingTitle={activeMeeting?.title ?? "this meeting"}
-        at={fmtTime(new Date().toISOString())}
         onStats={user ? () => router.push(`/${orgSlug}/stats`) : undefined}
       />
     );
@@ -696,6 +731,21 @@ export default function CheckinPage({
 
   if (view.kind === "location_denied")
     return <LocationDeniedState onRetry={retry} busy={busy} />;
+
+  if (view.kind === "location_timeout")
+    return <LocationTimeoutState onRetry={retry} busy={busy} />;
+
+  if (view.kind === "needs_profile")
+    return (
+      <NeedsProfileState
+        orgName={organization?.name ?? "this club"}
+        // Full page load: onboarding reads the return path on mount, and the
+        // proxy's onboarding gate should see a fresh request.
+        onContinue={() => {
+          window.location.href = `/onboarding?redirect_url=${encodeURIComponent(`/${orgSlug}/checkin`)}`;
+        }}
+      />
+    );
 
   if (view.kind === "too_far")
     return (
@@ -721,8 +771,10 @@ export default function CheckinPage({
       badge={<Chip>Conditional</Chip>}
       error={
         passwordError
-          ? `That's not the password for this meeting. It's on the slide at the front of the room — case doesn't matter.${
-              passwordAttempts > 1 ? ` Attempt ${passwordAttempts} of 5.` : ""
+          ? // Both server checks compare exactly, so don't promise otherwise,
+            // and there is no attempt cap to count down to.
+            `That's not the password for this meeting. It's on the slide at the front of the room — check capital letters.${
+              passwordAttempts > 1 ? ` Attempt ${passwordAttempts}.` : ""
             }`
           : null
       }
