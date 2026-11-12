@@ -7,9 +7,15 @@ import { createClient } from "../../utils/supabase/client";
 import { memberCheckIn, resolveAndUpdateMembershipStatus } from "./actions";
 import { guestCheckIn } from "./guest-actions";
 import { verifyGeoLock, type GeoFailure } from "./geolock";
+import {
+  EMAIL_MAX_LENGTH,
+  INVALID_EMAIL_MESSAGE,
+  validateEmail,
+} from "@/lib/email-validation";
 import { DEFAULT_RADIUS_METERS, type Coordinates, type GeofenceFailure } from "@/lib/geo";
 import { membershipThreshold } from "@/lib/membership";
 import { isWithinMeetingWindow } from "@/lib/meeting-time";
+import { escapeLikePattern, hasUnescapableWildcard } from "@/lib/email-match";
 import { cn } from "@/lib/utils";
 import { FormRenderer } from "@/components/forms/form-renderer";
 import {
@@ -305,7 +311,11 @@ export default function CheckinPage({
           user.primaryEmailAddress?.emailAddress ||
           user.emailAddresses?.[0]?.emailAddress ||
           "";
-        if (userEmail) {
+        // Skipped for an address containing `*`: PostgREST turns it into a
+        // wildcard that can't be escaped, and a blind claim (below) has no way
+        // to confirm the match first. Onboarding's server-side claim, which
+        // can, still links that row.
+        if (userEmail && !hasUnescapableWildcard(userEmail)) {
           // Blind claim, matched case-insensitively against the unique index on
           // lower(email) (20260813000000). Two things this deliberately does
           // NOT do: read the row first (attendees_read_own hides an unclaimed
@@ -316,12 +326,14 @@ export default function CheckinPage({
           //
           // attendees_claim_by_email is what makes this safe: USING
           // (user_id IS NULL) prevents claiming someone else's linked row, and
-          // WITH CHECK forces the new user_id to be the caller's own.
+          // WITH CHECK forces the new user_id to be the caller's own. The
+          // escaped pattern makes the match exact, so it can only ever reach
+          // the one row the lower(email) index allows.
           const { data: linked } = await supabase
             .from("attendees")
             .update({ user_id: user.id })
             .is("user_id", null)
-            .ilike("email", userEmail)
+            .ilike("email", escapeLikePattern(userEmail))
             .select("id, first_name, last_name, email")
             .maybeSingle();
           if (linked) setUserAttendee(linked);
@@ -505,6 +517,15 @@ export default function CheckinPage({
   };
 
   const submitGuest = async (withProfile: boolean) => {
+    const validatedEmail = validateEmail(email);
+    if (!validatedEmail.ok) {
+      setPasswordError(null);
+      setCheckInError(INVALID_EMAIL_MESSAGE);
+      return;
+    }
+    const normalizedEmail = validatedEmail.value;
+    if (normalizedEmail !== email) setEmail(normalizedEmail);
+
     const validated = validateForm();
     if (!validated) return;
     const gate = await passesLocation();
@@ -516,7 +537,7 @@ export default function CheckinPage({
     try {
       const result = await guestCheckIn({
         orgSlug,
-        email,
+        email: normalizedEmail,
         answers: validated,
         password: checkinPassword,
         meetingId: activeMeeting?.id,
@@ -858,6 +879,7 @@ export default function CheckinPage({
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
+              maxLength={EMAIL_MAX_LENGTH}
               required
               autoFocus
               inputMode="email"

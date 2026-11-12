@@ -3,6 +3,8 @@
 import { headers } from "next/headers";
 import { createClient } from "@supabase/supabase-js";
 
+import { escapeLikePattern, sameEmail } from "@/lib/email-match";
+import { INVALID_EMAIL_MESSAGE, validateEmail } from "@/lib/email-validation";
 import { parseSchema, validateAnswers } from "@/lib/form-schema";
 import { isWithinMeetingWindow } from "@/lib/meeting-time";
 import {
@@ -109,10 +111,9 @@ export async function guestCheckIn(input: {
    */
   location?: Coordinates | null;
 }): Promise<GuestCheckInResult> {
-  const email = input.email.trim().toLowerCase();
-  if (!email || !email.includes("@")) {
-    return { ok: false, error: "Enter a valid email address." };
-  }
+  const validatedEmail = validateEmail(input.email);
+  if (!validatedEmail.ok) return { ok: false, error: INVALID_EMAIL_MESSAGE };
+  const email = validatedEmail.value;
 
   const hdrs = await headers();
   const ip =
@@ -213,12 +214,14 @@ export async function guestCheckIn(input: {
   }
 
   // Find or create the attendee. Matched case-insensitively to line up with the
-  // unique index on lower(email) from 20260813000000.
-  const { data: existing } = await supabase
+  // unique index on lower(email) from 20260813000000. The pattern is escaped so
+  // a `_` or `%` in the address can't match someone else's row, and sameEmail()
+  // drops anything a `*` (which PostgREST can't escape) still let through.
+  const { data: candidates } = await supabase
     .from("attendees")
-    .select("id")
-    .ilike("email", email)
-    .maybeSingle();
+    .select("id, email")
+    .ilike("email", escapeLikePattern(email));
+  const existing = candidates?.find((a) => sameEmail(a.email, email));
 
   let attendeeId = existing?.id as string | undefined;
 
