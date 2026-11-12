@@ -1,7 +1,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
-import { createClerkSupabaseClient } from "@/app/utils/supabase/server";
+import { getOrgAttendance } from "@/lib/analytics-data";
 
 export async function GET(request: NextRequest) {
   try {
@@ -41,38 +41,27 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const supabase = createClerkSupabaseClient();
-
-    const { data, error } = await supabase.rpc(
-      "get_org_attendance_by_meeting",
-      {
-        p_org_id: orgId,
-        p_start_time: startDate.toISOString(),
-        p_end_time: endDate.toISOString(),
-      },
+    const data = await getOrgAttendance(
+      orgId,
+      startDate.toISOString(),
+      endDate.toISOString(),
     );
 
-    if (error) {
-      if (error.message.includes("Unauthorized")) {
-        return NextResponse.json(
-          { error: "You do not have permission to view analytics." },
-          { status: 403 },
-        );
-      }
-
-      console.error("Attendance analytics RPC failed:", error);
-
-      return NextResponse.json(
-        { error: "Unable to load attendance data." },
-        { status: 500 },
-      );
-    }
-
-    return NextResponse.json(data ?? [], {
+    return NextResponse.json(data, {
       headers: { "Cache-Control": "private, no-store" },
     });
   } catch (error) {
     console.error("Attendance analytics API error:", error);
+
+    if (
+      error instanceof Error &&
+      error.message.includes("Unauthorized")
+    ) {
+      return NextResponse.json(
+        { error: "You do not have permission to view analytics." },
+        { status: 403 },
+      );
+    }
 
     return NextResponse.json(
       { error: "Unable to load attendance data." },
