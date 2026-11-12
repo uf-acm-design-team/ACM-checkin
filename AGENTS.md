@@ -147,10 +147,8 @@ After a schema change, regenerate the mobile types (`npm run gen:types` in
   **and the web files mobile depends on**: `app/globals.css` (a mobile test
   checks the theme tokens against it), `lib/checkin-link.ts` (the QR parser
   round-trips it), and `supabase/functions/member-check-in/contract.ts` plus
-  the types it uses from `lib/geo.ts` and `lib/form-schema.ts` (the check-in
-  screen is typed against them). `lib/form-schema.ts` moves to
-  `supabase/functions/_shared/` in #61; the filter already covers that folder.
-  When you change a web color token, update `mobile/src/theme/tokens.ts` too.
+  the types it uses from `supabase/functions/_shared/` and `lib/geo.ts` (the
+  check-in screen is typed against them). When you change a web color token, update `mobile/src/theme/tokens.ts` too.
 
 ### Demo and preview routes
 
