@@ -1,0 +1,22 @@
+# Line endings: store and check out every text file with LF, on every OS.
+#
+# Without this, a Windows checkout with core.autocrlf=true writes CRLF into the
+# working tree, and tools that read files directly (shell scripts, the Supabase
+# CLI, .env parsers, snapshot tests) can choke on the stray \r. eol=lf
+# overrides each developer's autocrlf setting, so the team doesn't depend on
+# everyone configuring git the same way.
+* text=auto eol=lf
+
+# Binary files: never touch line endings, never show text diffs.
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.webp  binary
+*.ico   binary
+*.pdf   binary
+*.woff  binary
+*.woff2 binary
+*.ttf   binary
+*.otf   binary
+*.mp4   binary
