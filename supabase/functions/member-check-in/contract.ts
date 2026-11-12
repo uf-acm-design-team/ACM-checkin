@@ -7,7 +7,7 @@
 // mobile/src/lib/member-check-in.ts, which `import type` erases at build time,
 // so Metro never has to resolve a file outside mobile/.
 
-import type { AnswerMap, AnswerValue } from "../../../lib/form-schema.ts";
+import type { AnswerMap, AnswerValue } from "../_shared/form-schema.ts";
 import type { GeofenceFailure } from "../../../lib/geo.ts";
 
 export type { AnswerMap, AnswerValue, GeofenceFailure };
