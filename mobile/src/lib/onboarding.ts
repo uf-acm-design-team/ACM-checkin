@@ -5,6 +5,13 @@
  * accepts, mobile accepts too.
  */
 
+import type { MobileSupabase } from './supabase/client';
+import {
+  callOnboardAttendee,
+  OnboardingNetworkError,
+  type OnboardAttendeeResult,
+} from './supabase/onboard-attendee';
+
 export const MAX_NAME_LENGTH = 50;
 
 export type OnboardingInput = {
@@ -31,82 +38,68 @@ export function validateOnboarding(input: OnboardingInput): string | null {
   return null;
 }
 
-export type SubmitResult =
-  /**
-   * `saved: true`  -- the attendees row now exists (created, or a guest row claimed).
-   * `saved: false` -- the edge function isn't deployed on this Supabase yet, so
-   *                   nothing was written (see below).
-   */
-  | { ok: true; saved: boolean }
-  | { ok: false; error: string };
+export type SubmitResult = { ok: true } | { ok: false; error: string };
 
-export const ONBOARD_FUNCTION = 'onboard-attendee';
+const SESSION_EXPIRED = 'Your session has expired. Please sign in again.';
+const NETWORK_ERROR = "Couldn't reach the server. Check your connection and try again.";
 
-type SubmitDeps = {
-  supabaseUrl: string | undefined;
-  supabaseAnonKey: string | undefined;
-  fetchImpl?: typeof fetch;
-};
+/**
+ * A readable message for each way onboard-attendee can fail. The function
+ * sends no stable error `code`, so this branches on the HTTP status it uses
+ * for each case (see supabase/functions/onboard-attendee/index.ts), never on
+ * its `error` wording.
+ */
+export function onboardingErrorMessage({ status, reply }: OnboardAttendeeResult): string {
+  if (!reply) {
+    // Something other than the function answered, e.g. the gateway's 404
+    // when onboard-attendee isn't being served.
+    return `Onboarding isn't available right now (error ${status}). Please try again later.`;
+  }
+  switch (status) {
+    case 401:
+      return SESSION_EXPIRED;
+    case 400:
+      // Missing fields (already checked here) or a Clerk account with no email.
+      return "We couldn't save these details. Make sure every field is filled in and your account has an email address.";
+    case 409:
+      return "This email is already linked to another account. Contact an officer if that's unexpected.";
+    case 500:
+      return 'Something went wrong on our end while saving your profile. Please try again in a moment.';
+    default:
+      return `Couldn't save your profile (error ${status}). Please try again.`;
+  }
+}
 
 /**
  * Creates (or claims) the user's attendees row through the onboard-attendee
- * edge function (ADTCIA-30). Mobile can't write the row itself: web does it
- * server-side with the service-role key, which must never ship in an app.
+ * edge function. Mobile can't write the row itself: web does it server-side
+ * with the service-role key, which must never ship in an app.
  *
  * The function identifies the user from the Clerk token -- never from the
  * body -- links any earlier guest check-ins by email, and syncs the name to
- * Clerk.
- *
- * Until that function is merged and served, Supabase answers 404. In that
- * case this returns `{ ok: true, saved: false }` so the flow can still be
- * demoed; the caller lets the user through for this app session only.
+ * Clerk. `supabase` is null when nobody is signed in (see useSupabase).
  */
 export async function submitOnboardingProfile(
   input: OnboardingInput,
-  getToken: () => Promise<string | null>,
-  { supabaseUrl, supabaseAnonKey, fetchImpl = fetch }: SubmitDeps,
+  supabase: MobileSupabase | null,
 ): Promise<SubmitResult> {
   const invalid = validateOnboarding(input);
   if (invalid) return { ok: false, error: invalid };
 
-  if (!supabaseUrl || !supabaseAnonKey) {
-    return { ok: false, error: 'The app is missing its Supabase settings (see mobile/README.md).' };
-  }
+  if (!supabase) return { ok: false, error: SESSION_EXPIRED };
 
-  const token = await getToken().catch(() => null);
-  if (!token) {
-    return { ok: false, error: 'Your session has expired. Please sign in again.' };
-  }
-
-  let res: Response;
+  let result: OnboardAttendeeResult;
   try {
-    res = await fetchImpl(`${supabaseUrl.replace(/\/+$/, '')}/functions/v1/${ONBOARD_FUNCTION}`, {
-      method: 'POST',
-      headers: {
-        apikey: supabaseAnonKey,
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        firstName: input.firstName.trim(),
-        lastName: input.lastName.trim(),
-        gradYear: input.gradYear.trim(),
-      }),
+    result = await callOnboardAttendee(supabase, {
+      firstName: input.firstName.trim(),
+      lastName: input.lastName.trim(),
+      gradYear: input.gradYear.trim(),
     });
-  } catch {
-    return { ok: false, error: "Couldn't reach the server. Check your connection and try again." };
+  } catch (error) {
+    if (error instanceof OnboardingNetworkError) return { ok: false, error: NETWORK_ERROR };
+    throw error;
   }
 
-  if (res.status === 404) {
-    // Function not deployed yet (ADTCIA-30 not merged) -- fall back to the stub.
-    return { ok: true, saved: false };
-  }
-
-  const body = (await res.json().catch(() => null)) as { ok?: boolean; error?: string } | null;
-  if (res.ok && body?.ok) return { ok: true, saved: true };
-
-  return {
-    ok: false,
-    error: body?.error ?? `Couldn't save your profile (error ${res.status}). Please try again.`,
-  };
+  if (result.reply?.ok) return { ok: true };
+  return { ok: false, error: onboardingErrorMessage(result) };
 }
