@@ -4,8 +4,6 @@ import type { ComponentProps } from 'react';
 import type { ColorValue } from 'react-native';
 
 import { GlassTabBar, hasGlassTabBar } from '@/components/glass-tab-bar';
-import { SwipeTabs } from '@/components/swipe-tabs';
-import { useReducedMotion } from '@/lib/reduced-motion';
 import { colors } from '@/theme';
 
 type IconName = ComponentProps<typeof Ionicons>['name'];
@@ -20,17 +18,12 @@ function tabIcon(name: IconName) {
 
 /** Signed-in tabs. Accent marks the active tab -- one of its three allowed jobs. */
 export default function TabsLayout() {
-  const reduced = useReducedMotion();
   return (
     <Tabs
       // iOS 26 gets the floating glass footer; everything else keeps the standard bar.
       tabBar={hasGlassTabBar ? (props) => <GlassTabBar {...props} /> : undefined}
-      // Swipe sideways to move between tabs.
-      layout={(props) => <SwipeTabs {...props} />}
       screenOptions={{
         headerShown: false,
-        // Screens slide when you change tabs, unless the phone has Reduce Motion on.
-        animation: reduced ? 'none' : 'shift',
         tabBarActiveTintColor: colors.accent,
         tabBarInactiveTintColor: colors.inkFaint,
         tabBarStyle: { backgroundColor: colors.surface, borderTopColor: colors.line },
