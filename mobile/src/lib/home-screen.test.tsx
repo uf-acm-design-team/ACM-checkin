@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 
 import HomeScreen from '@/app/(tabs)/index';
 import type { HomeOrg } from '@/lib/supabase';
@@ -7,6 +7,18 @@ const mockGetMyHomeOrgs = jest.fn<Promise<HomeOrg[]>, []>();
 const mockSupabase = {};
 
 jest.mock('@clerk/expo', () => ({ useUser: () => ({ user: { firstName: 'Jaedyn' } }) }));
+// Stands in for the navigator: runs the focus callback on mount, as a first
+// focus does, and keeps it so a test can focus Home again.
+let mockFocus: () => void = () => {};
+jest.mock('expo-router', () => {
+  const { useEffect } = jest.requireActual<typeof import('react')>('react');
+  return {
+    useFocusEffect: (onFocus: () => void) => {
+      mockFocus = onFocus;
+      useEffect(() => onFocus(), [onFocus]);
+    },
+  };
+});
 jest.mock('react-native-safe-area-context', () => ({
   SafeAreaView: ({ children }: { children: React.ReactNode }) => children,
 }));
@@ -57,4 +69,15 @@ it('shows the error state and retries', async () => {
   expect(await screen.findByText("Couldn't load your orgs")).toBeTruthy();
   await fireEvent.press(screen.getByText('Try again'));
   await waitFor(() => expect(screen.getByText('ACM')).toBeTruthy());
+});
+
+it('reloads when you come back to Home, so a new check-in shows without pulling to refresh', async () => {
+  mockGetMyHomeOrgs.mockResolvedValueOnce([acm]).mockResolvedValueOnce([{ ...acm, attended: 3 }]);
+  await render(<HomeScreen />);
+  expect(await screen.findByText('2 check-ins')).toBeTruthy();
+  expect(mockGetMyHomeOrgs).toHaveBeenCalledTimes(1);
+
+  await act(async () => mockFocus());
+  await waitFor(() => expect(screen.getByText('3 check-ins')).toBeTruthy());
+  expect(screen.getByText("You're a member")).toBeTruthy();
 });

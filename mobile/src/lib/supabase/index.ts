@@ -9,8 +9,12 @@ export type {
 } from "./database.types";
 export {
     buildHomeOrgs,
-    DataError, getMyAttendee, getMyHomeOrgs, getMyMemberships, getOrgBySlug
+    DataError, getMyAttendee, getMyHomeOrgs, getMyMemberships, getOpenMeetings, getOrgBySlug
 } from "./queries";
-export type { Attendee, HomeOrg, MyMembership, Organization } from "./queries";
+export type { Attendee, HomeOrg, MyMembership, OpenMeeting, Organization } from "./queries";
+export {
+    callMemberCheckIn, CheckInNetworkError, MEMBER_CHECK_IN_FUNCTION
+} from "./member-check-in";
+export type { MemberCheckInResult } from "./member-check-in";
 export { useSupabase } from "./useSupabase";
 
