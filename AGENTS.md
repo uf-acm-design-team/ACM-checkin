@@ -160,7 +160,7 @@ and don't "fix" their data to come from Supabase. `states-preview` returns a
 
 Reads and simple writes use the browser Supabase client. Writes that need
 server-side validation or a server-derived identity go through server actions,
-such as meeting create, open/close, and delete in
+such as meeting create, update, open/close, and delete in
 `app/[orgSlug]/admin-dashboard/actions.ts`.
 
 Every exported server action is a public endpoint, callable from any page with
@@ -211,16 +211,3 @@ Two related behaviours to keep in mind:
 - A geo-locked meeting with no pin (`latitude`/`longitude` NULL) is not
   enforced on either side, because there's nothing to measure against.
 - The reported `accuracy` is passed along but does not widen the radius.
-
-### The meeting editor still writes from the browser
-
-`admin-dashboard/meetings/[meetingId]/page.tsx` saves with the browser client
-and its own validation, not `lib/meeting-validation.ts`. RLS still limits it to
-officers, but it accepts values the dashboard rejects, such as a latitude of
-200 or a radius under 10 m.
-
-### The database doesn't range-check meetings
-
-There are no CHECK constraints on `latitude`, `longitude`, `radius_meters`, or
-end time after start time. Only the server action checks them, so the editor,
-the SQL editor, or a direct API call can still store bad values.
