@@ -55,3 +55,15 @@ export function semesterProfile(
 export function eventCount(count: number): string {
   return `${count} ${count === 1 ? 'event' : 'events'}`;
 }
+
+// Your whole history with one org: every check-in ever, and the latest one.
+export type OrgActivity = { allTime: number; last: MyCheckIn | null };
+
+export function orgActivity(checkIns: MyCheckIn[], orgId: string): OrgActivity {
+  const mine = checkIns.filter((checkIn) => checkIn.orgId === orgId);
+  const last = mine.reduce<MyCheckIn | null>(
+    (latest, checkIn) => (!latest || checkIn.startTime > latest.startTime ? checkIn : latest),
+    null,
+  );
+  return { allTime: mine.length, last };
+}

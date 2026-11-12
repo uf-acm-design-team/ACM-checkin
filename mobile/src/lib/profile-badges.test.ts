@@ -1,7 +1,7 @@
 import type { MyCheckIn, MyMembership } from '@/lib/supabase';
 import { getTerm } from '@/lib/terms';
 
-import { eventCount, semesterProfile } from './profile-badges';
+import { eventCount, orgActivity, semesterProfile } from './profile-badges';
 
 // Only ACM has a threshold in the app today; give IEEE and SHPE one too so ordering can be tested.
 jest.mock('@/lib/org-display', () => ({
@@ -83,5 +83,19 @@ describe('eventCount', () => {
     expect(eventCount(0)).toBe('0 events');
     expect(eventCount(1)).toBe('1 event');
     expect(eventCount(4)).toBe('4 events');
+  });
+});
+
+describe('orgActivity', () => {
+  it('counts every check-in with the org and finds the latest', () => {
+    const rows = [
+      ...checkIns('org-acm', '2026-09-01T22:00:00Z', '2026-10-01T22:00:00Z', '2026-02-01T22:00:00Z'),
+      ...checkIns('org-wece', '2026-11-01T22:00:00Z'),
+    ];
+    expect(orgActivity(rows, 'org-acm')).toEqual({ allTime: 3, last: rows[1] });
+  });
+
+  it('is empty for an org you have not checked in with', () => {
+    expect(orgActivity([], 'org-acm')).toEqual({ allTime: 0, last: null });
   });
 });

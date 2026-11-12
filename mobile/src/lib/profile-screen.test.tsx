@@ -5,6 +5,7 @@ import type { MyMembership, MyProfile } from '@/lib/supabase';
 import type { Term } from '@/lib/terms';
 
 const mockGetMyProfile = jest.fn<Promise<MyProfile>, []>();
+const mockGetMyOrgMeetings = jest.fn();
 const mockPush = jest.fn();
 const mockSupabase = {};
 
@@ -18,6 +19,7 @@ jest.mock('react-native-safe-area-context', () => ({
 jest.mock('@/lib/supabase', () => ({
   useSupabase: () => mockSupabase,
   getMyProfile: () => mockGetMyProfile(),
+  getMyOrgMeetings: () => mockGetMyOrgMeetings(),
 }));
 jest.mock('@/lib/org-display', () => ({
   ...jest.requireActual('@/lib/org-display'),
@@ -66,6 +68,7 @@ const profile: MyProfile = {
 beforeEach(() => {
   jest.useFakeTimers({ now: new Date('2027-03-01T17:00:00Z') });
   mockGetMyProfile.mockReset();
+  mockGetMyOrgMeetings.mockReset().mockResolvedValue({ meetings: [], total: 0 });
   mockPush.mockClear();
 });
 
@@ -137,4 +140,29 @@ it('retries loading the profile after an error', async () => {
   expect(await screen.findByText("Couldn't load your profile")).toBeTruthy();
   await fireEvent.press(screen.getByRole('button', { name: 'Try again' }));
   expect(await screen.findByLabelText('ACM: earned, 3 events')).toBeTruthy();
+});
+
+it('opens an org row in place with your standing and the next meeting', async () => {
+  mockGetMyProfile.mockResolvedValue({
+    ...profile,
+    checkIns: [...profile.checkIns, { orgId: 'acm', startTime: '2027-02-22T20:00:00Z', title: 'Hack night' }],
+  });
+  mockGetMyOrgMeetings.mockResolvedValue({
+    meetings: [{ id: 'm9', title: 'Resume workshop', startTime: '2027-03-04T23:00:00Z', attended: false }],
+    total: 1,
+  });
+  await render(<ProfileScreen />);
+
+  await fireEvent.press(await screen.findByRole('button', { name: 'ACM, 4 events' }));
+  expect(screen.getByText('5 events all time')).toBeTruthy();
+  expect(screen.getByText('Last attended · Hack night, Feb 22')).toBeTruthy();
+  expect(await screen.findByText(/Next · Resume workshop/)).toBeTruthy();
+
+  await fireEvent.press(screen.getByText('View history ›'));
+  expect(mockPush).toHaveBeenCalledWith({ pathname: '/org/[orgSlug]', params: { orgSlug: 'acm' } });
+
+  // Opening another org closes this one.
+  await fireEvent.press(screen.getByRole('button', { name: 'IEEE, 1 event' }));
+  expect(screen.queryByText('5 events all time')).toBeNull();
+  expect(screen.getByText('1 event all time')).toBeTruthy();
 });

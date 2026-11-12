@@ -16,9 +16,10 @@ import { AnimatedListHeight } from '@/components/animated-list-height';
 import { Avatar } from '@/components/avatar';
 import { Button } from '@/components/button';
 import { ProfileBadge, ProfileBadgeDetails } from '@/components/profile-badge';
+import { ProfileOrgRow } from '@/components/profile-org-row';
 import { Screen } from '@/components/screen';
 import { SemesterPicker } from '@/components/semester-picker';
-import { eventCount, semesterProfile } from '@/lib/profile-badges';
+import { orgActivity, semesterProfile } from '@/lib/profile-badges';
 import { getMyProfile, useSupabase, type MyProfile } from '@/lib/supabase';
 import { academicYearTerms, getTerm, type Term } from '@/lib/terms';
 import { colors, radii, shadows, space } from '@/theme';
@@ -41,6 +42,8 @@ export default function ProfileScreen() {
   const [allBadges, setAllBadges] = useState(false);
   const [selectedBadgeOrg, setSelectedBadgeOrg] = useState<string | null>(null);
   const [allOrgs, setAllOrgs] = useState(false);
+  // The org whose row is open in "Your orgs"; one at a time.
+  const [openOrg, setOpenOrg] = useState<string | null>(null);
 
   // Start on the current semester; the picker offers this academic year's three.
   const now = useMemo(() => new Date().toISOString(), []);
@@ -158,14 +161,21 @@ export default function ProfileScreen() {
           <Text style={styles.sectionTitle}>Your orgs</Text>
           <AnimatedListHeight>
             <View style={styles.card}>
-              {shownOrgs.map(({ org, count }, index) => (
-                <View key={org.id} style={[styles.orgRow, index > 0 && styles.orgRowDivider]}>
-                  <Text style={styles.orgName} numberOfLines={1}>
-                    {org.name ?? org.slug}
-                  </Text>
-                  <Text style={styles.muted}>{eventCount(count)}</Text>
-                </View>
-              ))}
+              {shownOrgs.map(({ org, count }, index) => {
+                const membership = state.profile.memberships.find((entry) => entry.org_id === org.id);
+                return membership ? (
+                  <ProfileOrgRow
+                    key={org.id}
+                    membership={membership}
+                    count={count}
+                    activity={orgActivity(state.profile.checkIns, org.id)}
+                    now={now}
+                    expanded={openOrg === org.id}
+                    divider={index > 0}
+                    onToggle={() => setOpenOrg((open) => (open === org.id ? null : org.id))}
+                  />
+                ) : null;
+              })}
             </View>
           </AnimatedListHeight>
           {orgs.length > VISIBLE_ORGS ? (
@@ -331,24 +341,6 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     borderRadius: radii.card,
     ...shadows.card,
-  },
-  orgRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: space[3],
-    paddingHorizontal: space[4],
-    paddingVertical: space[3],
-  },
-  orgRowDivider: {
-    borderTopColor: colors.lineSoft,
-    borderTopWidth: StyleSheet.hairlineWidth,
-  },
-  orgName: {
-    flex: 1,
-    color: colors.ink,
-    fontSize: 15,
-    fontWeight: '600',
   },
   panel: {
     gap: space[2],

@@ -229,8 +229,8 @@ export async function getMyHomeOrgs(
   );
 }
 
-// One of your check-ins: which org, and when that meeting started.
-export type MyCheckIn = { orgId: string; startTime: string };
+// One of your check-ins: which org, when that meeting started, and its title.
+export type MyCheckIn = { orgId: string; startTime: string; title?: string | null };
 
 export type MyProfile = {
   attendee: Attendee | null;
@@ -254,13 +254,13 @@ export async function getMyProfile(
 
   const { data, error } = await supabase.client
     .from("attendance")
-    .select("org_id, meeting:meetings(start_time)")
+    .select("org_id, meeting:meetings(start_time, title)")
     .eq("attendee_id", attendee.id);
   if (error) throw new DataError("getMyProfile", error);
 
   const checkIns = (data ?? []).flatMap((row) =>
     row.meeting?.start_time
-      ? [{ orgId: row.org_id, startTime: row.meeting.start_time }]
+      ? [{ orgId: row.org_id, startTime: row.meeting.start_time, title: row.meeting.title }]
       : [],
   );
   return { attendee, memberships, checkIns };
