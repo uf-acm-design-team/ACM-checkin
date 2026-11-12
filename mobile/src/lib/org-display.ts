@@ -14,6 +14,11 @@ export function orgAccent(branding: Json | null): string | null {
   return typeof accent === 'string' && HEX_COLOR.test(accent) ? accent : null;
 }
 
+// The check-ins an org asks for before you count as a member, or null when it has no threshold.
+export function membershipThreshold(slug: string | null): number | null {
+  return slug ? (MEMBERSHIP_THRESHOLDS[slug.toLowerCase()] ?? null) : null;
+}
+
 export type MembershipProgress = {
   threshold: number | null;
   attended: number;
@@ -26,7 +31,7 @@ export function membershipProgress(
   attended: number,
   status: string | null,
 ): MembershipProgress {
-  const threshold = slug ? (MEMBERSHIP_THRESHOLDS[slug.toLowerCase()] ?? null) : null;
+  const threshold = membershipThreshold(slug);
   const meetsThreshold = threshold !== null && attended >= threshold;
   const isMember = status === 'active' || meetsThreshold;
   const remaining = threshold === null ? 0 : Math.max(threshold - attended, 0);

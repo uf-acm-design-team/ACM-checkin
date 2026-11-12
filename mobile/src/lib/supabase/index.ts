@@ -9,10 +9,10 @@ export type {
 } from "./database.types";
 export {
     buildHomeOrgs,
-    DataError, getLiveMeetings, getMyAttendee, getMyHomeOrgs, getMyMeetingCheckIn, getMyMemberships, getMyOrgMeetings, getOpenMeetings, getOrgBySlug
+    DataError, getLiveMeetings, getMyAttendee, getMyHomeOrgs, getMyMeetingCheckIn, getMyMemberships, getMyOrgMeetings, getMyProfile, getOpenMeetings, getOrgBySlug
 } from "./queries";
 export type {
-    Attendee, HomeOrg, LiveMeeting, MeetingCheckIn, MeetingQuestion, MyMembership, OpenMeeting, OrgMeeting, Organization
+    Attendee, HomeOrg, LiveMeeting, MeetingCheckIn, MeetingQuestion, MyCheckIn, MyMembership, MyProfile, OpenMeeting, OrgMeeting, Organization
 } from "./queries";
 export {
     callMemberCheckIn, CheckInNetworkError, MEMBER_CHECK_IN_FUNCTION
