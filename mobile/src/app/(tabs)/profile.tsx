@@ -12,6 +12,7 @@ import {
 
 import { AnimatedListHeight } from '@/components/animated-list-height';
 import { Button } from '@/components/button';
+import { GLASS_TAB_BAR_SPACE } from '@/components/glass-tab-bar';
 import { ProfileBadge, ProfileBadgeDetails } from '@/components/profile-badge';
 import { Screen } from '@/components/screen';
 import { SemesterPicker } from '@/components/semester-picker';
@@ -248,6 +249,7 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     gap: space[6],
     padding: space[4],
+    paddingBottom: space[4] + GLASS_TAB_BAR_SPACE,
   },
   centered: {
     flex: 1,

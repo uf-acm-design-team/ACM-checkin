@@ -7,6 +7,7 @@ import { Button } from '@/components/button';
 import { FadeIn } from '@/components/fade-in';
 import { GLASS_TAB_BAR_SPACE } from '@/components/glass-tab-bar';
 import { OrgCard } from '@/components/org-card';
+import { ProfileButton } from '@/components/profile-button';
 import { Screen } from '@/components/screen';
 import { getLiveMeetings, getMyHomeOrgs, useSupabase, type HomeOrg, type LiveMeeting } from '@/lib/supabase';
 import { colors, radii, space } from '@/theme';
@@ -104,8 +105,11 @@ export default function HomeScreen() {
         }
         ListHeaderComponent={
           <View style={styles.header}>
-            <Text style={styles.greeting}>{greeting}</Text>
-            <Text style={styles.title}>Your orgs</Text>
+            <View style={styles.headerText}>
+              <Text style={styles.greeting}>{greeting}</Text>
+              <Text style={styles.title}>Your orgs</Text>
+            </View>
+            <ProfileButton />
           </View>
         }
         ListEmptyComponent={
@@ -142,8 +146,14 @@ const styles = StyleSheet.create({
     paddingBottom: space[4] + GLASS_TAB_BAR_SPACE,
   },
   header: {
-    gap: space[1],
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space[3],
     marginBottom: space[4],
+  },
+  headerText: {
+    flex: 1,
+    gap: space[1],
   },
   greeting: {
     color: colors.inkMuted,

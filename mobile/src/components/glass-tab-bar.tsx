@@ -39,11 +39,13 @@ export const GLASS_TAB_BAR_SPACE = hasGlassTabBar ? BAR_HEIGHT + space[10] + spa
 // to, and each tab's icon.
 const CHECK_IN = 'check-in';
 const HOME = 'index';
+// Routes that are tab screens without a place in the footer: Profile opens
+// from the round button at the top right of Home and Calendar.
+const HIDDEN = new Set(['profile']);
 const ICONS: Record<string, IconName> = {
   index: 'home-outline',
   calendar: 'calendar-outline',
   'check-in': 'qr-code-outline',
-  profile: 'person-outline',
 };
 
 /**
@@ -64,7 +66,7 @@ export function GlassTabBar({ state, descriptors, navigateToTab, insets }: Botto
     focused: state.index === index,
     label: descriptors[route.key].options.title ?? route.name,
   }));
-  const pillTabs = tabs.filter((tab) => tab.route.name !== CHECK_IN);
+  const pillTabs = tabs.filter((tab) => tab.route.name !== CHECK_IN && !HIDDEN.has(tab.route.name));
   const checkIn = tabs.find((tab) => tab.route.name === CHECK_IN);
   const home = tabs.find((tab) => tab.route.name === HOME);
   const scanning = checkIn?.focused ?? false;

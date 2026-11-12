@@ -38,10 +38,8 @@ export default function TabsLayout() {
         name="check-in"
         options={{ title: 'Check in', tabBarIcon: tabIcon('qr-code-outline') }}
       />
-      <Tabs.Screen
-        name="profile"
-        options={{ title: 'Profile', tabBarIcon: tabIcon('person-outline') }}
-      />
+      {/* Profile has no tab: the round button at the top right of Home and Calendar opens it. */}
+      <Tabs.Screen name="profile" options={{ title: 'Profile', href: null }} />
     </Tabs>
   );
 }

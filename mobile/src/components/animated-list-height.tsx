@@ -1,9 +1,12 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { Animated, Easing, StyleSheet, View, type LayoutChangeEvent } from 'react-native';
 
+import { useReducedMotion } from '@/lib/reduced-motion';
+
 export function AnimatedListHeight({ children }: { children: ReactNode }) {
   const [height] = useState(() => new Animated.Value(0));
   const [measured, setMeasured] = useState(false);
+  const reduced = useReducedMotion();
 
   useEffect(() => () => height.stopAnimation(), [height]);
 
@@ -15,7 +18,7 @@ export function AnimatedListHeight({ children }: { children: ReactNode }) {
     }
     Animated.timing(height, {
       toValue: layout.height,
-      duration: 220,
+      duration: reduced ? 0 : 220,
       easing: Easing.out(Easing.cubic),
       useNativeDriver: false,
     }).start();

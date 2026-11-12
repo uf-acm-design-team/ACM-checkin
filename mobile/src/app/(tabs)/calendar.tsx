@@ -9,6 +9,7 @@ import { GLASS_TAB_BAR_SPACE } from '@/components/glass-tab-bar';
 import { LivePill } from '@/components/live-pill';
 import { MeetingCalendar } from '@/components/meeting-calendar';
 import { MeetingDetails } from '@/components/meeting-details';
+import { ProfileButton } from '@/components/profile-button';
 import { Screen } from '@/components/screen';
 import { addMonths } from '@/lib/calendar';
 import { daysAway } from '@/lib/meeting-details';
@@ -170,8 +171,11 @@ export default function AllMeetingsScreen() {
         }
       >
         <View style={styles.header}>
-          <Text style={styles.title}>All meetings</Text>
-          <Text style={styles.muted}>Every org you&apos;ve checked in with</Text>
+          <View style={styles.headerText}>
+            <Text style={styles.title}>All meetings</Text>
+            <Text style={styles.muted}>Every org you&apos;ve checked in with</Text>
+          </View>
+          <ProfileButton />
         </View>
 
         {state.status === 'error' ? (
@@ -261,8 +265,14 @@ const styles = StyleSheet.create({
     paddingBottom: space[4] + GLASS_TAB_BAR_SPACE,
   },
   header: {
-    gap: space[1],
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space[3],
     marginBottom: space[1],
+  },
+  headerText: {
+    flex: 1,
+    gap: space[1],
   },
   title: {
     color: colors.ink,
