@@ -5,7 +5,8 @@ import type { ColorToken } from './tokens';
  *
  * Mobile-only for now. Web has no dark mode, so there is nothing in
  * globals.css to check these against; `tokens.ts` stays the light palette the
- * drift test compares with web. Zinc surfaces and text flip; the accent
+ * drift test compares with web. Surfaces are a neutral dark grey (not black)
+ * and text flips to light; the accent
  * buttons keep their purple, since white text on them reads in both modes.
  */
 export const darkColors: Record<ColorToken, string> = {
@@ -15,17 +16,17 @@ export const darkColors: Record<ColorToken, string> = {
   accentInk: '#ffffff',
   accentOnSoft: '#c4b5fd',
 
-  canvas: '#09090b',
-  surface: '#18181b',
-  surfaceSunken: '#27272a',
+  canvas: '#1a1a1a',
+  surface: '#242424',
+  surfaceSunken: '#2e2e2e',
 
   ink: '#fafafa',
-  inkStrong: '#d4d4d8',
-  inkMuted: '#a1a1aa',
-  inkFaint: '#71717a',
+  inkStrong: '#d4d4d4',
+  inkMuted: '#a3a3a3',
+  inkFaint: '#737373',
 
-  line: '#3f3f46',
-  lineSoft: '#27272a',
+  line: '#3a3a3a',
+  lineSoft: '#2e2e2e',
 
   good: '#22c55e',
   goodInk: '#86efac',
