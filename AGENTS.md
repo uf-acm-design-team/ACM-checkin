@@ -171,6 +171,11 @@ server-side validation or a server-derived identity go through server actions,
 such as meeting create, update, open/close, and delete in
 `app/[orgSlug]/admin-dashboard/actions.ts`.
 
+Edge Functions are called straight from the browser through `callEdgeFunction()`
+in `lib/edge-functions.ts` (onboarding does this). The function verifies the
+token and validates input itself, so it needs no server action in front. See
+`docs/API.md`.
+
 Every exported server action is a public endpoint, callable from any page with
 any arguments. In each action:
 
