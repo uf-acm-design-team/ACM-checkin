@@ -1,5 +1,5 @@
 import type { ComponentProps } from 'react';
-import { StyleSheet } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
 import type { Tabs } from 'expo-router';
 
@@ -29,7 +29,13 @@ export function SwipeTabs({ state, navigation, children }: TabsLayoutProps) {
 
   return (
     <GestureHandlerRootView style={styles.fill}>
-      <GestureDetector gesture={swipe}>{children as React.ReactElement}</GestureDetector>
+      <GestureDetector gesture={swipe}>
+        {/* The detector needs a real native view to attach to; without
+            collapsable={false} React Native can flatten this one away. */}
+        <View collapsable={false} style={styles.fill}>
+          {children}
+        </View>
+      </GestureDetector>
     </GestureHandlerRootView>
   );
 }
