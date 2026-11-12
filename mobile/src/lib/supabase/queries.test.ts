@@ -4,6 +4,8 @@ import {
   DataError,
   getMyAttendee,
   getMyMemberships,
+  getMyMeetingCheckIn,
+  getMyOrgMeetings,
   getOrgBySlug,
 } from "./queries";
 import { anonKey, fakeJwt, jsonResponse, recordingFetch } from "./test-helpers";
@@ -123,5 +125,88 @@ describe("buildHomeOrgs", () => {
 
   it("returns nothing when you have no memberships", () => {
     expect(buildHomeOrgs([], ["org-a"])).toEqual([]);
+  });
+});
+
+describe("getMyOrgMeetings", () => {
+  it("returns every meeting with whether you attended it", async () => {
+    const { fetchImpl, requests } = recordingFetch((u) =>
+      u.includes("/rpc/get_member_meetings_page")
+        ? jsonResponse([
+            { id: "m1", title: "GBM", start_time: "2026-10-01T23:00:00Z", attended: true,
+              description: "Officer updates", total_count: 2,
+              form_schema: [{ id: "q1", type: "text", label: "How did you hear about us?" }, { nope: 1 }] },
+            { id: "m2", title: "Workshop", start_time: "2026-09-20T23:00:00Z", attended: false,
+              description: null, form_schema: null, total_count: 2 },
+          ])
+        : jsonResponse([{ id: "attendee_1", user_id: "user_1" }]),
+    );
+    const supabase = createSupabase(async () => fakeJwt({ sub: "user_1" }), {
+      url, anonKey, fetch: fetchImpl,
+    });
+
+    const result = await getMyOrgMeetings(supabase, "org_1", {
+      start: "2000-01-01T00:00:00Z", end: "2026-11-03T00:00:00Z",
+    });
+
+    expect(result).toEqual({
+      meetings: [
+        { id: "m1", title: "GBM", startTime: "2026-10-01T23:00:00Z", attended: true,
+          description: "Officer updates", questions: [{ id: "q1", label: "How did you hear about us?" }] },
+        { id: "m2", title: "Workshop", startTime: "2026-09-20T23:00:00Z", attended: false,
+          description: null, questions: [] },
+      ],
+      total: 2,
+    });
+    expect(requests.some((r) => r.url.includes("/rpc/get_member_meetings_page"))).toBe(true);
+  });
+
+  it("returns nothing when signed out", async () => {
+    await expect(getMyOrgMeetings(null, "org_1", { start: "", end: "" }))
+      .resolves.toEqual({ meetings: [], total: 0 });
+  });
+});
+
+describe("getMyMeetingCheckIn", () => {
+  const signedIn = (handler: (url: string) => Response) => {
+    const { fetchImpl, requests } = recordingFetch(handler);
+    const supabase = createSupabase(async () => fakeJwt({ sub: "user_1" }), { url, anonKey, fetch: fetchImpl });
+    return { supabase, requests };
+  };
+
+  it("returns the end time and your own check-in", async () => {
+    const { supabase, requests } = signedIn((u) => {
+      if (u.includes("/attendees")) return jsonResponse([{ id: "attendee_1", user_id: "user_1" }]);
+      if (u.includes("/meetings")) return jsonResponse({ end_time: "2026-10-02T00:30:00Z" });
+      return jsonResponse({ checked_in_at: "2026-10-01T23:04:00Z", answers: { q1: "Discord" } });
+    });
+
+    await expect(getMyMeetingCheckIn(supabase, "m1")).resolves.toEqual({
+      endTime: "2026-10-02T00:30:00Z",
+      checkedInAt: "2026-10-01T23:04:00Z",
+      answers: { q1: "Discord" },
+    });
+    // Narrowed to this meeting and to the caller's own attendee row.
+    const attendance = requests.find((r) => r.url.includes("/attendance"));
+    expect(attendance?.url).toContain("meeting_id=eq.m1");
+    expect(attendance?.url).toContain("attendee_id=eq.attendee_1");
+  });
+
+  it("has no check-in for a meeting you didn't attend", async () => {
+    const { supabase } = signedIn((u) => {
+      if (u.includes("/attendees")) return jsonResponse([{ id: "attendee_1", user_id: "user_1" }]);
+      if (u.includes("/meetings")) return jsonResponse({ end_time: null });
+      return jsonResponse(null);
+    });
+
+    await expect(getMyMeetingCheckIn(supabase, "m2")).resolves.toEqual({
+      endTime: null, checkedInAt: null, answers: {},
+    });
+  });
+
+  it("returns nothing when signed out", async () => {
+    await expect(getMyMeetingCheckIn(null, "m1")).resolves.toEqual({
+      endTime: null, checkedInAt: null, answers: {},
+    });
   });
 });
