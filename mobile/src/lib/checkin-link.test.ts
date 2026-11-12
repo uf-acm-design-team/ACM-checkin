@@ -83,6 +83,6 @@ describe('agreement with the web link format (lib/checkin-link.ts)', () => {
     expect(parseCheckinLink(buildCheckinLink('acm', origin))).toBe('acm');
     expect(parseCheckinLink(buildCheckinLink('color-stack', origin))).toBe('color-stack');
     expect(parseCheckinLink(buildCheckinLink('a b', origin))).toBe('a b');
-      expect(parseCheckinLink(buildCheckinLink('ACM', origin))).toBe('ACM');
+    expect(parseCheckinLink(buildCheckinLink('ACM', origin))).toBe('ACM');
   });
 });
