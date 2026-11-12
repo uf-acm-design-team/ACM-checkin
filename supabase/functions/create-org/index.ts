@@ -1,15 +1,13 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { DEFAULT_BRANDING } from "../_shared/branding.ts";
 
 // Creates an organization: name, slug, and a full branding template (colors +
 // logo). Global-admin only (attendees.admin) -- officers, even org owners,
 // cannot create new orgs.
 //
-// Branding shape mirrors lib/branding.ts's `Branding` type. This function
-// can't import that file directly (it's a separate Deno runtime with no
-// access to the Next.js app's module graph), so the defaults below are
-// hand-kept in sync with lib/branding.ts's DEFAULT_BRANDING. If you change
-// one, change the other.
+// Branding defaults come from _shared/branding.ts, the same module the web app
+// uses, so new orgs get exactly the web app's fallback theme.
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -28,24 +26,6 @@ const LOGO_EXTENSION_BY_MIME: Record<string, string> = {
   "image/jpeg": "jpg",
   "image/webp": "webp",
   "image/svg+xml": "svg",
-};
-
-const DEFAULT_BRANDING = {
-  colors: {
-    primary: "#FA4616",
-    background: "#0021A5",
-    backgroundSecondary: "#001B87",
-    accent: "#FA4616",
-    text: "#FFFFFF",
-  },
-  particleColor: "#FFFFFF",
-  // Empty, not the ACM logo: a new org with no upload shows no logo at all
-  // rather than wearing another club's crest. Mirrors DEFAULT_BRANDING in
-  // lib/branding.ts (edge functions cannot import from the Next app).
-  logo: {
-    crest: "",
-    wordmark: "",
-  },
 };
 
 function normalizeSlug(raw: string) {

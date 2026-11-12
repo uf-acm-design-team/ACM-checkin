@@ -7,11 +7,11 @@
  * (recoverable by walking), and it cannot tell those apart from a message.
  *
  * This is the fast UX path only. The check-in server actions repeat the same
- * check (lib/geo.ts) against the coordinates returned here, so skipping this
- * file no longer skips the geolock.
+ * check (supabase/functions/_shared/geo.ts) against the coordinates returned
+ * here, so skipping this file no longer skips the geolock.
  */
 
-import { checkGeofence, type Coordinates } from "@/lib/geo";
+import { checkGeofence, type Coordinates } from "@/supabase/functions/_shared/geo";
 
 export type GeoFailure =
     | { kind: "denied" }
