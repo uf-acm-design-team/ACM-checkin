@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/react-native';
 
-import ProfileScreen from '@/app/(tabs)/profile';
+import ProfileScreen from '@/app/profile';
 import type { MyMembership, MyProfile } from '@/lib/supabase';
 import type { Term } from '@/lib/terms';
 

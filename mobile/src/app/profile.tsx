@@ -1,4 +1,5 @@
 import { useClerk, useUser } from '@clerk/expo';
+import { router } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
   ActivityIndicator,
@@ -12,7 +13,6 @@ import {
 
 import { AnimatedListHeight } from '@/components/animated-list-height';
 import { Button } from '@/components/button';
-import { GLASS_TAB_BAR_SPACE } from '@/components/glass-tab-bar';
 import { ProfileBadge, ProfileBadgeDetails } from '@/components/profile-badge';
 import { Screen } from '@/components/screen';
 import { SemesterPicker } from '@/components/semester-picker';
@@ -193,6 +193,10 @@ export default function ProfileScreen() {
           <RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={colors.accent} />
         }
       >
+        {/* Profile opens over the tabs from the round button on Home and Calendar. */}
+        <Pressable onPress={() => router.back()} accessibilityRole="button" hitSlop={8} style={styles.back}>
+          <Text style={styles.backText}>‹ Back</Text>
+        </Pressable>
         <View style={styles.header}>
           <View style={styles.avatar}>
             <Text style={styles.avatarText}>
@@ -249,7 +253,14 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     gap: space[6],
     padding: space[4],
-    paddingBottom: space[4] + GLASS_TAB_BAR_SPACE,
+  },
+  back: {
+    alignSelf: 'flex-start',
+  },
+  backText: {
+    color: colors.accent,
+    fontSize: 15,
+    fontWeight: '600',
   },
   centered: {
     flex: 1,
