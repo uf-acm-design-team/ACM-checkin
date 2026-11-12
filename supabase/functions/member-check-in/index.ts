@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
+import { performCheckIn } from "./check-in.ts";
 import type { MemberCheckInErrorCode, MemberCheckInResponse } from "./contract.ts";
 import { parseCheckInRequest } from "./validate.ts";
 
@@ -26,7 +27,6 @@ const STATUS_BY_CODE: Record<MemberCheckInErrorCode, number> = {
   meeting_closed: 409,
   invalid_answers: 422,
   server_error: 500,
-  not_implemented: 501,
 };
 
 function jsonResponse(body: unknown, status: number) {
@@ -106,8 +106,7 @@ serve(async (req) => {
       });
     }
 
-    // Week 4: parsed.request feeds the check-in logic (ADTCIA-31 inventory).
-    return respond({ ok: false, code: "not_implemented", error: "not implemented" });
+    return respond(await performCheckIn(callerClient, clerkId, parsed.request));
   } catch (error) {
     console.error("member-check-in error:", error);
     return respond({

@@ -1,19 +1,38 @@
 name: Mobile CI
 
 # Lint, typecheck and test the Expo app on every PR that could affect it.
-# app/globals.css is included because the mobile theme test checks the tokens
-# against it -- a web token change must not silently drift from mobile.
+# Besides mobile/, these web files are included because mobile depends on them:
+# - app/globals.css: the theme test checks mobile tokens against it
+# - lib/checkin-link.ts: the QR parser test round-trips web's link builder
+# - lib/form-schema.ts, lib/meeting-time.ts: the check-in form copies their
+#   answer validation and open-meeting window, and its tests compare the copies
+# - supabase/functions/member-check-in/contract.ts (+ the lib/ and _shared/
+#   types it uses): the check-in screen is typed against it. #61 moves
+#   lib/form-schema.ts into supabase/functions/_shared/; drop the lib/ entry
+#   once that has merged.
 on:
   pull_request:
     paths:
       - "mobile/**"
       - "app/globals.css"
+      - "lib/checkin-link.ts"
+      - "lib/form-schema.ts"
+      - "lib/geo.ts"
+      - "lib/meeting-time.ts"
+      - "supabase/functions/member-check-in/contract.ts"
+      - "supabase/functions/_shared/**"
       - ".github/workflows/mobile.yml"
   push:
     branches: [main]
     paths:
       - "mobile/**"
       - "app/globals.css"
+      - "lib/checkin-link.ts"
+      - "lib/form-schema.ts"
+      - "lib/geo.ts"
+      - "lib/meeting-time.ts"
+      - "supabase/functions/member-check-in/contract.ts"
+      - "supabase/functions/_shared/**"
       - ".github/workflows/mobile.yml"
 
 concurrency:
@@ -37,6 +56,11 @@ jobs:
           cache-dependency-path: mobile/package-lock.json
 
       - run: npm ci
+
+      # Every expo-* / React Native package must be the version this SDK
+      # expects. `npm run upgrade:sdk` keeps them in line.
+      - name: Expo package versions
+        run: npx expo install --check
 
       - name: Lint
         run: npm run lint

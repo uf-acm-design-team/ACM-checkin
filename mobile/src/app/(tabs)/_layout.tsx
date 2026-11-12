@@ -3,22 +3,34 @@ import { Tabs } from 'expo-router';
 import type { ComponentProps } from 'react';
 import type { ColorValue } from 'react-native';
 
+import { GlassTabBar, hasGlassTabBar } from '@/components/glass-tab-bar';
+import { SwipeTabs } from '@/components/swipe-tabs';
+import { useReducedMotion } from '@/lib/reduced-motion';
 import { colors } from '@/theme';
 
 type IconName = ComponentProps<typeof Ionicons>['name'];
 
 function tabIcon(name: IconName) {
   return function TabIcon({ color, size }: { color: ColorValue; size: number }) {
-    return <Ionicons name={name} color={color} size={size} />;
+    // React Native 0.88 widened ColorValue (null, numbers). The tab bar passes our
+    // theme tokens straight through; on iOS those can be dynamic light/dark colours.
+    return <Ionicons name={name} color={color as string} size={size} />;
   };
 }
 
 /** Signed-in tabs. Accent marks the active tab -- one of its three allowed jobs. */
 export default function TabsLayout() {
+  const reduced = useReducedMotion();
   return (
     <Tabs
+      // iOS 26 gets the floating glass footer; everything else keeps the standard bar.
+      tabBar={hasGlassTabBar ? (props) => <GlassTabBar {...props} /> : undefined}
+      // Swipe sideways to move between tabs.
+      layout={(props) => <SwipeTabs {...props} />}
       screenOptions={{
         headerShown: false,
+        // Screens slide when you change tabs, unless the phone has Reduce Motion on.
+        animation: reduced ? 'none' : 'shift',
         tabBarActiveTintColor: colors.accent,
         tabBarInactiveTintColor: colors.inkFaint,
         tabBarStyle: { backgroundColor: colors.surface, borderTopColor: colors.line },
@@ -26,12 +38,12 @@ export default function TabsLayout() {
       }}>
       <Tabs.Screen name="index" options={{ title: 'Home', tabBarIcon: tabIcon('home-outline') }} />
       <Tabs.Screen
-        name="check-in"
-        options={{ title: 'Check in', tabBarIcon: tabIcon('qr-code-outline') }}
+        name="calendar"
+        options={{ title: 'Calendar', tabBarIcon: tabIcon('calendar-outline') }}
       />
       <Tabs.Screen
-        name="profile"
-        options={{ title: 'Profile', tabBarIcon: tabIcon('person-outline') }}
+        name="check-in"
+        options={{ title: 'Check in', tabBarIcon: tabIcon('qr-code-outline') }}
       />
     </Tabs>
   );
