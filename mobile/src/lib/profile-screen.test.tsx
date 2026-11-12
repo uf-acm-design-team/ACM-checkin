@@ -5,13 +5,13 @@ import type { MyMembership, MyProfile } from '@/lib/supabase';
 import type { Term } from '@/lib/terms';
 
 const mockGetMyProfile = jest.fn<Promise<MyProfile>, []>();
-const mockSignOut = jest.fn();
+const mockPush = jest.fn();
 const mockSupabase = {};
 
 jest.mock('@clerk/expo', () => ({
   useUser: () => ({ user: { firstName: 'Jaedyn', fullName: 'Jaedyn Petaway' } }),
-  useClerk: () => ({ signOut: mockSignOut }),
 }));
+jest.mock('expo-router', () => ({ router: { push: (...args: unknown[]) => mockPush(...args), back: jest.fn() } }));
 jest.mock('react-native-safe-area-context', () => ({
   SafeAreaView: ({ children }: { children: React.ReactNode }) => children,
 }));
@@ -66,7 +66,7 @@ const profile: MyProfile = {
 beforeEach(() => {
   jest.useFakeTimers({ now: new Date('2027-03-01T17:00:00Z') });
   mockGetMyProfile.mockReset();
-  mockSignOut.mockClear();
+  mockPush.mockClear();
 });
 
 afterEach(() => jest.useRealTimers());
@@ -120,13 +120,14 @@ it('opens details for earned, in-progress, and past-semester badges', async () =
   expect(screen.queryByRole('progressbar', { name: 'Badge progress' })).toBeNull();
 });
 
-it('shows the empty state and still allows sign out', async () => {
+it('shows the empty state and opens Settings from the gear', async () => {
   mockGetMyProfile.mockResolvedValue(emptyProfile);
   await render(<ProfileScreen />);
 
   expect(await screen.findByText("You haven't checked in anywhere yet")).toBeTruthy();
-  await fireEvent.press(screen.getByRole('button', { name: 'Sign out' }));
-  expect(mockSignOut).toHaveBeenCalledTimes(1);
+  expect(screen.queryByRole('button', { name: 'Sign out' })).toBeNull();
+  await fireEvent.press(screen.getByRole('button', { name: 'Settings' }));
+  expect(mockPush).toHaveBeenCalledWith('/settings');
 });
 
 it('retries loading the profile after an error', async () => {

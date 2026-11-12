@@ -54,6 +54,7 @@ function RootNavigator() {
         <Stack.Screen name="checkin/[orgSlug]" />
         <Stack.Screen name="org/[orgSlug]" />
         <Stack.Screen name="profile" />
+        <Stack.Screen name="settings" />
       </Stack.Protected>
       <Stack.Protected guard={status === 'missing'}>
         <Stack.Screen name="onboarding" />

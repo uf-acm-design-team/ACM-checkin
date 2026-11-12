@@ -1,4 +1,5 @@
-import { useClerk, useUser } from '@clerk/expo';
+import { useUser } from '@clerk/expo';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { router } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
@@ -12,6 +13,7 @@ import {
 } from 'react-native';
 
 import { AnimatedListHeight } from '@/components/animated-list-height';
+import { Avatar } from '@/components/avatar';
 import { Button } from '@/components/button';
 import { ProfileBadge, ProfileBadgeDetails } from '@/components/profile-badge';
 import { Screen } from '@/components/screen';
@@ -30,16 +32,9 @@ type ProfileState =
   | { status: 'error'; message: string }
   | { status: 'ready'; profile: MyProfile };
 
-function initials(first: string | null | undefined, last: string | null | undefined, full: string) {
-  const letters = first || last ? [first, last] : full.split(/\s+/).slice(0, 2);
-  return letters.map((part) => part?.charAt(0) ?? '').join('').toUpperCase() || '?';
-}
-
 export default function ProfileScreen() {
   const { user } = useUser();
-  const { signOut } = useClerk();
   const supabase = useSupabase();
-  const [signingOut, setSigningOut] = useState(false);
   const [state, setState] = useState<ProfileState>({ status: 'loading' });
   const [reloadKey, setReloadKey] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
@@ -194,15 +189,23 @@ export default function ProfileScreen() {
         }
       >
         {/* Profile opens over the tabs from the round button on Home and Calendar. */}
-        <Pressable onPress={() => router.back()} accessibilityRole="button" hitSlop={8} style={styles.back}>
-          <Text style={styles.backText}>‹ Back</Text>
-        </Pressable>
+        <View style={styles.topBar}>
+          <Pressable onPress={() => router.back()} accessibilityRole="button" hitSlop={8}>
+            <Text style={styles.backText}>‹ Back</Text>
+          </Pressable>
+          {/* Settings holds your profile photo and Sign out. */}
+          <Pressable
+            onPress={() => router.push('/settings')}
+            accessibilityRole="button"
+            accessibilityLabel="Settings"
+            hitSlop={8}
+            style={({ pressed }) => [styles.settings, pressed && styles.settingsPressed]}
+          >
+            <Ionicons name="settings-outline" size={20} color={colors.inkStrong} />
+          </Pressable>
+        </View>
         <View style={styles.header}>
-          <View style={styles.avatar}>
-            <Text style={styles.avatarText}>
-              {initials(user?.firstName, user?.lastName, user?.fullName ?? '')}
-            </Text>
-          </View>
+          <Avatar size={56} />
           <View style={styles.headerText}>
             <Text style={styles.name} numberOfLines={1}>
               {name}
@@ -212,17 +215,6 @@ export default function ProfileScreen() {
         </View>
 
         {body}
-
-        {/* Signing out clears the stored session; the root navigator returns to sign-in. */}
-        <Button
-          label="Sign out"
-          variant="secondary"
-          loading={signingOut}
-          onPress={async () => {
-            setSigningOut(true);
-            await signOut();
-          }}
-        />
       </ScrollView>
       <ProfileBadgeDetails
         badge={selectedBadge}
@@ -254,8 +246,23 @@ const styles = StyleSheet.create({
     gap: space[6],
     padding: space[4],
   },
-  back: {
-    alignSelf: 'flex-start',
+  topBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  settings: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: 40,
+    height: 40,
+    backgroundColor: colors.surface,
+    borderColor: colors.line,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 20,
+  },
+  settingsPressed: {
+    backgroundColor: colors.surfaceSunken,
   },
   backText: {
     color: colors.accent,
@@ -272,19 +279,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: space[3],
-  },
-  avatar: {
-    width: 56,
-    height: 56,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.accentSoft,
-    borderRadius: radii.pill,
-  },
-  avatarText: {
-    color: colors.accentOnSoft,
-    fontSize: 20,
-    fontWeight: '700',
   },
   headerText: {
     flex: 1,
