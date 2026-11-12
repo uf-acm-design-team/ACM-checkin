@@ -5,13 +5,27 @@ import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { Avatar } from '@/components/avatar';
+import { BottomSheet } from '@/components/bottom-sheet';
 import { Button } from '@/components/button';
 import { Screen } from '@/components/screen';
+import { ViewSwitch } from '@/components/view-switch';
 import { colors, radii, space } from '@/theme';
+
+const THEMES = [
+  { value: 'light', label: 'Light' },
+  { value: 'dark', label: 'Dark' },
+  { value: 'auto', label: 'Auto' },
+] as const;
+type Theme = (typeof THEMES)[number]['value'];
 
 /**
  * Settings, opened from the gear on Profile: change your profile photo and
  * sign out. The photo lives on your Clerk account, so it follows you to the web.
+ *
+ * Theme and Delete account are the designed controls only, and say so on
+ * screen. The app has no dark palette yet (tokens.ts is light-only, matching
+ * web), and deleting an account needs a server function that also removes the
+ * person's attendee data, so neither changes anything yet.
  */
 export default function SettingsScreen() {
   const { user } = useUser();
@@ -19,6 +33,9 @@ export default function SettingsScreen() {
   const [signingOut, setSigningOut] = useState(false);
   const [savingPhoto, setSavingPhoto] = useState(false);
   const [photoError, setPhotoError] = useState<string | null>(null);
+  const [theme, setTheme] = useState<Theme>('light');
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [deleteNote, setDeleteNote] = useState(false);
 
   async function changePhoto() {
     if (!user) return;
@@ -72,6 +89,14 @@ export default function SettingsScreen() {
         </View>
 
         <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Appearance</Text>
+          <ViewSwitch options={THEMES} value={theme} onChange={setTheme} />
+          {theme !== 'light' ? (
+            <Text style={styles.muted}>Dark mode isn&apos;t available yet. The app stays light for now.</Text>
+          ) : null}
+        </View>
+
+        <View style={styles.section}>
           <Text style={styles.sectionTitle}>Account</Text>
           <View style={styles.card}>
             <Text style={styles.muted}>Signed in as</Text>
@@ -90,7 +115,48 @@ export default function SettingsScreen() {
             }}
           />
         </View>
+
+        <Pressable
+          onPress={() => {
+            setDeleteNote(false);
+            setConfirmingDelete(true);
+          }}
+          accessibilityRole="button"
+          style={({ pressed }) => [styles.delete, pressed && styles.deletePressed]}
+        >
+          <Text style={styles.deleteText}>Delete account</Text>
+        </Pressable>
       </ScrollView>
+
+      <BottomSheet
+        onClose={() => setConfirmingDelete(false)}
+        backdropLabel="Cancel deleting your account"
+        style={styles.sheet}
+      >
+        {confirmingDelete
+          ? (dismiss) => (
+              <>
+                <Text style={styles.sheetTitle}>Delete your account?</Text>
+                <Text style={styles.sheetBody}>
+                  Your profile, memberships and check-in history will be removed. This can&apos;t be undone.
+                </Text>
+                {deleteNote ? (
+                  <Text style={styles.error} accessibilityRole="alert">
+                    Deleting accounts isn&apos;t available yet. Nothing was deleted.
+                  </Text>
+                ) : null}
+                <Pressable
+                  onPress={() => setDeleteNote(true)}
+                  accessibilityRole="button"
+                  style={({ pressed }) => [styles.delete, styles.deleteSolid, pressed && styles.deleteSolidPressed]}
+                >
+                  <Text style={[styles.deleteText, styles.deleteSolidText]}>Delete account</Text>
+                </Pressable>
+                <Button label="Cancel" variant="secondary" onPress={dismiss} />
+              </>
+            )
+          : null}
+      </BottomSheet>
     </Screen>
   );
 }
@@ -152,5 +218,52 @@ const styles = StyleSheet.create({
   error: {
     color: colors.badInk,
     fontSize: 13,
+  },
+  delete: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 44,
+    paddingHorizontal: space[4],
+    backgroundColor: colors.badSurface,
+    borderColor: colors.badLine,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: radii.control,
+  },
+  deletePressed: {
+    backgroundColor: colors.badLine,
+  },
+  deleteText: {
+    color: colors.badInk,
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  deleteSolid: {
+    backgroundColor: colors.bad,
+    borderColor: colors.bad,
+  },
+  deleteSolidPressed: {
+    backgroundColor: colors.badInk,
+  },
+  deleteSolidText: {
+    color: colors.accentInk,
+  },
+  sheet: {
+    gap: space[3],
+    paddingHorizontal: space[4],
+    paddingTop: space[5],
+    paddingBottom: space[8],
+    backgroundColor: colors.surface,
+    borderTopLeftRadius: 18,
+    borderTopRightRadius: 18,
+  },
+  sheetTitle: {
+    color: colors.ink,
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  sheetBody: {
+    color: colors.inkMuted,
+    fontSize: 14,
+    lineHeight: 20,
   },
 });

@@ -62,3 +62,15 @@ it('says so when the photo could not be saved', async () => {
   await fireEvent.press(screen.getByRole('button', { name: 'Add a photo' }));
   expect(await screen.findByText('Couldn’t save that photo. Try again.')).toBeTruthy();
 });
+
+it('asks before deleting, and deletes nothing yet', async () => {
+  await render(<SettingsScreen />);
+
+  await fireEvent.press(screen.getByRole('button', { name: 'Delete account' }));
+  expect(await screen.findByText('Delete your account?')).toBeTruthy();
+
+  const [, confirm] = screen.getAllByRole('button', { name: 'Delete account' });
+  await fireEvent.press(confirm);
+  expect(await screen.findByText(/Nothing was deleted/)).toBeTruthy();
+  expect(mockSignOut).not.toHaveBeenCalled();
+});
