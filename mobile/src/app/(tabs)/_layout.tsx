@@ -3,6 +3,7 @@ import { Tabs } from 'expo-router';
 import type { ComponentProps } from 'react';
 import type { ColorValue } from 'react-native';
 
+import { GlassTabBar, hasGlassTabBar } from '@/components/glass-tab-bar';
 import { colors } from '@/theme';
 
 type IconName = ComponentProps<typeof Ionicons>['name'];
@@ -19,6 +20,8 @@ function tabIcon(name: IconName) {
 export default function TabsLayout() {
   return (
     <Tabs
+      // iOS 26 gets the floating glass footer; everything else keeps the standard bar.
+      tabBar={hasGlassTabBar ? (props) => <GlassTabBar {...props} /> : undefined}
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: colors.accent,
@@ -27,6 +30,10 @@ export default function TabsLayout() {
         sceneStyle: { backgroundColor: colors.canvas },
       }}>
       <Tabs.Screen name="index" options={{ title: 'Home', tabBarIcon: tabIcon('home-outline') }} />
+      <Tabs.Screen
+        name="calendar"
+        options={{ title: 'Calendar', tabBarIcon: tabIcon('calendar-outline') }}
+      />
       <Tabs.Screen
         name="check-in"
         options={{ title: 'Check in', tabBarIcon: tabIcon('qr-code-outline') }}

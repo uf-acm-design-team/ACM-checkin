@@ -4,6 +4,7 @@ import {
   type LayoutChangeEvent, type StyleProp, type ViewStyle,
 } from 'react-native';
 
+import { useReducedMotion } from '@/lib/reduced-motion';
 import { colors } from '@/theme';
 
 type Props = {
@@ -25,6 +26,8 @@ function OpenBottomSheet({
   const [panelHeight, setPanelHeight] = useState(0);
   const [closing, setClosing] = useState(false);
   const useNativeDriver = Platform.OS !== 'web';
+  // With Reduce Motion on, the sheet appears and goes without sliding.
+  const reduced = useReducedMotion();
 
   useEffect(() => () => translateY.stopAnimation(), [translateY]);
 
@@ -35,7 +38,7 @@ function OpenBottomSheet({
     translateY.setValue(layout.height);
     Animated.timing(translateY, {
       toValue: 0,
-      duration: 240,
+      duration: reduced ? 0 : 240,
       easing: Easing.out(Easing.cubic),
       useNativeDriver,
     }).start();
@@ -50,7 +53,7 @@ function OpenBottomSheet({
     }
     Animated.timing(translateY, {
       toValue: panelHeight,
-      duration: 200,
+      duration: reduced ? 0 : 200,
       easing: Easing.in(Easing.cubic),
       useNativeDriver,
     }).start(({ finished }) => {

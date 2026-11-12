@@ -11,6 +11,7 @@ import { Questions } from '@/components/checkin/questions';
 import { FormError, PasswordField } from '@/components/form';
 import { Screen } from '@/components/screen';
 import { buildCheckInRequest, needsLocation, validateAnswers, type AnswerMap, type AnswerValue } from '@/lib/check-in-form';
+import { haptic } from '@/lib/haptics';
 import { getCheckInLocation, type LocationFailure } from '@/lib/location';
 import { orgAccent } from '@/lib/org-display';
 import {
@@ -186,11 +187,13 @@ export default function OrgCheckInScreen() {
       );
       const { reply } = result;
       if (reply && !reply.ok) {
+        haptic.error();
         if (reply.code === 'invalid_answers') setAnswerErrors(reply.answerErrors);
         if (reply.code === 'wrong_password') setPasswordError('That’s not the password for this meeting.');
       }
       setSubmit({ status: 'answered', result, at: new Date() });
     } catch (error) {
+      haptic.error();
       setSubmit({
         status: 'network-error',
         message: error instanceof CheckInNetworkError ? error.message : 'Something went wrong.',

@@ -1,9 +1,10 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 
 import HomeScreen from '@/app/(tabs)/index';
-import type { HomeOrg } from '@/lib/supabase';
+import type { HomeOrg, LiveMeeting } from '@/lib/supabase';
 
 const mockGetMyHomeOrgs = jest.fn<Promise<HomeOrg[]>, []>();
+const mockGetLiveMeetings = jest.fn<Promise<LiveMeeting[]>, []>();
 const mockSupabase = {};
 const mockPush = jest.fn();
 
@@ -27,6 +28,7 @@ jest.mock('react-native-safe-area-context', () => ({
 jest.mock('@/lib/supabase', () => ({
   useSupabase: () => mockSupabase,
   getMyHomeOrgs: () => mockGetMyHomeOrgs(),
+  getLiveMeetings: () => mockGetLiveMeetings(),
 }));
 
 const acm: HomeOrg = {
@@ -36,7 +38,10 @@ const acm: HomeOrg = {
   attended: 2,
 };
 
-beforeEach(() => mockGetMyHomeOrgs.mockReset());
+beforeEach(() => {
+  mockGetMyHomeOrgs.mockReset();
+  mockGetLiveMeetings.mockReset().mockResolvedValue([]);
+});
 
 it('lists your orgs with check-ins and progress', async () => {
   mockGetMyHomeOrgs.mockResolvedValue([acm]);
@@ -47,6 +52,24 @@ it('lists your orgs with check-ins and progress', async () => {
   expect(screen.getByText('2 check-ins')).toBeTruthy();
   expect(screen.getByText('Officer')).toBeTruthy();
   expect(screen.getByText('1 more check-in to become a member')).toBeTruthy();
+});
+
+it('marks an org whose meeting is open for check-in as live', async () => {
+  mockGetMyHomeOrgs.mockResolvedValue([acm]);
+  mockGetLiveMeetings.mockResolvedValue([{ id: 'm1', orgId: 'org-acm', title: 'General body meeting', endTime: null }]);
+  await render(<HomeScreen />);
+
+  expect(await screen.findByText('Live')).toBeTruthy();
+  expect(screen.getByText('General body meeting is happening now')).toBeTruthy();
+});
+
+it('still lists your orgs when the live check fails', async () => {
+  mockGetMyHomeOrgs.mockResolvedValue([acm]);
+  mockGetLiveMeetings.mockRejectedValue(new Error('offline'));
+  await render(<HomeScreen />);
+
+  expect(await screen.findByText('ACM')).toBeTruthy();
+  expect(screen.queryByText('Live')).toBeNull();
 });
 
 it('opens the attendance history when you tap an org', async () => {

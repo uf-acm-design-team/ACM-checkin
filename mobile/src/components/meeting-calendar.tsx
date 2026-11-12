@@ -1,6 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { haptic } from '@/lib/haptics';
 import { monthGrid, monthLabel, type CalendarDay } from '@/lib/calendar';
 import type { YearMonth } from '@/lib/terms';
 import { colors, radii, space } from '@/theme';
@@ -51,7 +52,14 @@ export function MeetingCalendar({
         {cells.map((cell, index) => (
           <View key={cell ? `day-${cell.day}` : `blank-${index}`} style={styles.cell}>
             {cell ? (
-              <Day cell={cell} selected={cell.day === selectedDay} onPress={() => onSelectDay(cell.day)} />
+              <Day
+                cell={cell}
+                selected={cell.day === selectedDay}
+                onPress={() => {
+                  haptic.tick();
+                  onSelectDay(cell.day);
+                }}
+              />
             ) : null}
           </View>
         ))}

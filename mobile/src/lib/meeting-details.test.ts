@@ -1,4 +1,4 @@
-import { daysAway, formatAnswer } from './meeting-details';
+import { daysAway, formatAnswer, nextMeeting } from './meeting-details';
 
 describe('daysAway', () => {
   // 1 PM in Gainesville on Nov 3.
@@ -27,5 +27,25 @@ describe('formatAnswer', () => {
     [{}, ''],
   ])('%p becomes %p', (value, text) => {
     expect(formatAnswer(value)).toBe(text);
+  });
+});
+
+describe('nextMeeting', () => {
+  const now = '2026-11-12T18:00:00Z';
+  const past = { id: 'past', startTime: '2026-11-05T23:00:00Z' };
+  const open = { id: 'open', startTime: '2026-11-12T17:00:00Z' };
+  const soon = { id: 'soon', startTime: '2026-11-17T23:00:00Z' };
+  const later = { id: 'later', startTime: '2026-11-19T23:00:00Z' };
+
+  it('picks the soonest meeting that has not started', () => {
+    expect(nextMeeting([later, past, soon], new Set(), now)).toBe(soon);
+  });
+
+  it('puts a live meeting ahead of an upcoming one', () => {
+    expect(nextMeeting([soon, open], new Set(['open']), now)).toBe(open);
+  });
+
+  it('is null when nothing is live or ahead', () => {
+    expect(nextMeeting([past, open], new Set(), now)).toBeNull();
   });
 });

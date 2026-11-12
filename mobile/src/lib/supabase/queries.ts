@@ -140,6 +140,45 @@ export async function getOpenMeetings(
     }));
 }
 
+export type LiveMeeting = {
+  id: string;
+  orgId: string;
+  title: string;
+  endTime: string | null;
+};
+
+/**
+ * The meetings in these orgs that are open for check-in right now: the
+ * officer's switch is on and the scheduled window includes `now`, the same
+ * rule as getOpenMeetings. One query for all the orgs on Home.
+ */
+export async function getLiveMeetings(
+  supabase: MobileSupabase | null,
+  orgIds: string[],
+  now: Date = new Date(),
+): Promise<LiveMeeting[]> {
+  if (!supabase || orgIds.length === 0) return [];
+
+  const { data, error } = await supabase.client
+    .from("meetings")
+    .select("id, org_id, title, start_time, end_time")
+    .in("org_id", orgIds)
+    .eq("status", true)
+    .order("start_time", { ascending: true });
+  if (error) throw new DataError("getLiveMeetings", error);
+
+  return (data ?? [])
+    .filter((meeting) =>
+      isWithinMeetingWindow(now, meeting.start_time, meeting.end_time),
+    )
+    .map((meeting) => ({
+      id: meeting.id,
+      orgId: meeting.org_id,
+      title: meeting.title,
+      endTime: meeting.end_time,
+    }));
+}
+
 export type HomeOrg = {
   org: Organization;
   role: string;

@@ -4,15 +4,17 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, FlatList, RefreshControl, StyleSheet, Text, View } from 'react-native';
 
 import { Button } from '@/components/button';
+import { FadeIn } from '@/components/fade-in';
+import { GLASS_TAB_BAR_SPACE } from '@/components/glass-tab-bar';
 import { OrgCard } from '@/components/org-card';
 import { Screen } from '@/components/screen';
-import { getMyHomeOrgs, useSupabase, type HomeOrg } from '@/lib/supabase';
+import { getLiveMeetings, getMyHomeOrgs, useSupabase, type HomeOrg, type LiveMeeting } from '@/lib/supabase';
 import { colors, radii, space } from '@/theme';
 
 type HomeState =
   | { status: 'loading' }
   | { status: 'error'; message: string }
-  | { status: 'ready'; orgs: HomeOrg[] };
+  | { status: 'ready'; orgs: HomeOrg[]; live: LiveMeeting[] };
 
 export default function HomeScreen() {
   const { user } = useUser();
@@ -28,7 +30,10 @@ export default function HomeScreen() {
     (async () => {
       let next: HomeState;
       try {
-        next = { status: 'ready', orgs: await getMyHomeOrgs(supabase) };
+        const orgs = await getMyHomeOrgs(supabase);
+        // The Live pill is an extra: if this fails, still show the orgs.
+        const live = await getLiveMeetings(supabase, orgs.map((entry) => entry.org.id)).catch(() => []);
+        next = { status: 'ready', orgs, live };
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Something went wrong.';
         next = { status: 'error', message };
@@ -83,7 +88,15 @@ export default function HomeScreen() {
       <FlatList
         data={state.status === 'ready' ? state.orgs : []}
         keyExtractor={(item) => item.org.id}
-        renderItem={({ item }) => <OrgCard {...item} />}
+        renderItem={({ item, index }) => (
+          // Cards rise in one after another the first time Home loads.
+          <FadeIn delay={Math.min(index, 6) * 60}>
+            <OrgCard
+              {...item}
+              live={state.status === 'ready' ? state.live.find((meeting) => meeting.orgId === item.org.id) : undefined}
+            />
+          </FadeIn>
+        )}
         contentContainerStyle={styles.list}
         ItemSeparatorComponent={() => <View style={styles.separator} />}
         refreshControl={
@@ -126,6 +139,7 @@ const styles = StyleSheet.create({
   list: {
     flexGrow: 1,
     padding: space[4],
+    paddingBottom: space[4] + GLASS_TAB_BAR_SPACE,
   },
   header: {
     gap: space[1],

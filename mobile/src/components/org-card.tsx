@@ -1,11 +1,13 @@
 import { router } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { LivePill } from '@/components/live-pill';
 import { membershipProgress, orgAccent, roleLabel } from '@/lib/org-display';
-import type { HomeOrg } from '@/lib/supabase';
+import type { HomeOrg, LiveMeeting } from '@/lib/supabase';
 import { colors, radii, shadows, space } from '@/theme';
 
-export function OrgCard({ org, role, status, attended }: HomeOrg) {
+// `live` is the org's meeting that is open for check-in right now, if any.
+export function OrgCard({ org, role, status, attended, live }: HomeOrg & { live?: LiveMeeting }) {
   const slug = org.slug;
   const name = org.name ?? slug ?? 'Organization';
   const accent = orgAccent(org.branding) ?? colors.accent;
@@ -18,7 +20,7 @@ export function OrgCard({ org, role, status, attended }: HomeOrg) {
     <Pressable
       onPress={slug ? () => router.push({ pathname: '/org/[orgSlug]', params: { orgSlug: slug } }) : undefined}
       accessibilityRole="button"
-      accessibilityLabel={`${name}, ${roleLabel(role)}, ${checkIns}`}
+      accessibilityLabel={`${name}, ${roleLabel(role)}, ${checkIns}${live ? `, ${live.title} is happening now` : ''}`}
       accessibilityHint="Opens your attendance history"
       style={({ pressed }) => [styles.card, pressed && styles.pressed]}
     >
@@ -32,10 +34,13 @@ export function OrgCard({ org, role, status, attended }: HomeOrg) {
           </Text>
           <Text style={styles.count}>{checkIns}</Text>
         </View>
+        {live ? <LivePill /> : null}
         <View style={styles.chip}>
           <Text style={styles.chipText}>{roleLabel(role)}</Text>
         </View>
       </View>
+
+      {live ? <Text style={styles.count}>{live.title} is happening now</Text> : null}
 
       {showProgress ? (
         <View style={styles.progressBlock}>
