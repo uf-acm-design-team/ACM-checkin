@@ -7,6 +7,7 @@ import { Button, Notice } from "@/components/ui/primitives";
 import {
   parseAnalyticsRange,
   rangeToSearchParams,
+  type AnalyticsChartProps,
   type AnalyticsRange,
   type RangePreset,
 } from "@/lib/analytics-range";
@@ -139,9 +140,17 @@ function RangeSelector({
   );
 }
 
-// Layout from docs/ANALYTICS-DASHBOARD-DESIGN.md section 2. The cards are
-// loading placeholders until the chart components land.
-export default function AnalyticsTab() {
+// Stands in for a chart until it lands. Takes the same props as a real chart,
+// so swapping one in only changes the component name.
+function ChartPlaceholder({
+  title,
+  subtitle,
+}: AnalyticsChartProps & { title: string; subtitle: string }) {
+  return <ChartCard title={title} subtitle={subtitle} state="loading" />;
+}
+
+// Layout from docs/ANALYTICS-DASHBOARD-DESIGN.md section 2.
+export default function AnalyticsTab({ orgId }: { orgId: string }) {
   const searchParams = useSearchParams();
   const result = parseAnalyticsRange(
     {
@@ -152,6 +161,7 @@ export default function AnalyticsTab() {
     new Date(),
   );
   const { range } = result;
+  const chartProps: AnalyticsChartProps = { orgId, range };
 
   // Keep ?tab=analytics in the URL so a reload or shared link reopens this tab.
   useEffect(() => {
@@ -184,22 +194,22 @@ export default function AnalyticsTab() {
         </Notice>
       )}
 
-      <ChartCard
+      <ChartPlaceholder
+        {...chartProps}
         title="Attendance per Meeting"
         subtitle="Is meeting attendance increasing or decreasing over time?"
-        state="loading"
       />
 
       <div className="grid gap-6 lg:grid-cols-2">
-        <ChartCard
+        <ChartPlaceholder
+          {...chartProps}
           title="New vs. Returning Attendees"
           subtitle="How many attendees are new versus returning at each meeting?"
-          state="loading"
         />
-        <ChartCard
+        <ChartPlaceholder
+          {...chartProps}
           title="Members vs. Guests"
           subtitle="How much attendance comes from members versus guests?"
-          state="loading"
         />
       </div>
     </div>

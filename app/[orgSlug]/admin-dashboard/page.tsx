@@ -1480,7 +1480,9 @@ export default function AdminDashboard({
           )}
 
           {/* ANALYTICS */}
-          {activeTab === "analytics" && canViewAnalytics && <AnalyticsTab />}
+          {activeTab === "analytics" && canViewAnalytics && (
+            <AnalyticsTab orgId={organization.id} />
+          )}
 
           {/* MEMBERS */}
           {activeTab === "members" && (
