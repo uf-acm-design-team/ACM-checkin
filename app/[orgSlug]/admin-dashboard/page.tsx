@@ -1,6 +1,6 @@
 "use client";
 
-import { MembersVsGuestsChart } from "@/components/charts/members-vs-guests-chart";
+import AnalyticsTab, { clearAnalyticsParams } from "./analytics-tab";
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -146,6 +146,7 @@ const TABS = [
   { key: "overview", label: "Overview" },
   { key: "meetings", label: "Meetings" },
   { key: "attendance", label: "Attendance" },
+    { key: "analytics", label: "Analytics" },
   { key: "members", label: "Members" },
   { key: "qr-code", label: "QR Code" },
   { key: "audit-log", label: "Audit Log" },
@@ -1131,19 +1132,7 @@ export default function AdminDashboard({
                 </div>
               </div>
 
-              {/* Members vs. Guests analytics chart */}
-              <div className="mt-6">
-                <MembersVsGuestsChart
-                  orgId={organization.id}
-                  range={{
-                    preset: "custom",
-                    from: "2026-09-01",
-                    to: "2026-10-31",
-                    start: "2026-09-01T04:00:00.000Z",
-                    end: "2026-11-01T03:59:59.999Z",
-                  }}
-                />
-              </div>
+
             </>
           )}
 
@@ -1476,6 +1465,10 @@ export default function AdminDashboard({
                 </div>
               )}
             </>
+          )}
+          {/* ANALYTICS */}
+          {activeTab === "analytics" && (
+            <AnalyticsTab orgId={organization.id} />
           )}
 
           {/* MEMBERS */}
