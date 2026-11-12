@@ -3,7 +3,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { LivePill } from '@/components/live-pill';
 import { daysAway } from '@/lib/meeting-details';
 import { ORG_TIME_ZONE } from '@/lib/terms';
-import { colors, radii, space } from '@/theme';
+import { colors, lightColors, radii, space } from '@/theme';
 
 const part = (iso: string, options: Intl.DateTimeFormatOptions) =>
   new Date(iso).toLocaleString('en-US', { timeZone: ORG_TIME_ZONE, ...options });
@@ -68,7 +68,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.accentDeep,
   },
   label: {
-    color: colors.accentSoft,
+    color: lightColors.accentSoft,
     fontSize: 12,
     fontWeight: '600',
   },
@@ -105,7 +105,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   when: {
-    color: colors.accentSoft,
+    color: lightColors.accentSoft,
     fontSize: 13,
   },
   away: {

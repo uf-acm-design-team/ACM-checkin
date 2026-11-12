@@ -7,7 +7,7 @@ import Svg, { Circle, Path } from 'react-native-svg';
 import { Button } from '@/components/button';
 import { haptic } from '@/lib/haptics';
 import { useReducedMotion } from '@/lib/reduced-motion';
-import { colors, radii, space } from '@/theme';
+import { colors, lightColors, radii, space } from '@/theme';
 
 const timeFormat = new Intl.DateTimeFormat(undefined, { weekday: 'short', hour: 'numeric', minute: '2-digit' });
 
@@ -213,7 +213,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   detail: {
-    color: colors.accentSoft,
+    color: lightColors.accentSoft,
     fontSize: 14,
     lineHeight: 20,
     textAlign: 'center',
@@ -242,7 +242,7 @@ const styles = StyleSheet.create({
     borderRadius: radii.pill,
   },
   progressLine: {
-    color: colors.accentSoft,
+    color: lightColors.accentSoft,
     fontSize: 13,
   },
   spacer: { flex: 1 },

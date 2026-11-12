@@ -7,7 +7,7 @@ import { Button } from '@/components/button';
 import { Screen } from '@/components/screen';
 import { parseCheckinLink } from '@/lib/checkin-link';
 import { haptic } from '@/lib/haptics';
-import { colors, radii, space } from '@/theme';
+import { colors, lightColors, radii, space } from '@/theme';
 
 /** How long "This isn't a check-in code" stays up before scanning resumes. */
 const WRONG_CODE_MS = 2500;
@@ -150,7 +150,8 @@ const styles = StyleSheet.create({
   },
   cameraScreen: {
     flex: 1,
-    backgroundColor: colors.ink,
+    // Black behind the camera in both themes.
+    backgroundColor: lightColors.ink,
   },
   overlay: {
     flex: 1,

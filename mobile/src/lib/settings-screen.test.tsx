@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { Appearance } from 'react-native';
 
 import SettingsScreen from '@/app/settings';
 
@@ -18,6 +19,7 @@ jest.mock('@clerk/expo', () => ({
   useClerk: () => ({ signOut: mockSignOut }),
 }));
 jest.mock('expo-router', () => ({ router: { back: jest.fn() } }));
+jest.mock('expo-secure-store', () => ({ getItem: () => null, setItem: jest.fn() }));
 jest.mock('expo-image-picker', () => ({ launchImageLibraryAsync: () => mockPick() }));
 jest.mock('react-native-safe-area-context', () => ({
   SafeAreaView: ({ children }: { children: React.ReactNode }) => children,
@@ -73,4 +75,16 @@ it('asks before deleting, and deletes nothing yet', async () => {
   await fireEvent.press(confirm);
   expect(await screen.findByText(/Nothing was deleted/)).toBeTruthy();
   expect(mockSignOut).not.toHaveBeenCalled();
+});
+
+it('switches the app to dark and back', async () => {
+  const setColorScheme = jest.spyOn(Appearance, 'setColorScheme').mockImplementation(() => {});
+  await render(<SettingsScreen />);
+
+  await fireEvent.press(screen.getByText('Dark'));
+  expect(setColorScheme).toHaveBeenLastCalledWith('dark');
+  await fireEvent.press(screen.getByText('Auto'));
+  expect(setColorScheme).toHaveBeenLastCalledWith('auto');
+  expect(screen.getByText(/Follows your phone/)).toBeTruthy();
+  setColorScheme.mockRestore();
 });

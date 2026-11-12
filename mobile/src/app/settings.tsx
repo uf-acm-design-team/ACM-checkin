@@ -9,23 +9,24 @@ import { BottomSheet } from '@/components/bottom-sheet';
 import { Button } from '@/components/button';
 import { Screen } from '@/components/screen';
 import { ViewSwitch } from '@/components/view-switch';
-import { colors, radii, space } from '@/theme';
+import { getThemeChoice, setThemeChoice, type ThemeChoice } from '@/lib/theme-preference';
+import { colors, radii, space, supportsDarkMode } from '@/theme';
 
 const THEMES = [
   { value: 'light', label: 'Light' },
   { value: 'dark', label: 'Dark' },
   { value: 'auto', label: 'Auto' },
-] as const;
-type Theme = (typeof THEMES)[number]['value'];
+] as const satisfies readonly { value: ThemeChoice; label: string }[];
 
 /**
  * Settings, opened from the gear on Profile: change your profile photo and
  * sign out. The photo lives on your Clerk account, so it follows you to the web.
  *
- * Theme and Delete account are the designed controls only, and say so on
- * screen. The app has no dark palette yet (tokens.ts is light-only, matching
- * web), and deleting an account needs a server function that also removes the
- * person's attendee data, so neither changes anything yet.
+ * The theme switch is real on iOS (see theme/adaptive.ts) and hidden on
+ * Android, which has no dark mode yet. 'Auto' follows the phone.
+ *
+ * Delete account is the designed control only, and says so on screen: it
+ * needs a server function that also removes the person's attendee data.
  */
 export default function SettingsScreen() {
   const { user } = useUser();
@@ -33,7 +34,7 @@ export default function SettingsScreen() {
   const [signingOut, setSigningOut] = useState(false);
   const [savingPhoto, setSavingPhoto] = useState(false);
   const [photoError, setPhotoError] = useState<string | null>(null);
-  const [theme, setTheme] = useState<Theme>('light');
+  const [theme, setTheme] = useState<ThemeChoice>(getThemeChoice);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [deleteNote, setDeleteNote] = useState(false);
 
@@ -88,13 +89,20 @@ export default function SettingsScreen() {
           </View>
         </View>
 
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Appearance</Text>
-          <ViewSwitch options={THEMES} value={theme} onChange={setTheme} />
-          {theme !== 'light' ? (
-            <Text style={styles.muted}>Dark mode isn&apos;t available yet. The app stays light for now.</Text>
-          ) : null}
-        </View>
+        {supportsDarkMode ? (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Appearance</Text>
+            <ViewSwitch
+              options={THEMES}
+              value={theme}
+              onChange={(next) => {
+                setTheme(next);
+                setThemeChoice(next);
+              }}
+            />
+            {theme === 'auto' ? <Text style={styles.muted}>Follows your phone&apos;s appearance.</Text> : null}
+          </View>
+        ) : null}
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Account</Text>

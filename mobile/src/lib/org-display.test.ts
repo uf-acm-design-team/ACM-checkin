@@ -1,4 +1,5 @@
-import { colors } from '@/theme';
+// Plain hex strings to stand in for an org's branding; the adaptive colours aren't strings on iOS.
+import { lightColors as colors } from '@/theme';
 
 import { membershipProgress, orgAccent, roleLabel } from './org-display';
 

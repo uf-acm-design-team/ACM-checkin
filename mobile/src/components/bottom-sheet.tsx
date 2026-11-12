@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 
 import { useReducedMotion } from '@/lib/reduced-motion';
-import { colors } from '@/theme';
+import { lightColors } from '@/theme';
 
 type Props = {
   children: ((dismiss: () => void) => ReactNode) | null;
@@ -79,5 +79,5 @@ function OpenBottomSheet({
 
 const styles = StyleSheet.create({
   overlay: { flex: 1, justifyContent: 'flex-end', overflow: 'hidden' },
-  backdrop: { ...StyleSheet.absoluteFill, backgroundColor: colors.ink, opacity: 0.4 },
+  backdrop: { ...StyleSheet.absoluteFill, backgroundColor: lightColors.ink, opacity: 0.4 },
 });
