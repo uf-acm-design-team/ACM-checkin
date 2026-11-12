@@ -2,8 +2,9 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useUser } from "@clerk/nextjs";
-import { submitOnboardingProfile, syncOnboardingStatus } from "./actions";
+import { useAuth, useUser } from "@clerk/nextjs";
+import { callEdgeFunction } from "@/lib/edge-functions";
+import type { OnboardAttendeeResponse } from "../../supabase/functions/onboard-attendee/contract";
 import {
   Button,
   Field,
@@ -16,6 +17,7 @@ const MAX_NAME_LENGTH = 50;
 
 export default function OnboardingPage() {
   const { user, isLoaded } = useUser();
+  const { getToken } = useAuth();
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [gradYear, setGradYear] = useState("");
@@ -25,9 +27,11 @@ export default function OnboardingPage() {
   const [success, setSuccess] = useState(false);
   const router = useRouter();
 
-  // Users who already have an attendees row but no onboarding flag (they
-  // signed up before this gate existed) shouldn't be asked to re-enter a
-  // profile the database already has. Flip their flag and send them on.
+  // Skip the form for anyone the database already knows: users who already
+  // have an attendees row, and guests whose earlier check-ins share this
+  // account's email. onboard-attendee's link-only mode (an empty body) links
+  // that row and answers needsProfile when there's nothing to link. See
+  // docs/API.md.
   //
   // Runs at most once per mount. `user` is a dependency, but calling
   // user.reload() after a successful submit mutates that object and refires
@@ -51,9 +55,13 @@ export default function OnboardingPage() {
     syncStarted.current = true;
 
     let cancelled = false;
-    syncOnboardingStatus()
-      .then(({ alreadyOnboarded }) => {
+    callEdgeFunction<OnboardAttendeeResponse>("onboard-attendee", {}, getToken)
+      .then((result) => {
         if (cancelled) return;
+        // Any failure falls back to the form, which is recoverable: submitting
+        // it calls the same function and shows its error.
+        if (!result.ok) console.error("Onboarding status check failed:", result.code, result.error);
+        const alreadyOnboarded = result.ok && !result.needsProfile;
         // Always clear the gate, including on the redirect path. Leaving it set
         // meant that if the navigation didn't take (proxy bounce, blocked
         // route), the page rendered "Loading..." with nothing left to resolve it.
@@ -66,9 +74,8 @@ export default function OnboardingPage() {
         }
       })
       .catch((err) => {
-        // Surface the failure instead of hanging. A rejected server action
-        // here usually means the Supabase call inside it failed (e.g. Clerk
-        // JWT not verifiable), which is worth showing rather than swallowing.
+        // callEdgeFunction never rejects; this only guards against a bug in
+        // the handler above leaving the page stuck on "Loading...".
         console.error("Onboarding status check failed:", err);
         if (!cancelled) setCheckingExisting(false);
       });
@@ -76,7 +83,7 @@ export default function OnboardingPage() {
     return () => {
       cancelled = true;
     };
-  }, [isLoaded, user, router]);
+  }, [isLoaded, user, getToken]);
 
   if (!isLoaded || checkingExisting) {
     return (
@@ -131,21 +138,26 @@ export default function OnboardingPage() {
     setLoading(true);
 
     try {
-      // Entirely server-side (service role): claims an orphaned guest row by
-      // email, or creates a fresh attendee if none exists, updates the Clerk
-      // name, and flips the onboarding flag. See submitOnboardingProfile for
-      // why this can't be done from the browser client -- the claim it used
-      // to run here through the RLS-gated client didn't reliably attach an
-      // existing guest row, which surfaced as "already linked to another
-      // account" for emails that were in fact the caller's own.
-      const result = await submitOnboardingProfile({
-        firstName: trimmedFirstName,
-        lastName: trimmedLastName,
-        gradYear: trimmedGradYear,
-      });
+      // onboard-attendee links a guest row with this account's email, or
+      // creates a fresh attendee, then updates the Clerk name. It runs as
+      // service role and reads the identity and email from the token, never
+      // from this body. (An RLS-gated claim from this page used to fail
+      // silently, which surfaced as "already linked to another account" for
+      // emails that were in fact the caller's own.)
+      const result = await callEdgeFunction<OnboardAttendeeResponse>(
+        "onboard-attendee",
+        { firstName: trimmedFirstName, lastName: trimmedLastName, gradYear: trimmedGradYear },
+        getToken,
+      );
 
       if (!result.ok) {
         setError(result.error);
+        return;
+      }
+      // Profile mode always saves a row, so this can't happen. Guarded so a
+      // contract change can't send someone on without one.
+      if (result.needsProfile) {
+        setError("Couldn't save your profile. Please try again.");
         return;
       }
 
