@@ -55,7 +55,7 @@ it disagrees with the code, trust the code and rebuild the graph.
 ```
 app/                      Next.js routes
   [orgSlug]/
-    checkin/              public check-in page + server actions (member + guest)
+    checkin/              public check-in page (members via member-check-in, guests via a server action)
     admin-dashboard/      officer tools: meetings, QR, members, branding, live feed
     stats/                attendee's own attendance and membership progress
   onboarding/             attendee profile creation (required after sign-up)
@@ -127,7 +127,10 @@ npm run gen:types           # regenerate database.types.ts from the local DB
 - `lib/org-roles.ts` only mirrors the permission matrix so the UI can hide
   controls. The SECURITY DEFINER RPCs in migrations enforce it, so a role rule
   change goes in both places.
-- Edge Functions can't import from `lib/`. `create-org` keeps its own copy of
+- Code shared between the web app and Edge Functions lives in
+  `supabase/functions/_shared/` (form schema, meeting time, membership, email
+  matching, HTTP helpers), and `lib/` re-exports it. `member-check-in` still
+  imports `lib/geo.ts` directly. `create-org` keeps its own copy of
   `DEFAULT_BRANDING`, so change it alongside `lib/branding.ts`.
 
 ### Schema changes
@@ -165,7 +168,7 @@ such as meeting create, open/close, and delete in
 `app/[orgSlug]/admin-dashboard/actions.ts`.
 
 Edge Functions are called straight from the browser through `callEdgeFunction()`
-in `lib/edge-functions.ts` (onboarding does this). The function verifies the
+in `lib/edge-functions.ts` (onboarding and member check-in do this). The function verifies the
 token and validates input itself, so it needs no server action in front. See
 `docs/API.md`.
 
@@ -199,14 +202,14 @@ The check-in geolock is enforced in two places, using the same math in
 - **Client** (`app/[orgSlug]/checkin/geolock.ts`): the fast UX path. It reads the
   browser's GPS fix and shows the "too far" / "location denied" screens without
   a round trip.
-- **Server** (`memberCheckIn` in `checkin/actions.ts`, `guestCheckIn` in
-  `checkin/guest-actions.ts`): when the meeting `is_geo_locked`, the action
+- **Server** (the `member-check-in` Edge Function, `guestCheckIn` in
+  `checkin/guest-actions.ts`): when the meeting `is_geo_locked`, each one
   recomputes the distance against the meeting's `latitude` / `longitude` /
   `radius_meters` and rejects anything outside the radius. Missing or malformed
   coordinates on a geo-locked meeting are rejected, not allowed.
 
 The coordinates are still supplied by the client. The server check stops casual
-bypass (calling the action directly, or checking in from a photo of a static QR
+bypass (calling the function or action directly, or checking in from a photo of a static QR
 code without sending a location), but **not a spoofed GPS fix**: anyone who
 sends fake coordinates inside the radius passes. Treat the geolock as a
 deterrent, not proof of attendance. Real proof needs something the attendee
