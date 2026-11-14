@@ -43,7 +43,6 @@ supabase/.branches/
 
 # Claude Code local state (worktrees, session data)
 .claude/
-/docs/
 
 # Local database dumps from `supabase db dump`
 backup-*.sql
