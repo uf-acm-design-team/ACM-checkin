@@ -45,6 +45,12 @@ describe("callEdgeFunction", () => {
     expect(result).toEqual({ ok: true, value: 7 });
   });
 
+  it("passes the function's own server_error through, not as network_error", async () => {
+    const reply = jsonReply({ ok: false, code: "server_error", error: "Could not look up meetings." }, 500);
+    const result = await callEdgeFunction("my-fn", {}, token, deps(reply));
+    expect(result).toEqual({ ok: false, code: "server_error", error: "Could not look up meetings." });
+  });
+
   it("returns the function's own failure, code and all", async () => {
     const reply = jsonReply({ ok: false, code: "bad_input", error: "Nope." }, 400);
     const result = await callEdgeFunction<TestResponse>("my-fn", {}, token, deps(reply));
@@ -71,14 +77,14 @@ describe("callEdgeFunction", () => {
     expect(result).toMatchObject({ ok: false, code: "server_error" });
   });
 
-  it("fails as server_error when the network is down", async () => {
+  it("fails as network_error when the network is down", async () => {
     const offline = vi.fn(async () => {
       throw new TypeError("Failed to fetch");
     });
     const result = await callEdgeFunction("my-fn", {}, token, deps(offline));
     expect(result).toEqual({
       ok: false,
-      code: "server_error",
+      code: "network_error",
       error: "Couldn't reach the server. Check your connection and try again.",
     });
   });
@@ -87,10 +93,10 @@ describe("callEdgeFunction", () => {
     ["an HTML error page", new Response("<html>Bad Gateway</html>", { status: 502 })],
     ["JSON that isn't a function response", new Response('{"message":"not found"}', { status: 404 })],
     ["an empty body", new Response(null, { status: 500 })],
-  ])("fails as server_error for %s", async (_, response) => {
+  ])("fails as network_error for %s, since the function didn't answer", async (_, response) => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     const result = await callEdgeFunction("my-fn", {}, token, deps(vi.fn(async () => response)));
-    expect(result).toMatchObject({ ok: false, code: "server_error" });
+    expect(result).toMatchObject({ ok: false, code: "network_error" });
     expect((result as { error: string }).error).toContain(`error ${response.status}`);
   });
 
@@ -102,7 +108,7 @@ describe("callEdgeFunction", () => {
     const result = await callEdgeFunction("my-fn", {}, token, deps(hangs, { timeoutMs: 10 }));
     expect(result).toEqual({
       ok: false,
-      code: "server_error",
+      code: "network_error",
       error: "The server took too long to respond. Please try again.",
     });
   });
