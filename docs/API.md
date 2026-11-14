@@ -7,7 +7,7 @@ one.
 | Function | What it does | Called by |
 | --- | --- | --- |
 | [`onboard-attendee`](#onboard-attendee) | Creates or links the caller's attendee profile | `app/onboarding/page.tsx`, mobile onboarding |
-| [`member-check-in`](#member-check-in) | Checks a signed-in member into an open meeting | Not called yet (in progress) |
+| [`member-check-in`](#member-check-in) | Checks a signed-in member into an open meeting | `app/[orgSlug]/checkin/page.tsx` (members; guests still use a server action) |
 | [`create-org`](#create-org) | Creates an organization and assigns its owner | `app/developer/page.tsx` |
 | [`update-org-branding`](#update-org-branding) | Edits an organization's colors and logos | `app/[orgSlug]/admin-dashboard/branding-tab.tsx` |
 
@@ -25,9 +25,17 @@ Authorization: Bearer <Clerk session token>
   `callEdgeFunction()` in `lib/edge-functions.ts`, not through a server action.
   Each function checks the token and its own input, so a server hop would add
   latency without adding protection. The helper gets a fresh Clerk token on
-  each call, times out after 15 seconds, and turns network failures and
-  non-JSON replies (an undeployed function, a gateway error) into a
-  `server_error`, so pages branch on `code` alone. Move a call to the server
+  each call, times out after 15 seconds, and never throws: every failure
+  comes back with a `code`, so pages branch on `code` alone. On top of each
+  function's own codes it adds two:
+  - `network_error`: no answer from the function. The request failed, timed
+    out, or something else replied (a gateway error page, or a 404 for an
+    undeployed function). Worth a retry, so check-in shows a full-screen
+    Retry view for it. No function sends this code.
+  - `unauthenticated`: there was no Clerk token to send.
+
+  A `server_error` therefore always comes from the function itself.
+  Move a call to the server
   only when it needs a secret the browser can't hold, or feeds server
   rendering or caching.
 - **Auth.** Every function has `verify_jwt = false` in `supabase/config.toml`,
@@ -164,9 +172,14 @@ Errors are `{ "ok": false, "code": "…", "error": "…" }`. Branch on `code`.
 Checks the signed-in caller into one of their org's open meetings. It enforces
 the meeting window, password, geolock and form answers on the server.
 
-**Status:** in progress. On `main` the function checks the request and the
-token, then answers `501 not_implemented` to every valid request. The check-in
-logic lands with PR #77. Nothing calls this function yet.
+It runs as the caller (their Clerk token, not service role), so every read and
+write is held to the same RLS policies as the old web server action. The rules
+run in this order: org exists → open meetings (RLS hides officer-only ones)
+→ now inside the meeting's window → pick the meeting → geofence → password →
+attendee profile → answers → insert → membership update.
+
+The membership update is best effort: the check-in has already landed, so a
+failure there is logged rather than returned.
 
 Types: [`supabase/functions/member-check-in/contract.ts`](../supabase/functions/member-check-in/contract.ts)
 
@@ -190,11 +203,19 @@ Leaving out an optional field and sending it as `null` mean the same thing.
 `200`:
 
 ```json
-{ "ok": true, "meetingId": "6f1c2a9e-…", "alreadyCheckedIn": false }
+{
+  "ok": true,
+  "meetingId": "6f1c2a9e-…",
+  "alreadyCheckedIn": false,
+  "membership": { "attended": 1, "threshold": 3 }
+}
 ```
 
-`alreadyCheckedIn: true` means the caller was already checked in to this
-meeting. Nothing new was written, but it still counts as a success.
+- `alreadyCheckedIn: true` means the caller was already checked in to this
+  meeting. Nothing new was written, but it still counts as a success.
+- `membership` is the caller's progress toward membership after this check-in.
+  It's sent only for a new check-in (not `alreadyCheckedIn`), and only for orgs
+  with an attendance threshold (see `_shared/membership.ts`).
 
 Errors are `{ "ok": false, "code": "…", "error": "…" }`, plus the extra
 field shown for some codes. Branch on `code`.
@@ -209,10 +230,9 @@ field shown for some codes. Branch on `code`.
 | `404` | `org_not_found` | | |
 | `405` | `method_not_allowed` | | |
 | `409` | `no_active_meeting` | | No open meeting whose time window includes now |
-| `409` | `meeting_closed` | | `meetingId` names a meeting that isn't open, while several others are |
+| `409` | `meeting_closed` | | `meetingId` names a meeting that isn't open while several others are, or the meeting closed between the lookup and the insert |
 | `422` | `invalid_answers` | `answerErrors` | Required questions unanswered, or answers that don't fit the form |
-| `500` | `server_error` | | |
-| `501` | `not_implemented` | | Every valid request, until PR #77 lands |
+| `500` | `server_error` | | A database lookup, the password check, or the insert failed. The real error is logged; the message is generic |
 
 ---
 
