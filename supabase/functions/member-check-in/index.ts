@@ -1,18 +1,13 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
+import { corsPreflight, responder } from "../_shared/http.ts";
+import { performCheckIn } from "./check-in.ts";
 import type { MemberCheckInErrorCode, MemberCheckInResponse } from "./contract.ts";
 import { parseCheckInRequest } from "./validate.ts";
 
-// Member check-in for the mobile app (and eventually web), replacing the
-// memberCheckIn server action in app/[orgSlug]/checkin/actions.ts.
-// The request/response contract lives in contract.ts.
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-};
+// Member check-in for the web check-in page and the mobile app. The
+// request/response contract lives in contract.ts, and docs/API.md describes it.
 
 const STATUS_BY_CODE: Record<MemberCheckInErrorCode, number> = {
   invalid_request: 400,
@@ -26,25 +21,14 @@ const STATUS_BY_CODE: Record<MemberCheckInErrorCode, number> = {
   meeting_closed: 409,
   invalid_answers: 422,
   server_error: 500,
-  not_implemented: 501,
 };
 
-function jsonResponse(body: unknown, status: number) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
-  });
-}
-
 /** Every response goes through here, so each one is checked against the contract. */
-function respond(body: MemberCheckInResponse) {
-  return jsonResponse(body, body.ok ? 200 : STATUS_BY_CODE[body.code]);
-}
+const respond = responder<MemberCheckInResponse>(STATUS_BY_CODE);
 
 serve(async (req) => {
-  if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
-  }
+  const preflight = corsPreflight(req);
+  if (preflight) return preflight;
 
   if (req.method !== "POST") {
     return respond({ ok: false, code: "method_not_allowed", error: "Method not allowed." });
@@ -106,8 +90,7 @@ serve(async (req) => {
       });
     }
 
-    // Week 4: parsed.request feeds the check-in logic (ADTCIA-31 inventory).
-    return respond({ ok: false, code: "not_implemented", error: "not implemented" });
+    return respond(await performCheckIn(callerClient, clerkId, parsed.request));
   } catch (error) {
     console.error("member-check-in error:", error);
     return respond({

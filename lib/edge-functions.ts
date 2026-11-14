@@ -6,15 +6,22 @@
  * add latency without adding protection. The browser only ever sends the
  * public anon key and the user's own short-lived token. See docs/API.md.
  *
- * Never throws. Anything that keeps a real answer from coming back -- no
- * token, the network, a timeout, a reply that isn't the function's JSON (an
- * undeployed function, a gateway error page) -- comes back as a failure with
- * a code, the same shape the functions use, so callers branch on `code` only.
+ * Never throws. Every failure comes back with a code, in the same shape the
+ * functions use, so callers branch on `code` only. The codes say where it went
+ * wrong, because callers show those cases differently:
+ *
+ * - `network_error`: no answer from the function. The request failed (offline,
+ *   DNS, connection reset), hit the timeout, or something else answered
+ *   instead (a gateway error page, a 404 for an undeployed function). Worth a
+ *   retry. No function sends this code; only this helper does.
+ * - `server_error`: the function answered and reported a failure of its own,
+ *   or this app is missing its Supabase settings.
+ * - `unauthenticated`: there was no Clerk token to send.
  */
 
 export type EdgeFunctionFailure = {
   ok: false;
-  code: "unauthenticated" | "server_error";
+  code: "unauthenticated" | "network_error" | "server_error";
   error: string;
 };
 
@@ -85,8 +92,8 @@ export async function callEdgeFunction<R extends { ok: boolean }>(
   } catch {
     clearTimeout(timer);
     return controller.signal.aborted
-      ? failure("server_error", "The server took too long to respond. Please try again.")
-      : failure("server_error", "Couldn't reach the server. Check your connection and try again.");
+      ? failure("network_error", "The server took too long to respond. Please try again.")
+      : failure("network_error", "Couldn't reach the server. Check your connection and try again.");
   }
 
   let parsed: unknown;
@@ -100,7 +107,10 @@ export async function callEdgeFunction<R extends { ok: boolean }>(
 
   if (!isResponseBody(parsed)) {
     console.error(`${name}: unexpected response`, res.status, res.statusText);
-    return failure("server_error", `Something went wrong on our end (error ${res.status}). Please try again.`);
+    return failure(
+      "network_error",
+      `Couldn't get an answer from the server (error ${res.status}). Please try again.`,
+    );
   }
   return parsed as R;
 }
