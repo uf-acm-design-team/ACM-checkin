@@ -32,12 +32,13 @@ describe('membershipProgress', () => {
     expect(membershipProgress('acm', 1, 'active')).toMatchObject({ threshold: 3, isMember: true });
   });
 
-  it('treats an active member of an org without a threshold as a member', () => {
-    expect(membershipProgress('colorstack', 0, 'active')).toMatchObject({ threshold: null, isMember: true });
+  it('gives every org the same threshold, so a new org gets progress and badges too', () => {
+    expect(membershipProgress('colorstack', 2, 'pending')).toMatchObject({ threshold: 3, remaining: 1, isMember: false });
+    expect(membershipProgress('colorstack', 3, 'pending')).toMatchObject({ threshold: 3, isMember: true });
+    expect(membershipProgress('colorstack', 0, 'active')).toMatchObject({ threshold: 3, isMember: true });
   });
 
-  it('never makes you a member from check-ins alone when the org has no threshold', () => {
-    expect(membershipProgress('colorstack', 5, 'pending')).toMatchObject({ threshold: null, isMember: false });
+  it('has no threshold without a slug', () => {
     expect(membershipProgress(null, 5, null)).toMatchObject({ threshold: null, isMember: false });
   });
 });

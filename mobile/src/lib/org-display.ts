@@ -1,9 +1,7 @@
 import type { Json } from '@/lib/supabase';
 import { ORG_TIME_ZONE } from '@/lib/terms';
 
-const MEMBERSHIP_THRESHOLDS: Record<string, number> = {
-  acm: 3,
-};
+import { membershipThreshold as sharedThreshold } from '../../../supabase/functions/_shared/membership';
 
 const HEX_COLOR = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
 
@@ -22,9 +20,10 @@ export function tint(hex: string, opacity: number): string {
   return `${full}${alpha}`;
 }
 
-// The check-ins an org asks for before you count as a member, or null when it has no threshold.
+// The check-ins an org asks for before you count as a member. Every org has
+// one (the shared rule); null only when there's no slug to look up.
 export function membershipThreshold(slug: string | null): number | null {
-  return slug ? (MEMBERSHIP_THRESHOLDS[slug.toLowerCase()] ?? null) : null;
+  return slug ? sharedThreshold(slug) : null;
 }
 
 export type MembershipProgress = {
