@@ -9,9 +9,14 @@ export type CalendarDay = {
   titles: string[];
   status: DayStatus | null;
   isToday: boolean;
+  // The colour of the org you checked in with that day, if you did.
+  checkedInColor: string | null;
+  // One per meeting that day, in its org's colour, soonest first.
+  dots: string[];
 };
 
-type Meeting = { title: string; startTime: string; attended: boolean };
+// `accent` is the meeting's org colour. Without one, the day uses the app accent.
+type Meeting = { title: string; startTime: string; attended: boolean; accent?: string };
 
 // One cell per square of a Sunday-first month grid. null cells pad the first
 // week so day 1 lands under the right weekday.
@@ -40,11 +45,14 @@ export function monthGrid(
     else if (dayMeetings.some((meeting) => new Date(meeting.startTime).getTime() > nowMs)) status = 'upcoming';
     else if (dayMeetings.length > 0) status = 'missed';
 
+    const sorted = [...dayMeetings].sort((a, b) => a.startTime.localeCompare(b.startTime));
     cells.push({
       day,
       titles: dayMeetings.map((meeting) => meeting.title),
       status,
       isToday: today.year === year && today.month === month && today.day === day,
+      checkedInColor: sorted.find((meeting) => meeting.attended)?.accent ?? null,
+      dots: sorted.map((meeting) => meeting.accent ?? ''),
     });
   }
   return cells;

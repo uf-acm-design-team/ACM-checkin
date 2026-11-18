@@ -284,7 +284,7 @@ export default function OrgHistoryScreen() {
               ) : null}
               <MeetingCalendar
                 month={month}
-                meetings={state.meetings}
+                meetings={state.meetings.map((meeting) => ({ ...meeting, accent: state.accent }))}
                 now={now}
                 canGoBack={canMove(-1)}
                 canGoForward={canMove(1)}

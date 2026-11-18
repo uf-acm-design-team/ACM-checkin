@@ -8,7 +8,7 @@ import { colors, radii, space } from '@/theme';
 
 type Props = {
   month: YearMonth;
-  meetings: { title: string; startTime: string; attended: boolean }[];
+  meetings: { title: string; startTime: string; attended: boolean; accent?: string }[];
   now: string;
   canGoBack: boolean;
   canGoForward: boolean;
@@ -21,8 +21,9 @@ type Props = {
 const WEEKDAYS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 const STATUS_TEXT = { attended: 'checked in', missed: 'missed', upcoming: 'upcoming' } as const;
 
-// One month of meetings: filled = checked in, outlined = missed, dashed = upcoming.
-// A day with meetings can be tapped to pick it.
+// One month of meetings: filled = checked in (in that org's colour), outlined =
+// missed, dashed = upcoming. Dots under a day show each meeting in its org's
+// colour. A day with meetings can be tapped to pick it.
 export function MeetingCalendar({
   month,
   meetings,
@@ -86,22 +87,36 @@ function Day({ cell, selected, onPress }: { cell: CalendarDay; selected: boolean
       accessibilityRole={cell.status ? 'button' : undefined}
       accessibilityState={cell.status ? { selected } : undefined}
       accessibilityLabel={cell.isToday ? `Today, ${label}` : label}
-      style={[styles.day, cell.status && styles[cell.status], selected && styles.selected]}
+      style={styles.dayStack}
     >
-      <Text
+      <View
         style={[
-          styles.dayText,
-          cell.status === 'attended' && styles.attendedText,
-          cell.status === 'missed' && styles.missedText,
-          cell.status === 'upcoming' && styles.upcomingText,
-          cell.isToday && styles.todayText,
+          styles.day,
+          cell.status && styles[cell.status],
+          cell.status === 'attended' && cell.checkedInColor ? { backgroundColor: cell.checkedInColor } : null,
+          selected && styles.selected,
         ]}
       >
-        {cell.day}
-      </Text>
-      {cell.isToday ? (
-        <View style={[styles.todayDot, cell.status === 'attended' && styles.todayDotOnAccent]} />
-      ) : null}
+        <Text
+          style={[
+            styles.dayText,
+            cell.status === 'attended' && styles.attendedText,
+            cell.status === 'missed' && styles.missedText,
+            cell.status === 'upcoming' && styles.upcomingText,
+            cell.isToday && styles.todayText,
+          ]}
+        >
+          {cell.day}
+        </Text>
+        {cell.isToday ? (
+          <View style={[styles.todayDot, cell.status === 'attended' && styles.todayDotOnAccent]} />
+        ) : null}
+      </View>
+      <View style={styles.dots}>
+        {cell.dots.slice(0, MAX_DOTS).map((color, index) => (
+          <View key={index} style={[styles.dot, { backgroundColor: color || colors.accent }]} />
+        ))}
+      </View>
     </Pressable>
   );
 }
@@ -141,6 +156,8 @@ function LegendItem({ style, label }: { style: object; label: string }) {
 }
 
 const DAY_SIZE = 34;
+// More than this many meetings in a day still shows three dots.
+const MAX_DOTS = 3;
 
 const styles = StyleSheet.create({
   card: {
@@ -177,6 +194,20 @@ const styles = StyleSheet.create({
     color: colors.inkFaint,
     fontSize: 12,
     fontWeight: '600',
+  },
+  dayStack: {
+    alignItems: 'center',
+    gap: 3,
+  },
+  dots: {
+    flexDirection: 'row',
+    gap: 3,
+    height: 5,
+  },
+  dot: {
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
   },
   day: {
     width: DAY_SIZE,

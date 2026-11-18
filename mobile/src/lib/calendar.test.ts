@@ -21,6 +21,24 @@ describe('monthGrid', () => {
     expect(cells.filter(Boolean)).toHaveLength(30);
   });
 
+  it('colours a checked-in day by its org and dots every meeting in its org colour', () => {
+    const grid = monthGrid(
+      { year: 2026, month: 11 },
+      [
+        { title: 'GBM', startTime: '2026-11-03T23:00:00Z', attended: false, accent: 'red' },
+        { title: 'Workshop', startTime: '2026-11-03T20:00:00Z', attended: true, accent: 'purple' },
+        { title: 'Social', startTime: '2026-11-04T23:00:00Z', attended: false, accent: 'orange' },
+      ],
+      NOW,
+    );
+    const at = (n: number) => grid.find((cell) => cell?.day === n);
+    expect(at(3)?.checkedInColor).toBe('purple');
+    expect(at(3)?.dots).toEqual(['purple', 'red']);
+    expect(at(4)?.checkedInColor).toBeNull();
+    expect(at(4)?.dots).toEqual(['orange']);
+    expect(at(5)?.dots).toEqual([]);
+  });
+
   it('marks attended, missed and upcoming days', () => {
     expect(day(3)?.status).toBe('attended');
     expect(day(5)?.status).toBe('missed');
