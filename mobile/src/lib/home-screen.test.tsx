@@ -106,6 +106,7 @@ it('shows the next meeting with its day and time', async () => {
   expect(await screen.findByText('General Body Meeting')).toBeTruthy();
   // 23:00 UTC is 6 PM Eastern.
   expect(screen.getByText('Wed, Nov 25 · 6:00 PM')).toBeTruthy();
+  expect(screen.getByText('Up next')).toBeTruthy();
   expect(screen.queryByText('Checked in today')).toBeNull();
 });
 
