@@ -1,12 +1,26 @@
 // Shared types + pure helpers for the member attendance stats feature.
 // No I/O — everything here is unit-tested and orchestrated by lib/stats-data.ts.
+// The semester rules live in supabase/functions/_shared/terms.ts, shared with
+// the mobile app, and are re-exported here.
 
 import type { AnswerMap, FormSchema } from "./form-schema";
-import { fromDateTimeLocal, orgWallClock } from "./meeting-time";
+import {
+  compareTermsDesc,
+  getTerm,
+  type Season,
+  type TermKey,
+} from "../supabase/functions/_shared/terms";
 
-export type Season = "Spring" | "Summer" | "Fall";
-export type Term = { key: string; label: string; season: Season; year: number };
-export type TermKey = Term["key"];
+export {
+  academicYearTerms,
+  compareTermsDesc,
+  getTerm,
+  termBounds,
+  type Season,
+  type Term,
+  type TermKey,
+} from "../supabase/functions/_shared/terms";
+
 export type View = "attended" | "missed" | "all";
 export type Scope = TermKey | "all";
 
@@ -68,58 +82,6 @@ export type Page<T> = {
 };
 
 export type MeetingRow = { id: string; start_time: string };
-
-const SEASON_ORDER: Record<Season, number> = { Spring: 0, Summer: 1, Fall: 2 };
-
-// Classify by the meeting's date IN THE ORG'S TIMEZONE.
-//
-// This used to slice the year and month straight out of the string, which was
-// right while start_time was a tz-less Eastern wall clock. Now that it is
-// timestamptz the leading characters are UTC, and a meeting at 11 PM Eastern on
-// Dec 31 reads as Jan 1 -- filing it under Spring of the following year instead
-// of Fall. Still never uses Date.getMonth(), which would depend on the server's
-// timezone rather than the club's.
-export function getTerm(startTime: string): Term {
-  const wc = orgWallClock(startTime);
-  const year = wc ? wc.year : Number(startTime.slice(0, 4));
-  const month = wc ? wc.month : Number(startTime.slice(5, 7)); // 1-12
-  const season: Season = month <= 5 ? "Spring" : month <= 7 ? "Summer" : "Fall";
-  return { key: `${year}-${season}`, label: `${season} ${year}`, season, year };
-}
-
-export function compareTermsDesc(
-  a: { season: Season; year: number },
-  b: { season: Season; year: number },
-): number {
-  if (a.year !== b.year) return b.year - a.year;
-  return SEASON_ORDER[b.season] - SEASON_ORDER[a.season];
-}
-
-// Term windows, as real instants.
-//
-// These are passed to get_member_meetings_page and compared against
-// meetings.start_time (timestamptz). A bare wall-clock string would be read in
-// the server's zone (UTC), shifting each window ~4-5 hours and letting meetings
-// near a term boundary fall into the wrong term -- or out of every term.
-export function termBounds(key: TermKey): { startIso: string; endIso: string } {
-  const [yearStr, season] = key.split("-") as [string, Season];
-  const year = Number(yearStr);
-  const bounds = (start: string, end: string) => ({
-    startIso: fromDateTimeLocal(start) ?? start,
-    endIso: fromDateTimeLocal(end) ?? end,
-  });
-  switch (season) {
-    case "Spring": return bounds(`${year}-01-01T00:00`, `${year}-05-31T23:59`);
-    case "Summer": return bounds(`${year}-06-01T00:00`, `${year}-07-31T23:59`);
-    case "Fall":   return bounds(`${year}-08-01T00:00`, `${year}-12-31T23:59`);
-  }
-}
-
-// AY starts in August. Aug–Dec → AY start = this year; Jan–Jul → previous year.
-export function academicYearTerms(year: number, month: number): TermKey[] {
-  const startYear = month >= 8 ? year : year - 1;
-  return [`${startYear}-Fall`, `${startYear + 1}-Spring`, `${startYear + 1}-Summer`];
-}
 
 export function buildTermSummaries(
   orgMeetings: MeetingRow[],
