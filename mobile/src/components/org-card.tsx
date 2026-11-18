@@ -1,19 +1,34 @@
-import { StyleSheet, Text, View } from 'react-native';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import { router } from 'expo-router';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { membershipProgress, orgAccent, roleLabel } from '@/lib/org-display';
+import { meetingWhen, membershipProgress, orgAccent, roleLabel } from '@/lib/org-display';
 import type { HomeOrg } from '@/lib/supabase';
 import { colors, radii, shadows, space } from '@/theme';
 
-export function OrgCard({ org, role, status, attended }: HomeOrg) {
-  const name = org.name ?? org.slug ?? 'Organization';
+export function OrgCard({ org, role, status, attended, nextMeeting, checkedInToday }: HomeOrg) {
+  const slug = org.slug;
+  const name = org.name ?? slug ?? 'Organization';
   const accent = orgAccent(org.branding) ?? colors.accent;
   const progress = membershipProgress(org.slug, attended, status);
   const showProgress = progress.isMember || progress.threshold !== null;
   const fillRatio = progress.isMember || progress.threshold === null ? 1 : Math.min(attended / progress.threshold, 1);
   const checkIns = `${attended} ${attended === 1 ? 'check-in' : 'check-ins'}`;
+  const next = nextMeeting
+    ? `Up next: ${nextMeeting.title}, ${meetingWhen(nextMeeting.startTime)}`
+    : 'No meetings scheduled';
+  const spoken = [name, roleLabel(role), checkIns, checkedInToday ? 'Checked in today' : null, next]
+    .filter(Boolean)
+    .join(', ');
 
   return (
-    <View style={styles.card} accessibilityLabel={`${name}, ${roleLabel(role)}, ${checkIns}`}>
+    <Pressable
+      onPress={slug ? () => router.push({ pathname: '/org/[orgSlug]', params: { orgSlug: slug } }) : undefined}
+      accessibilityRole="button"
+      accessibilityLabel={spoken}
+      accessibilityHint="Opens your attendance history"
+      style={({ pressed }) => [styles.card, pressed && styles.pressed]}
+    >
       <View style={styles.header}>
         <View style={[styles.crest, { backgroundColor: accent }]}>
           <Text style={styles.crestLetter}>{name.charAt(0).toUpperCase()}</Text>
@@ -28,6 +43,28 @@ export function OrgCard({ org, role, status, attended }: HomeOrg) {
           <Text style={styles.chipText}>{roleLabel(role)}</Text>
         </View>
       </View>
+
+      {checkedInToday ? (
+        <View style={styles.checkedIn}>
+          <Ionicons name="checkmark-circle-outline" size={16} color={colors.goodInk} />
+          <Text style={styles.checkedInText}>Checked in today</Text>
+        </View>
+      ) : null}
+
+      {nextMeeting ? (
+        <View style={styles.upNext}>
+          <Text style={styles.upNextLabel}>Up next</Text>
+          <Text style={styles.upNextTitle} numberOfLines={1}>
+            {nextMeeting.title}
+          </Text>
+          <Text style={styles.upNextWhen}>{meetingWhen(nextMeeting.startTime)}</Text>
+        </View>
+      ) : (
+        <View style={styles.noMeetings}>
+          <Text style={styles.upNextLabel}>Up next</Text>
+          <Text style={styles.noMeetingsText}>No meetings scheduled</Text>
+        </View>
+      )}
 
       {showProgress ? (
         <View style={styles.progressBlock}>
@@ -49,11 +86,14 @@ export function OrgCard({ org, role, status, attended }: HomeOrg) {
           </Text>
         </View>
       ) : null}
-    </View>
+    </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
+  pressed: {
+    opacity: 0.85,
+  },
   card: {
     gap: space[3],
     padding: space[4],
@@ -91,7 +131,7 @@ const styles = StyleSheet.create({
   },
   count: {
     color: colors.inkMuted,
-    fontSize: 13,
+    fontSize: 12,
   },
   chip: {
     paddingHorizontal: space[2],
@@ -103,6 +143,50 @@ const styles = StyleSheet.create({
     color: colors.inkStrong,
     fontSize: 12,
     fontWeight: '600',
+  },
+  checkedIn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space[2],
+    paddingHorizontal: space[3],
+    paddingVertical: space[2],
+    backgroundColor: colors.goodSurface,
+    borderColor: colors.goodLine,
+    borderWidth: 1,
+    borderRadius: radii.control,
+  },
+  checkedInText: {
+    color: colors.goodInk,
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  upNext: {
+    gap: 2,
+  },
+  // Club-led hierarchy: name 16, meeting 13 semibold, details 12, label 11.
+  upNextLabel: {
+    color: colors.inkMuted,
+    fontSize: 11,
+  },
+  upNextTitle: {
+    color: colors.ink,
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  upNextWhen: {
+    color: colors.inkMuted,
+    fontSize: 12,
+  },
+  noMeetings: {
+    gap: 2,
+    paddingHorizontal: space[3],
+    paddingVertical: space[2],
+    backgroundColor: colors.surfaceSunken,
+    borderRadius: radii.control,
+  },
+  noMeetingsText: {
+    color: colors.inkMuted,
+    fontSize: 12,
   },
   progressBlock: {
     gap: space[1],
