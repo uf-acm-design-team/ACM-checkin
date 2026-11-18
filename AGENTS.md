@@ -152,9 +152,11 @@ After a schema change, regenerate the mobile types (`npm run gen:types` in
 - Mobile CI (`.github/workflows/mobile.yml`) runs on changes to `mobile/**`
   **and the web files mobile depends on**: `app/globals.css` (a mobile test
   checks the theme tokens against it), `lib/checkin-link.ts` (the QR parser
-  round-trips it), and `supabase/functions/member-check-in/contract.ts` plus
-  the types it uses from `supabase/functions/_shared/` and `lib/geo.ts` (the
-  check-in screen is typed against them). When you change a web color token, update `mobile/src/theme/tokens.ts` too.
+  round-trips it), `supabase/functions/_shared/` (mobile imports shared
+  semester rules and the check-in form validates against these), and
+  `supabase/functions/member-check-in/contract.ts` plus the types it uses from
+  `lib/geo.ts` (the check-in screen is typed against them). When you change a
+  web color token, update `mobile/src/theme/tokens.ts` too.
 
 ### Demo and preview routes
 
