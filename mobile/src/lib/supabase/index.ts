@@ -12,4 +12,4 @@ export {
     DataError, getMyAttendee, getMyHomeOrgs, getMyMeetingCheckIn, getMyMemberships, getMyOrgMeetings, getOrgBySlug
 } from "./queries";
 export { useSupabase } from "./useSupabase";
-export type { Attendee, HomeOrg, MeetingCheckIn, MeetingQuestion, MyMembership, OrgMeeting, Organization } from "./queries";
+export type { Attendee, HomeMeeting, HomeOrg, MeetingCheckIn, MeetingQuestion, MyMembership, OrgMeeting, Organization } from "./queries";
