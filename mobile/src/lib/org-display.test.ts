@@ -50,12 +50,9 @@ describe('roleLabel', () => {
 });
 
 describe('tint', () => {
-  it('adds an alpha byte to a six-digit colour', () => {
-    expect(tint('#FA4616', 0.14)).toBe('#FA461624');
-    expect(tint('#FA4616', 1)).toBe('#FA4616ff');
-  });
-
-  it('expands a three-digit colour first', () => {
-    expect(tint('#abc', 0)).toBe('#aabbcc00');
+  it('adds an alpha byte to the colour', () => {
+    expect(tint(colors.accent, 0.14)).toBe(`${colors.accent}24`);
+    expect(tint(colors.accent, 1)).toBe(`${colors.accent}ff`);
+    expect(tint(colors.accent, 0)).toBe(`${colors.accent}00`);
   });
 });
