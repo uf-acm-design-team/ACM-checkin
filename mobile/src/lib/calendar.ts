@@ -11,9 +11,13 @@ export type CalendarDay = {
   isToday: boolean;
   // The colour of the org you checked in with that day, if you did.
   checkedInColor: string | null;
-  // One per meeting that day, in its org's colour, soonest first.
-  dots: string[];
+  // One per meeting that day in its org's colour: the ones you checked in to
+  // first, then the rest, each in time order.
+  dots: CalendarDot[];
 };
+
+// `color` is empty when the meeting has no org colour; the calendar falls back.
+export type CalendarDot = { color: string; status: DayStatus };
 
 // `accent` is the meeting's org colour. Without one, the day uses the app accent.
 type Meeting = { title: string; startTime: string; attended: boolean; accent?: string };
@@ -45,14 +49,18 @@ export function monthGrid(
     else if (dayMeetings.some((meeting) => new Date(meeting.startTime).getTime() > nowMs)) status = 'upcoming';
     else if (dayMeetings.length > 0) status = 'missed';
 
-    const sorted = [...dayMeetings].sort((a, b) => a.startTime.localeCompare(b.startTime));
+    const sorted = [...dayMeetings].sort(
+      (a, b) => Number(b.attended) - Number(a.attended) || a.startTime.localeCompare(b.startTime),
+    );
+    const dotStatus = (meeting: Meeting): DayStatus =>
+      meeting.attended ? 'attended' : new Date(meeting.startTime).getTime() > nowMs ? 'upcoming' : 'missed';
     cells.push({
       day,
       titles: dayMeetings.map((meeting) => meeting.title),
       status,
       isToday: today.year === year && today.month === month && today.day === day,
       checkedInColor: sorted.find((meeting) => meeting.attended)?.accent ?? null,
-      dots: sorted.map((meeting) => meeting.accent ?? ''),
+      dots: sorted.map((meeting) => ({ color: meeting.accent ?? '', status: dotStatus(meeting) })),
     });
   }
   return cells;

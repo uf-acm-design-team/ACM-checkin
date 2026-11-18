@@ -2,13 +2,13 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { haptic } from '@/lib/haptics';
-import { monthGrid, monthLabel, type CalendarDay } from '@/lib/calendar';
+import { monthGrid, monthLabel, type CalendarDay, type CalendarDot } from '@/lib/calendar';
 import type { YearMonth } from '@/lib/terms';
 import { colors, radii, space } from '@/theme';
 
 type Props = {
   month: YearMonth;
-  meetings: { title: string; startTime: string; attended: boolean; accent?: string }[];
+  meetings: { title: string; startTime: string; attended: boolean; accent?: string; orgName?: string }[];
   now: string;
   canGoBack: boolean;
   canGoForward: boolean;
@@ -22,8 +22,9 @@ const WEEKDAYS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 const STATUS_TEXT = { attended: 'checked in', missed: 'missed', upcoming: 'upcoming' } as const;
 
 // One month of meetings: filled = checked in (in that org's colour), outlined =
-// missed, dashed = upcoming. Dots under a day show each meeting in its org's
-// colour. A day with meetings can be tapped to pick it.
+// missed, dashed = upcoming, and a ring in the text colour marks today. Dots
+// under a day show each meeting in its org's colour: solid = checked in,
+// hollow = missed, faded = upcoming. A day with meetings can be tapped to pick it.
 export function MeetingCalendar({
   month,
   meetings,
@@ -35,6 +36,12 @@ export function MeetingCalendar({
   onSelectDay,
 }: Props) {
   const cells = monthGrid(month, meetings, now);
+  // The org colour key, only when more than one org is on the calendar.
+  const orgKey = [
+    ...new Map(
+      meetings.flatMap((meeting) => (meeting.orgName && meeting.accent ? [[meeting.orgName, meeting.accent] as const] : [])),
+    ),
+  ];
 
   return (
     <View style={styles.card}>
@@ -67,10 +74,17 @@ export function MeetingCalendar({
       </View>
 
       <View style={styles.legend}>
-        <LegendItem style={styles.attended} label="Checked in" />
-        <LegendItem style={styles.missed} label="Missed" />
-        <LegendItem style={styles.upcoming} label="Upcoming" />
+        <LegendItem dot={{ color: colors.inkMuted, status: 'attended' }} label="Checked in" />
+        <LegendItem dot={{ color: colors.inkMuted, status: 'missed' }} label="Missed" />
+        <LegendItem dot={{ color: colors.inkMuted, status: 'upcoming' }} label="Upcoming" />
       </View>
+      {orgKey.length > 1 ? (
+        <View style={styles.legend}>
+          {orgKey.map(([name, color]) => (
+            <LegendItem key={name} dot={{ color, status: 'attended' }} label={name} />
+          ))}
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -79,6 +93,7 @@ function Day({ cell, selected, onPress }: { cell: CalendarDay; selected: boolean
   const label = cell.status
     ? `${cell.day}: ${cell.titles.join(', ')}, ${STATUS_TEXT[cell.status]}`
     : String(cell.day);
+  const filled = cell.status === 'attended';
   return (
     <Pressable
       // Only days with a meeting do anything.
@@ -89,35 +104,48 @@ function Day({ cell, selected, onPress }: { cell: CalendarDay; selected: boolean
       accessibilityLabel={cell.isToday ? `Today, ${label}` : label}
       style={styles.dayStack}
     >
-      <View
-        style={[
-          styles.day,
-          cell.status && styles[cell.status],
-          cell.status === 'attended' && cell.checkedInColor ? { backgroundColor: cell.checkedInColor } : null,
-          selected && styles.selected,
-        ]}
-      >
-        <Text
+      {/* Rings sit outside a filled day, with a gap, so the org colour still shows. */}
+      <View style={[styles.ring, filled && (cell.isToday ? styles.todayRing : selected && styles.selectedRing)]}>
+        <View
           style={[
-            styles.dayText,
-            cell.status === 'attended' && styles.attendedText,
-            cell.status === 'missed' && styles.missedText,
-            cell.status === 'upcoming' && styles.upcomingText,
-            cell.isToday && styles.todayText,
+            styles.day,
+            cell.status && styles[cell.status],
+            filled && cell.checkedInColor ? { backgroundColor: cell.checkedInColor } : null,
+            selected && !filled && styles.selectedFill,
+            cell.isToday && !filled && styles.today,
           ]}
         >
-          {cell.day}
-        </Text>
-        {cell.isToday ? (
-          <View style={[styles.todayDot, cell.status === 'attended' && styles.todayDotOnAccent]} />
-        ) : null}
+          <Text
+            style={[
+              styles.dayText,
+              cell.status === 'attended' && styles.attendedText,
+              cell.status === 'missed' && styles.missedText,
+              cell.isToday && styles.todayText,
+            ]}
+          >
+            {cell.day}
+          </Text>
+        </View>
       </View>
       <View style={styles.dots}>
-        {cell.dots.slice(0, MAX_DOTS).map((color, index) => (
-          <View key={index} style={[styles.dot, { backgroundColor: color || colors.accent }]} />
+        {cell.dots.slice(0, MAX_DOTS).map((dot, index) => (
+          <Dot key={index} dot={dot} />
         ))}
       </View>
     </Pressable>
+  );
+}
+
+function Dot({ dot: { color, status } }: { dot: CalendarDot }) {
+  const tint = color || colors.accent;
+  return (
+    <View
+      style={[
+        styles.dot,
+        status === 'missed' ? { borderColor: tint, borderWidth: 1.25 } : { backgroundColor: tint },
+        status === 'upcoming' && styles.dotUpcoming,
+      ]}
+    />
   );
 }
 
@@ -146,10 +174,10 @@ function MonthArrow({
   );
 }
 
-function LegendItem({ style, label }: { style: object; label: string }) {
+function LegendItem({ dot, label }: { dot: CalendarDot; label: string }) {
   return (
     <View style={styles.legendItem}>
-      <View style={[styles.legendSwatch, style]} />
+      <Dot dot={dot} />
       <Text style={styles.legendText}>{label}</Text>
     </View>
   );
@@ -202,12 +230,35 @@ const styles = StyleSheet.create({
   dots: {
     flexDirection: 'row',
     gap: 3,
-    height: 5,
+    height: 6,
   },
   dot: {
-    width: 5,
-    height: 5,
-    borderRadius: 2.5,
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  dotUpcoming: {
+    opacity: 0.4,
+  },
+  ring: {
+    padding: 2,
+    borderWidth: 2,
+    borderColor: 'transparent',
+    borderRadius: DAY_SIZE,
+  },
+  todayRing: {
+    borderColor: colors.ink,
+  },
+  selectedRing: {
+    borderColor: colors.line,
+  },
+  selectedFill: {
+    backgroundColor: colors.surfaceSunken,
+  },
+  today: {
+    borderColor: colors.ink,
+    borderWidth: 2,
+    borderStyle: 'solid',
   },
   day: {
     width: DAY_SIZE,
@@ -235,32 +286,12 @@ const styles = StyleSheet.create({
     color: colors.inkMuted,
   },
   upcoming: {
-    borderColor: colors.accent,
+    borderColor: colors.inkMuted,
     borderWidth: 1.5,
     borderStyle: 'dashed',
   },
-  upcomingText: {
-    color: colors.accentOnSoft,
-    fontWeight: '600',
-  },
   todayText: {
     fontWeight: '700',
-  },
-  selected: {
-    borderColor: colors.ink,
-    borderWidth: 2,
-    borderStyle: 'solid',
-  },
-  todayDot: {
-    position: 'absolute',
-    bottom: 3,
-    width: 4,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: colors.ink,
-  },
-  todayDotOnAccent: {
-    backgroundColor: colors.accentInk,
   },
   legend: {
     flexDirection: 'row',
@@ -271,11 +302,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: space[1],
-  },
-  legendSwatch: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
   },
   legendText: {
     color: colors.inkMuted,
