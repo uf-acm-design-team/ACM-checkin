@@ -1,11 +1,12 @@
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { router } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { membershipProgress, orgAccent, roleLabel } from '@/lib/org-display';
+import { meetingWhen, membershipProgress, orgAccent, roleLabel } from '@/lib/org-display';
 import type { HomeOrg } from '@/lib/supabase';
 import { colors, radii, shadows, space } from '@/theme';
 
-export function OrgCard({ org, role, status, attended }: HomeOrg) {
+export function OrgCard({ org, role, status, attended, nextMeeting, checkedInToday }: HomeOrg) {
   const slug = org.slug;
   const name = org.name ?? slug ?? 'Organization';
   const accent = orgAccent(org.branding) ?? colors.accent;
@@ -13,12 +14,16 @@ export function OrgCard({ org, role, status, attended }: HomeOrg) {
   const showProgress = progress.isMember || progress.threshold !== null;
   const fillRatio = progress.isMember || progress.threshold === null ? 1 : Math.min(attended / progress.threshold, 1);
   const checkIns = `${attended} ${attended === 1 ? 'check-in' : 'check-ins'}`;
+  const next = nextMeeting ? `Next: ${nextMeeting.title}, ${meetingWhen(nextMeeting.startTime)}` : 'No upcoming meetings';
+  const spoken = [name, roleLabel(role), checkIns, checkedInToday ? 'Checked in today' : null, next]
+    .filter(Boolean)
+    .join(', ');
 
   return (
     <Pressable
       onPress={slug ? () => router.push({ pathname: '/org/[orgSlug]', params: { orgSlug: slug } }) : undefined}
       accessibilityRole="button"
-      accessibilityLabel={`${name}, ${roleLabel(role)}, ${checkIns}`}
+      accessibilityLabel={spoken}
       accessibilityHint="Opens your attendance history"
       style={({ pressed }) => [styles.card, pressed && styles.pressed]}
     >
@@ -35,6 +40,25 @@ export function OrgCard({ org, role, status, attended }: HomeOrg) {
         <View style={styles.chip}>
           <Text style={styles.chipText}>{roleLabel(role)}</Text>
         </View>
+      </View>
+
+      <View style={styles.nextRow}>
+        <Ionicons name="calendar-outline" size={16} color={colors.inkMuted} />
+        {nextMeeting ? (
+          <View style={styles.nextText}>
+            <Text style={styles.nextTitle} numberOfLines={1}>
+              {nextMeeting.title}
+            </Text>
+            <Text style={styles.nextWhen}>{meetingWhen(nextMeeting.startTime)}</Text>
+          </View>
+        ) : (
+          <Text style={[styles.nextText, styles.nextWhen]}>No upcoming meetings</Text>
+        )}
+        {checkedInToday ? (
+          <View style={styles.badge}>
+            <Text style={styles.badgeText}>Checked in ✓</Text>
+          </View>
+        ) : null}
       </View>
 
       {showProgress ? (
@@ -112,6 +136,40 @@ const styles = StyleSheet.create({
   },
   chipText: {
     color: colors.inkStrong,
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  nextRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space[2],
+    paddingTop: space[3],
+    borderTopColor: colors.lineSoft,
+    borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  nextText: {
+    flex: 1,
+    gap: 2,
+  },
+  nextTitle: {
+    color: colors.ink,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  nextWhen: {
+    color: colors.inkMuted,
+    fontSize: 13,
+  },
+  badge: {
+    paddingHorizontal: space[2],
+    paddingVertical: 2,
+    backgroundColor: colors.goodSurface,
+    borderColor: colors.goodLine,
+    borderWidth: 1,
+    borderRadius: radii.pill,
+  },
+  badgeText: {
+    color: colors.goodInk,
     fontSize: 12,
     fontWeight: '600',
   },

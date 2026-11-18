@@ -23,6 +23,8 @@ const acm: HomeOrg = {
   role: 'officer',
   status: 'pending',
   attended: 2,
+  nextMeeting: null,
+  checkedInToday: false,
 };
 
 beforeEach(() => mockGetMyHomeOrgs.mockReset());
@@ -68,4 +70,34 @@ it('shows the error state and retries', async () => {
   expect(await screen.findByText("Couldn't load your orgs")).toBeTruthy();
   await fireEvent.press(screen.getByText('Try again'));
   await waitFor(() => expect(screen.getByText('ACM')).toBeTruthy());
+});
+
+it('shows the next meeting with its day and time', async () => {
+  mockGetMyHomeOrgs.mockResolvedValue([
+    {
+      ...acm,
+      nextMeeting: { id: 'm1', title: 'General Body Meeting', startTime: '2026-11-25T23:00:00Z', endTime: null },
+    },
+  ]);
+  await render(<HomeScreen />);
+
+  expect(await screen.findByText('General Body Meeting')).toBeTruthy();
+  // 23:00 UTC is 6 PM Eastern.
+  expect(screen.getByText('Wed, Nov 25 · 6:00 PM')).toBeTruthy();
+  expect(screen.queryByText('Checked in ✓')).toBeNull();
+});
+
+it('says so when there is no upcoming meeting', async () => {
+  mockGetMyHomeOrgs.mockResolvedValue([acm]);
+  await render(<HomeScreen />);
+
+  expect(await screen.findByText('No upcoming meetings')).toBeTruthy();
+});
+
+it('shows the checked-in badge and reads it out', async () => {
+  mockGetMyHomeOrgs.mockResolvedValue([{ ...acm, checkedInToday: true }]);
+  await render(<HomeScreen />);
+
+  expect(await screen.findByText('Checked in ✓')).toBeTruthy();
+  expect(screen.getByLabelText('ACM, Officer, 2 check-ins, Checked in today, No upcoming meetings')).toBeTruthy();
 });
