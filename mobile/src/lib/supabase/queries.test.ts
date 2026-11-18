@@ -253,6 +253,35 @@ describe("getMyOrgMeetings", () => {
     expect(requests.some((r) => r.url.includes("/rpc/get_member_meetings_page"))).toBe(true);
   });
 
+  it("pages through a semester with more than 100 meetings", async () => {
+    const offsets: number[] = [];
+    const fetchImpl = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const u = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      if (!u.includes("/rpc/get_member_meetings_page")) {
+        return jsonResponse([{ id: "attendee_1", user_id: "user_1" }]);
+      }
+      const { p_offset, p_limit } = JSON.parse(String(init?.body));
+      offsets.push(p_offset);
+      const count = Math.max(Math.min(p_limit, 150 - p_offset), 0);
+      return jsonResponse(Array.from({ length: count }, (_, i) => ({
+        id: `m${p_offset + i}`, title: "GBM", start_time: "2026-10-01T23:00:00Z", attended: false,
+        description: null, form_schema: null, total_count: 150,
+      })));
+    }) as typeof fetch;
+    const supabase = createSupabase(async () => fakeJwt({ sub: "user_1" }), {
+      url, anonKey, fetch: fetchImpl,
+    });
+
+    const result = await getMyOrgMeetings(supabase, "org_1", {
+      start: "2026-08-01T04:00:00Z", end: "2027-01-01T04:59:00Z",
+    });
+
+    expect(offsets).toEqual([0, 100]);
+    expect(result.total).toBe(150);
+    expect(result.meetings).toHaveLength(150);
+    expect(result.meetings[149].id).toBe("m149");
+  });
+
   it("returns nothing when signed out", async () => {
     await expect(getMyOrgMeetings(null, "org_1", { start: "", end: "" }))
       .resolves.toEqual({ meetings: [], total: 0 });
