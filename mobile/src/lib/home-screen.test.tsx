@@ -84,20 +84,21 @@ it('shows the next meeting with its day and time', async () => {
   expect(await screen.findByText('General Body Meeting')).toBeTruthy();
   // 23:00 UTC is 6 PM Eastern.
   expect(screen.getByText('Wed, Nov 25 · 6:00 PM')).toBeTruthy();
-  expect(screen.queryByText('Checked in ✓')).toBeNull();
+  expect(screen.getByText('Up next')).toBeTruthy();
+  expect(screen.queryByText('Checked in today')).toBeNull();
 });
 
 it('says so when there is no upcoming meeting', async () => {
   mockGetMyHomeOrgs.mockResolvedValue([acm]);
   await render(<HomeScreen />);
 
-  expect(await screen.findByText('No upcoming meetings')).toBeTruthy();
+  expect(await screen.findByText('No meetings scheduled')).toBeTruthy();
 });
 
-it('shows the checked-in badge and reads it out', async () => {
+it('shows the checked-in strip and reads it out', async () => {
   mockGetMyHomeOrgs.mockResolvedValue([{ ...acm, checkedInToday: true }]);
   await render(<HomeScreen />);
 
-  expect(await screen.findByText('Checked in ✓')).toBeTruthy();
-  expect(screen.getByLabelText('ACM, Officer, 2 check-ins, Checked in today, No upcoming meetings')).toBeTruthy();
+  expect(await screen.findByText('Checked in today')).toBeTruthy();
+  expect(screen.getByLabelText('ACM, Officer, 2 check-ins, Checked in today, No meetings scheduled')).toBeTruthy();
 });
