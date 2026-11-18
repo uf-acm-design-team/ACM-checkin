@@ -113,7 +113,10 @@ describe("buildHomeOrgs", () => {
         membership("org-b", "ColorStack"),
         membership("org-a", "ACM", "officer"),
       ],
-      ["org-a", "org-a", "org-b", "org-not-a-member"],
+      ["org-a", "org-a", "org-b", "org-not-a-member"].map((org_id, i) => ({
+        org_id,
+        meeting_id: `m-${i}`,
+      })),
     );
     expect(rows.map((row) => [row.org.name, row.role, row.attended])).toEqual([
       ["ACM", "officer", 2],
@@ -126,7 +129,58 @@ describe("buildHomeOrgs", () => {
   });
 
   it("returns nothing when you have no memberships", () => {
-    expect(buildHomeOrgs([], ["org-a"])).toEqual([]);
+    expect(buildHomeOrgs([], [{ org_id: "org-a", meeting_id: "m-1" }])).toEqual([]);
+  });
+
+  // 3 PM Eastern on Wed 18 Nov 2026.
+  const now = new Date("2026-11-18T20:00:00Z");
+  const row = (id: string, start: string, end: string | null, status = true, org_id = "org-a") => ({
+    id,
+    org_id,
+    title: id,
+    start_time: start,
+    end_time: end,
+    status,
+  });
+
+  it("shows the next open meeting, using the website's rule", () => {
+    const [acm] = buildHomeOrgs(
+      [membership("org-a", "ACM")],
+      [],
+      [
+        row("past", "2026-11-11T23:00:00Z", "2026-11-12T00:00:00Z"),
+        row("closed", "2026-11-19T23:00:00Z", "2026-11-20T00:00:00Z", false),
+        row("gbm", "2026-11-25T23:00:00Z", "2026-11-26T00:00:00Z"),
+        row("other org", "2026-11-19T23:00:00Z", null, true, "org-b"),
+      ],
+      now,
+    );
+    expect(acm.nextMeeting).toEqual({
+      id: "gbm",
+      title: "gbm",
+      startTime: "2026-11-25T23:00:00Z",
+      endTime: "2026-11-26T00:00:00Z",
+    });
+  });
+
+  it("has no next meeting when nothing is coming up", () => {
+    const [acm] = buildHomeOrgs([membership("org-a", "ACM")], [], [], now);
+    expect(acm.nextMeeting).toBeNull();
+    expect(acm.checkedInToday).toBe(false);
+  });
+
+  it("marks checked in today only for a meeting that started today (Eastern)", () => {
+    const meetings = [
+      // 1 PM Eastern today, already over.
+      row("today", "2026-11-18T18:00:00Z", "2026-11-18T19:00:00Z"),
+      // 11 PM Eastern yesterday: 04:00 UTC today, but not today in Eastern.
+      row("last night", "2026-11-18T04:00:00Z", "2026-11-18T05:00:00Z"),
+    ];
+    const checkedIn = (meeting_id: string) =>
+      buildHomeOrgs([membership("org-a", "ACM")], [{ org_id: "org-a", meeting_id }], meetings, now)[0]
+        .checkedInToday;
+    expect(checkedIn("today")).toBe(true);
+    expect(checkedIn("last night")).toBe(false);
   });
 });
 

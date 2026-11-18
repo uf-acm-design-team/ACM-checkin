@@ -4,6 +4,9 @@ import { isWithinMeetingWindow } from "../meeting-time";
 import type { MobileSupabase, TypedSupabaseClient } from "./client";
 import type { Database, Tables } from "./database.types";
 
+import { orgWallClock } from "../../../../supabase/functions/_shared/meeting-time";
+import { nextMeeting } from "../../../../supabase/functions/_shared/next-meeting";
+
 export type Attendee = Tables<"attendees">;
 
 export class DataError extends Error {
@@ -109,17 +112,6 @@ export type OpenMeeting = Omit<
   "form_schema"
 > & { form_schema: FormSchema };
 
-/**
- * The org's meetings a member can check into right now, earliest first, with
- * their questions parsed. Same query as the web check-in page and the
- * member-check-in function.
- *
- * Uses the Clerk client: meetings_member_read hides officer-only meetings from
- * anyone below officer, so the list is exactly what this user may check into.
- * The same policy also shows members their org's closed meetings, which is why
- * the status filter matters. status=true is only the officer's switch, so the
- * scheduled window is checked here too, like the server does.
- */
 export async function getOpenMeetings(
   supabase: MobileSupabase | null,
   orgId: string,
@@ -140,34 +132,78 @@ export async function getOpenMeetings(
     }));
 }
 
+export type HomeMeeting = {
+  id: string;
+  title: string;
+  startTime: string;
+  endTime: string | null;
+};
+
 export type HomeOrg = {
   org: Organization;
   role: string;
   status: string | null;
   attended: number;
+  // What the club does next (the website's "Next Meeting" rule), or null.
+  nextMeeting: HomeMeeting | null;
+  // You checked in to one of the club's meetings that started today (Eastern).
+  checkedInToday: boolean;
+};
+
+export type HomeAttendance = { org_id: string; meeting_id: string };
+
+export type HomeMeetingRow = {
+  id: string;
+  org_id: string;
+  title: string;
+  start_time: string;
+  end_time: string | null;
+  status: boolean | null;
+};
+
+const orgDay = (iso: string) => {
+  const wc = orgWallClock(iso);
+  return wc ? `${wc.year}-${wc.month}-${wc.day}` : null;
 };
 
 export function buildHomeOrgs(
   memberships: MyMembership[],
-  attendanceOrgIds: string[],
+  attendance: HomeAttendance[],
+  meetings: HomeMeetingRow[] = [],
+  now: Date = new Date(),
 ): HomeOrg[] {
   const counts = new Map<string, number>();
-  for (const orgId of attendanceOrgIds)
-    counts.set(orgId, (counts.get(orgId) ?? 0) + 1);
+  for (const row of attendance)
+    counts.set(row.org_id, (counts.get(row.org_id) ?? 0) + 1);
+  const attendedIds = new Set(attendance.map((row) => row.meeting_id));
+  const today = orgDay(now.toISOString());
 
   return memberships
     .filter((membership) => membership.organization)
-    .map((membership) => ({
-      org: membership.organization,
-      role: membership.role,
-      status: membership.status,
-      attended: counts.get(membership.org_id) ?? 0,
-    }))
+    .map((membership) => {
+      const orgMeetings = meetings.filter((m) => m.org_id === membership.org_id);
+      const next = nextMeeting(orgMeetings, now.getTime());
+      return {
+        org: membership.organization,
+        role: membership.role,
+        status: membership.status,
+        attended: counts.get(membership.org_id) ?? 0,
+        nextMeeting: next
+          ? { id: next.id, title: next.title, startTime: next.start_time, endTime: next.end_time }
+          : null,
+        checkedInToday: orgMeetings.some(
+          (m) => attendedIds.has(m.id) && orgDay(m.start_time) === today,
+        ),
+      };
+    })
     .sort((a, b) => (a.org.name ?? "").localeCompare(b.org.name ?? ""));
 }
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
 export async function getMyHomeOrgs(
   supabase: MobileSupabase | null,
+  now: Date = new Date(),
 ): Promise<HomeOrg[]> {
   if (!supabase) return [];
 
@@ -176,20 +212,31 @@ export async function getMyHomeOrgs(
     getMyAttendee(supabase),
   ]);
   if (memberships.length === 0 || !attendee)
-    return buildHomeOrgs(memberships, []);
+    return buildHomeOrgs(memberships, [], [], now);
 
-  const { data, error } = await supabase.client
-    .from("attendance")
-    .select("org_id")
-    .eq("attendee_id", attendee.id);
-  if (error) throw new DataError("getMyHomeOrgs", error);
+  // Meetings still to come, plus any from the last day so today's meetings
+  // (for "checked in today") are there even once they've ended. RLS limits
+  // this to meetings a member of these orgs may see.
+  const [attendance, meetings] = await Promise.all([
+    supabase.client
+      .from("attendance")
+      .select("org_id, meeting_id")
+      .eq("attendee_id", attendee.id),
+    supabase.client
+      .from("meetings")
+      .select("id, org_id, title, start_time, end_time, status")
+      .in("org_id", memberships.map((m) => m.org_id))
+      .or(`start_time.gte.${new Date(now.getTime() - DAY_MS).toISOString()},end_time.gte.${now.toISOString()}`),
+  ]);
+  if (attendance.error) throw new DataError("getMyHomeOrgs", attendance.error);
+  if (meetings.error) throw new DataError("getMyHomeOrgs", meetings.error);
 
-  return buildHomeOrgs(
-    memberships,
-    (data ?? []).map((row) => row.org_id),
+  // A meeting with no start time can't be placed on a calendar, so it's never next.
+  const scheduled = (meetings.data ?? []).flatMap((m) =>
+    m.start_time ? [{ ...m, start_time: m.start_time }] : [],
   );
+  return buildHomeOrgs(memberships, attendance.data ?? [], scheduled, now);
 }
-
 
 export type MeetingQuestion = { id: string; label: string };
 
