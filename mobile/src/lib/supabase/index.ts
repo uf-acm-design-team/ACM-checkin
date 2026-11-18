@@ -12,7 +12,7 @@ export {
     DataError, getLiveMeetings, getMyAttendee, getMyHomeOrgs, getMyMeetingCheckIn, getMyMemberships, getMyOrgMeetings, getMyProfile, getOpenMeetings, getOrgBySlug
 } from "./queries";
 export type {
-    Attendee, HomeOrg, LiveMeeting, MeetingCheckIn, MeetingQuestion, MyCheckIn, MyMembership, MyProfile, OpenMeeting, OrgMeeting, Organization
+    Attendee, HomeMeeting, HomeOrg, LiveMeeting, MeetingCheckIn, MeetingQuestion, MyCheckIn, MyMembership, MyProfile, OpenMeeting, OrgMeeting, Organization
 } from "./queries";
 export {
     callMemberCheckIn, CheckInNetworkError, MEMBER_CHECK_IN_FUNCTION

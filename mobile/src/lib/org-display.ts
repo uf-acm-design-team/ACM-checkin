@@ -1,4 +1,5 @@
 import type { Json } from '@/lib/supabase';
+import { ORG_TIME_ZONE } from '@/lib/terms';
 
 const MEMBERSHIP_THRESHOLDS: Record<string, number> = {
   acm: 3,
@@ -43,4 +44,12 @@ export function roleLabel(role: string): string {
     .split('-')
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
     .join('-');
+}
+
+/** "Wed, Nov 25 · 6:00 PM" in the org's time zone, for the next meeting on Home. */
+export function meetingWhen(iso: string): string {
+  const date = new Date(iso);
+  const day = date.toLocaleDateString('en-US', { timeZone: ORG_TIME_ZONE, weekday: 'short', month: 'short', day: 'numeric' });
+  const time = date.toLocaleTimeString('en-US', { timeZone: ORG_TIME_ZONE, hour: 'numeric', minute: '2-digit' });
+  return `${day} · ${time}`;
 }
