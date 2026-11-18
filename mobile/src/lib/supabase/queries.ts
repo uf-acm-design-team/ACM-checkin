@@ -1,6 +1,6 @@
 import type { PostgrestError, QueryData } from "@supabase/supabase-js";
 import type { MobileSupabase, TypedSupabaseClient } from "./client";
-import type { Tables } from "./database.types";
+import type { Database, Tables } from "./database.types";
 
 export type Attendee = Tables<"attendees">;
 
@@ -159,6 +159,11 @@ function meetingQuestions(schema: unknown): MeetingQuestion[] {
   });
 }
 
+const MEETINGS_PAGE_SIZE = 100;
+
+type MeetingPageRow =
+  Database["public"]["Functions"]["get_member_meetings_page"]["Returns"][number];
+
 export async function getMyOrgMeetings(
   supabase: MobileSupabase | null,
   orgId: string,
@@ -168,18 +173,28 @@ export async function getMyOrgMeetings(
   const attendee = await getMyAttendee(supabase);
   if (!attendee) return { meetings: [], total: 0 };
 
-  const { data, error } = await supabase.client.rpc("get_member_meetings_page", {
-    p_org_id: orgId,
-    p_attendee_id: attendee.id,
-    p_start: window.start,
-    p_end: window.end,
-    p_view: "all",
-    p_limit: 100,
-    p_offset: 0,
-  });
-  if (error) throw new DataError("getMyOrgMeetings", error);
+  // The list and the calendar both need every meeting in the window, so page
+  // through the RPC until we have them all instead of stopping at one page.
+  const rows: MeetingPageRow[] = [];
+  let total = 0;
+  do {
+    const { data, error } = await supabase.client.rpc("get_member_meetings_page", {
+      p_org_id: orgId,
+      p_attendee_id: attendee.id,
+      p_start: window.start,
+      p_end: window.end,
+      p_view: "all",
+      p_limit: MEETINGS_PAGE_SIZE,
+      p_offset: rows.length,
+    });
+    if (error) throw new DataError("getMyOrgMeetings", error);
+    const page = data ?? [];
+    if (page.length === 0) break;
+    rows.push(...page);
+    // total_count is the same on every row.
+    total = Number(page[0].total_count);
+  } while (rows.length < total);
 
-  const rows = data ?? [];
   return {
     meetings: rows.map((row) => ({
       id: row.id,
@@ -189,8 +204,7 @@ export async function getMyOrgMeetings(
       description: row.description || null,
       questions: meetingQuestions(row.form_schema),
     })),
-    // total_count is the same on every row; 0 when there are none.
-    total: rows.length > 0 ? Number(rows[0].total_count) : 0,
+    total,
   };
 }
 
