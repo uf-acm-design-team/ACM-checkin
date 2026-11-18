@@ -7,8 +7,8 @@ import { meetingWhen, membershipProgress, orgAccent, roleLabel } from '@/lib/org
 import type { HomeOrg, LiveMeeting } from '@/lib/supabase';
 import { colors, radii, shadows, space } from '@/theme';
 
-// `live` is the org's meeting that is open for check-in right now, if any. It
-// takes the Up next slot, since it is what is happening.
+// `live` is the org's meeting that is open for check-in right now, if any. The
+// Live pill marks it; Up next still names the next meeting.
 export function OrgCard({ org, role, status, attended, nextMeeting, checkedInToday, live }: HomeOrg & { live?: LiveMeeting }) {
   const slug = org.slug;
   const name = org.name ?? slug ?? 'Organization';
@@ -17,12 +17,10 @@ export function OrgCard({ org, role, status, attended, nextMeeting, checkedInTod
   const showProgress = progress.isMember || progress.threshold !== null;
   const fillRatio = progress.isMember || progress.threshold === null ? 1 : Math.min(attended / progress.threshold, 1);
   const checkIns = `${attended} ${attended === 1 ? 'check-in' : 'check-ins'}`;
-  const next = live
-    ? `${live.title} is happening now`
-    : nextMeeting
+  const next = nextMeeting
     ? `Up next: ${nextMeeting.title}, ${meetingWhen(nextMeeting.startTime)}`
     : 'No meetings scheduled';
-  const spoken = [name, roleLabel(role), checkIns, checkedInToday ? 'Checked in today' : null, next]
+  const spoken = [name, roleLabel(role), live ? 'Live now' : null, checkIns, checkedInToday ? 'Checked in today' : null, next]
     .filter(Boolean)
     .join(', ');
 
@@ -57,14 +55,7 @@ export function OrgCard({ org, role, status, attended, nextMeeting, checkedInTod
         </View>
       ) : null}
 
-      {live ? (
-        <View style={styles.upNext}>
-          <Text style={styles.upNextLabel}>Happening now</Text>
-          <Text style={styles.upNextTitle} numberOfLines={1}>
-            {live.title}
-          </Text>
-        </View>
-      ) : nextMeeting ? (
+      {nextMeeting ? (
         <View style={styles.upNext}>
           <Text style={styles.upNextLabel}>Up next</Text>
           <Text style={styles.upNextTitle} numberOfLines={1}>

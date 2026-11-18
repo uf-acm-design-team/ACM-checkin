@@ -57,16 +57,20 @@ it('lists your orgs with check-ins and progress', async () => {
 });
 
 it('marks an org whose meeting is open for check-in as live', async () => {
-  mockGetMyHomeOrgs.mockResolvedValue([acm]);
+  mockGetMyHomeOrgs.mockResolvedValue([
+    { ...acm, nextMeeting: { id: 'm1', title: 'General body meeting', startTime: '2026-11-25T23:00:00Z', endTime: null } },
+  ]);
   mockGetLiveMeetings.mockResolvedValue([{ id: 'm1', orgId: 'org-acm', title: 'General body meeting', endTime: null }]);
   await render(<HomeScreen />);
 
   expect(await screen.findByText('Live')).toBeTruthy();
-  // The live meeting takes the Up next slot.
-  expect(screen.getByText('Happening now')).toBeTruthy();
+  // The pill says it's live; Up next still names the meeting.
+  expect(screen.getByText('Up next')).toBeTruthy();
   expect(screen.getByText('General body meeting')).toBeTruthy();
-  expect(screen.queryByText('No meetings scheduled')).toBeNull();
-  expect(screen.getByLabelText('ACM, Officer, 2 check-ins, General body meeting is happening now')).toBeTruthy();
+  expect(screen.queryByText('Happening now')).toBeNull();
+  expect(
+    screen.getByLabelText('ACM, Officer, Live now, 2 check-ins, Up next: General body meeting, Wed, Nov 25 · 6:00 PM'),
+  ).toBeTruthy();
 });
 
 it('still lists your orgs when the live check fails', async () => {
