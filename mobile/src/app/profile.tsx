@@ -15,6 +15,7 @@ import {
 import { AnimatedListHeight } from '@/components/animated-list-height';
 import { Avatar } from '@/components/avatar';
 import { Button } from '@/components/button';
+import { FindOrgsSheet } from '@/components/find-orgs-sheet';
 import { ProfileBadge, ProfileBadgeDetails } from '@/components/profile-badge';
 import { ProfileOrgRow } from '@/components/profile-org-row';
 import { Screen } from '@/components/screen';
@@ -44,6 +45,7 @@ export default function ProfileScreen() {
   const [allOrgs, setAllOrgs] = useState(false);
   // The org whose row is open in "Your orgs"; one at a time.
   const [openOrg, setOpenOrg] = useState<string | null>(null);
+  const [findingOrgs, setFindingOrgs] = useState(false);
 
   // Start on the current semester; the picker offers this academic year's three.
   const now = useMemo(() => new Date().toISOString(), []);
@@ -92,6 +94,10 @@ export default function ProfileScreen() {
   );
 
   const selectedBadge = semester?.badges.find(({ org }) => org.id === selectedBadgeOrg) ?? null;
+  const myOrgIds = useMemo(
+    () => new Set(state.status === 'ready' ? state.profile.memberships.map((m) => m.org_id) : []),
+    [state],
+  );
   const name = user?.fullName || 'Your profile';
   const gradYear = state.status === 'ready' ? state.profile.attendee?.grad_year : null;
 
@@ -176,6 +182,18 @@ export default function ProfileScreen() {
                   />
                 ) : null;
               })}
+              <Pressable
+                onPress={() => setFindingOrgs(true)}
+                accessibilityRole="button"
+                accessibilityHint="Search every org"
+                style={({ pressed }) => [styles.findRow, shownOrgs.length > 0 && styles.findDivider, pressed && styles.findPressed]}
+              >
+                <View style={styles.findIcon}>
+                  <Ionicons name="search" size={16} color={colors.accentOnSoft} />
+                </View>
+                <Text style={styles.findText}>Find more orgs</Text>
+                <Ionicons name="chevron-forward" size={16} color={colors.accentOnSoft} />
+              </Pressable>
             </View>
           </AnimatedListHeight>
           {orgs.length > VISIBLE_ORGS ? (
@@ -226,6 +244,7 @@ export default function ProfileScreen() {
 
         {body}
       </ScrollView>
+      <FindOrgsSheet open={findingOrgs} myOrgIds={myOrgIds} onClose={() => setFindingOrgs(false)} />
       <ProfileBadgeDetails
         badge={selectedBadge}
         semester={term.label}
@@ -335,6 +354,24 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
   },
+  findRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space[3],
+    minHeight: 52,
+    paddingHorizontal: space[4],
+  },
+  findDivider: { borderTopColor: colors.lineSoft, borderTopWidth: StyleSheet.hairlineWidth },
+  findPressed: { backgroundColor: colors.surfaceSunken },
+  findIcon: {
+    width: 30,
+    height: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: radii.card,
+    backgroundColor: colors.accentSoft,
+  },
+  findText: { flex: 1, color: colors.accentOnSoft, fontSize: 15, fontWeight: '600' },
   card: {
     backgroundColor: colors.surface,
     borderColor: colors.line,

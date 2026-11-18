@@ -81,6 +81,20 @@ export async function getMyMemberships(
   return data ?? [];
 }
 
+/** Every org, A to Z, for finding clubs you're not in yet. Orgs are public. */
+export async function getAllOrgs(
+  supabase: MobileSupabase | null,
+): Promise<Organization[]> {
+  if (!supabase) return [];
+
+  const { data, error } = await supabase.client
+    .from("organizations")
+    .select(orgColumns)
+    .order("name", { ascending: true });
+  if (error) throw new DataError("getAllOrgs", error);
+  return data ?? [];
+}
+
 export async function getOrgBySlug(
   supabase: MobileSupabase | null,
   slug: string,

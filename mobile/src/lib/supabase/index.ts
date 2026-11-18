@@ -9,7 +9,7 @@ export type {
 } from "./database.types";
 export {
     buildHomeOrgs,
-    DataError, getLiveMeetings, getMyAttendee, getMyHomeOrgs, getMyMeetingCheckIn, getMyMemberships, getMyOrgMeetings, getMyProfile, getOpenMeetings, getOrgBySlug
+    DataError, getAllOrgs, getLiveMeetings, getMyAttendee, getMyHomeOrgs, getMyMeetingCheckIn, getMyMemberships, getMyOrgMeetings, getMyProfile, getOpenMeetings, getOrgBySlug
 } from "./queries";
 export type {
     Attendee, HomeMeeting, HomeOrg, LiveMeeting, MeetingCheckIn, MeetingQuestion, MyCheckIn, MyMembership, MyProfile, OpenMeeting, OrgMeeting, Organization

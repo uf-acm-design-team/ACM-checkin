@@ -6,6 +6,7 @@ import type { Term } from '@/lib/terms';
 
 const mockGetMyProfile = jest.fn<Promise<MyProfile>, []>();
 const mockGetMyOrgMeetings = jest.fn();
+const mockGetAllOrgs = jest.fn();
 const mockPush = jest.fn();
 const mockSupabase = {};
 
@@ -20,6 +21,7 @@ jest.mock('@/lib/supabase', () => ({
   useSupabase: () => mockSupabase,
   getMyProfile: () => mockGetMyProfile(),
   getMyOrgMeetings: () => mockGetMyOrgMeetings(),
+  getAllOrgs: () => mockGetAllOrgs(),
 }));
 jest.mock('@/lib/org-display', () => ({
   ...jest.requireActual('@/lib/org-display'),
@@ -70,6 +72,7 @@ beforeEach(() => {
   mockGetMyProfile.mockReset();
   mockGetMyOrgMeetings.mockReset().mockResolvedValue({ meetings: [], total: 0 });
   mockPush.mockClear();
+  mockGetAllOrgs.mockReset();
 });
 
 afterEach(() => jest.useRealTimers());
@@ -165,4 +168,34 @@ it('opens an org row in place with your standing and the next meeting', async ()
   await fireEvent.press(screen.getByRole('button', { name: 'IEEE, 1 event' }));
   expect(screen.queryByText('5 events all time')).toBeNull();
   expect(screen.getByText('1 event all time')).toBeTruthy();
+});
+
+it('finds an org from the last row of Your orgs and opens it', async () => {
+  mockGetMyProfile.mockResolvedValue({ ...emptyProfile, memberships: [membership('acm', 'ACM')], checkIns: [] });
+  mockGetAllOrgs.mockResolvedValue([
+    membership('acm', 'ACM').organization,
+    membership('swe', 'SWE').organization,
+    membership('shpe', 'SHPE').organization,
+  ]);
+  await render(<ProfileScreen />);
+
+  await fireEvent.press(await screen.findByText('Find more orgs'));
+  expect(await screen.findByText('All orgs')).toBeTruthy();
+  expect(screen.getByLabelText('ACM, your org')).toBeTruthy();
+
+  await fireEvent.changeText(screen.getByLabelText('Search orgs'), 'sw');
+  expect(screen.queryByLabelText('SHPE')).toBeNull();
+  await fireEvent.press(screen.getByLabelText('SWE'));
+  expect(mockPush).toHaveBeenCalledWith({ pathname: '/org/[orgSlug]', params: { orgSlug: 'swe' } });
+});
+
+it('says so when no org matches the search', async () => {
+  mockGetMyProfile.mockResolvedValue({ ...emptyProfile, memberships: [membership('acm', 'ACM')], checkIns: [] });
+  mockGetAllOrgs.mockResolvedValue([membership('acm', 'ACM').organization]);
+  await render(<ProfileScreen />);
+
+  await fireEvent.press(await screen.findByText('Find more orgs'));
+  await screen.findByText('All orgs');
+  await fireEvent.changeText(screen.getByLabelText('Search orgs'), 'chess');
+  expect(screen.getByText('No orgs match “chess”.')).toBeTruthy();
 });
