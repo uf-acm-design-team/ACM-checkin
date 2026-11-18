@@ -7,8 +7,6 @@ const mockGetMyHomeOrgs = jest.fn<Promise<HomeOrg[]>, []>();
 const mockSupabase = {};
 const mockPush = jest.fn();
 
-jest.mock('expo-router', () => ({ router: { push: (...args: unknown[]) => mockPush(...args) } }));
-
 jest.mock('@clerk/expo', () => ({ useUser: () => ({ user: { firstName: 'Jaedyn' } }) }));
 // Stands in for the navigator: runs the focus callback on mount, as a first
 // focus does, and keeps it so a test can focus Home again.
@@ -16,6 +14,7 @@ let mockFocus: () => void = () => {};
 jest.mock('expo-router', () => {
   const { useEffect } = jest.requireActual<typeof import('react')>('react');
   return {
+    useRouter: () => ({ push: (...args: unknown[]) => mockPush(...args) }),
     useFocusEffect: (onFocus: () => void) => {
       mockFocus = onFocus;
       useEffect(() => onFocus(), [onFocus]);
@@ -35,6 +34,8 @@ const acm: HomeOrg = {
   role: 'officer',
   status: 'pending',
   attended: 2,
+  nextMeeting: null,
+  checkedInToday: false,
 };
 
 beforeEach(() => mockGetMyHomeOrgs.mockReset());
@@ -91,4 +92,34 @@ it('reloads when you come back to Home, so a new check-in shows without pulling 
   await act(async () => mockFocus());
   await waitFor(() => expect(screen.getByText('3 check-ins')).toBeTruthy());
   expect(screen.getByText("You're a member")).toBeTruthy();
+});
+
+it('shows the next meeting with its day and time', async () => {
+  mockGetMyHomeOrgs.mockResolvedValue([
+    {
+      ...acm,
+      nextMeeting: { id: 'm1', title: 'General Body Meeting', startTime: '2026-11-25T23:00:00Z', endTime: null },
+    },
+  ]);
+  await render(<HomeScreen />);
+
+  expect(await screen.findByText('General Body Meeting')).toBeTruthy();
+  // 23:00 UTC is 6 PM Eastern.
+  expect(screen.getByText('Wed, Nov 25 · 6:00 PM')).toBeTruthy();
+  expect(screen.queryByText('Checked in today')).toBeNull();
+});
+
+it('says so when there is no upcoming meeting', async () => {
+  mockGetMyHomeOrgs.mockResolvedValue([acm]);
+  await render(<HomeScreen />);
+
+  expect(await screen.findByText('No meetings scheduled')).toBeTruthy();
+});
+
+it('shows the checked-in strip and reads it out', async () => {
+  mockGetMyHomeOrgs.mockResolvedValue([{ ...acm, checkedInToday: true }]);
+  await render(<HomeScreen />);
+
+  expect(await screen.findByText('Checked in today')).toBeTruthy();
+  expect(screen.getByLabelText('ACM, Officer, 2 check-ins, Checked in today, No meetings scheduled')).toBeTruthy();
 });
