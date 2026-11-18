@@ -317,6 +317,28 @@ export type Database = {
           total_count: number
         }[]
       }
+      get_org_attendance_by_meeting: {
+        Args: { p_end_time: string; p_org_id: string; p_start_time: string }
+        Returns: {
+          guests: number
+          meeting_id: string
+          members: number
+          start_time: string
+          title: string
+          total: number
+        }[]
+      }
+      get_org_retention_by_meeting: {
+        Args: { p_end_time: string; p_org_id: string; p_start_time: string }
+        Returns: {
+          first_time: number
+          meeting_id: string
+          meeting_start_time: string
+          meeting_title: string
+          returning: number
+          total: number
+        }[]
+      }
       has_org_role: {
         Args: { p_org_id: string; p_roles: string[] }
         Returns: boolean
