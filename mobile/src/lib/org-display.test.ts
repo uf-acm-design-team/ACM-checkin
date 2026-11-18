@@ -1,7 +1,7 @@
 // Plain hex strings to stand in for an org's branding; the adaptive colours aren't strings on iOS.
 import { lightColors as colors } from '@/theme';
 
-import { membershipProgress, orgAccent, roleLabel } from './org-display';
+import { membershipProgress, orgAccent, roleLabel, tint } from './org-display';
 
 describe('orgAccent', () => {
   it('reads the accent colour from branding', () => {
@@ -46,5 +46,16 @@ describe('roleLabel', () => {
   it('capitalises roles', () => {
     expect(roleLabel('officer')).toBe('Officer');
     expect(roleLabel('co-owner')).toBe('Co-Owner');
+  });
+});
+
+describe('tint', () => {
+  it('adds an alpha byte to a six-digit colour', () => {
+    expect(tint('#FA4616', 0.14)).toBe('#FA461624');
+    expect(tint('#FA4616', 1)).toBe('#FA4616ff');
+  });
+
+  it('expands a three-digit colour first', () => {
+    expect(tint('#abc', 0)).toBe('#aabbcc00');
   });
 });

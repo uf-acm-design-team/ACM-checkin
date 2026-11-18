@@ -15,6 +15,13 @@ export function orgAccent(branding: Json | null): string | null {
   return typeof accent === 'string' && HEX_COLOR.test(accent) ? accent : null;
 }
 
+// `hex` at `opacity` (0-1), as #rrggbbaa. For soft fills in an org's own colour.
+export function tint(hex: string, opacity: number): string {
+  const full = hex.length === 4 ? `#${hex[1]}${hex[1]}${hex[2]}${hex[2]}${hex[3]}${hex[3]}` : hex;
+  const alpha = Math.round(Math.min(Math.max(opacity, 0), 1) * 255).toString(16).padStart(2, '0');
+  return `${full}${alpha}`;
+}
+
 // The check-ins an org asks for before you count as a member, or null when it has no threshold.
 export function membershipThreshold(slug: string | null): number | null {
   return slug ? (MEMBERSHIP_THRESHOLDS[slug.toLowerCase()] ?? null) : null;

@@ -2,7 +2,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { BottomSheet } from '@/components/bottom-sheet';
-import { orgAccent } from '@/lib/org-display';
+import { orgAccent, tint } from '@/lib/org-display';
 import { eventCount, type ProfileBadge as Badge } from '@/lib/profile-badges';
 import { colors, radii, space } from '@/theme';
 
@@ -13,7 +13,8 @@ type Props = {
   onPress: () => void;
 };
 
-// One org's semester badge: filled with the org's colour once earned, greyed out until then.
+// One org's semester badge, always in the org's colour: solid once earned, a
+// light tint of it until then.
 export function ProfileBadge({ badge, inProgress, onPress }: Props) {
   const { org, count, threshold, earned } = badge;
   const accent = orgAccent(org.branding) ?? colors.accent;
@@ -28,9 +29,7 @@ export function ProfileBadge({ badge, inProgress, onPress }: Props) {
       accessibilityHint="Opens badge details"
       accessibilityLabel={`${name}: ${earned ? `earned, ${caption}` : `not earned, ${caption}`}`}
     >
-      <View style={[styles.circle, earned ? { backgroundColor: accent } : styles.circleGrey]}>
-        <Ionicons name="ribbon" size={26} color={earned ? colors.accentInk : colors.inkFaint} />
-      </View>
+      <BadgeCircle accent={accent} earned={earned} />
       <Text style={[styles.name, !earned && styles.nameMuted]} numberOfLines={1} ellipsizeMode="tail">
         {name}
       </Text>
@@ -46,6 +45,20 @@ export function ProfileBadge({ badge, inProgress, onPress }: Props) {
       ) : null}
       <Text style={styles.caption}>{caption}</Text>
     </Pressable>
+  );
+}
+
+function BadgeCircle({ accent, earned }: { accent: string; earned: boolean }) {
+  return (
+    <View
+      style={[
+        styles.circle,
+        earned ? { backgroundColor: accent } : { backgroundColor: tint(accent, 0.14), borderColor: tint(accent, 0.4) },
+        !earned && styles.circleOutline,
+      ]}
+    >
+      <Ionicons name="ribbon" size={26} color={earned ? colors.accentInk : accent} />
+    </View>
   );
 }
 
@@ -65,15 +78,7 @@ export function ProfileBadgeDetails({
       {badge ? (dismiss) => (
         <ScrollView contentContainerStyle={styles.sheetContent}>
           <View style={styles.sheetHeader}>
-            <View style={[styles.circle, badge.earned
-              ? { backgroundColor: orgAccent(badge.org.branding) ?? colors.accent }
-              : styles.circleGrey]}>
-              <Ionicons
-                name="ribbon"
-                size={26}
-                color={badge.earned ? colors.accentInk : colors.inkFaint}
-              />
-            </View>
+            <BadgeCircle accent={orgAccent(badge.org.branding) ?? colors.accent} earned={badge.earned} />
             <Pressable onPress={dismiss} accessibilityRole="button" hitSlop={8} style={styles.close}>
               <Text style={styles.closeText}>Close</Text>
             </Pressable>
@@ -154,10 +159,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderRadius: radii.pill,
   },
-  circleGrey: {
-    backgroundColor: colors.surfaceSunken,
-    borderColor: colors.line,
-    borderWidth: StyleSheet.hairlineWidth,
+  circleOutline: {
+    borderWidth: 1,
   },
   name: {
     maxWidth: '100%',
