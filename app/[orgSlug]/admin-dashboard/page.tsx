@@ -36,6 +36,11 @@ import {
   buildAttendanceCsv,
   downloadCsv,
 } from "@/lib/attendance-csv";
+import {
+  hasEnded,
+  nextMeeting as pickNextMeeting,
+  upcomingMeetings as sortedUpcoming,
+} from "@/lib/next-meeting";
 import { fetchOrgMembers, type OrgMember } from "@/lib/org-members";
 import {
   isMeetingOpen,
@@ -732,26 +737,11 @@ export default function AdminDashboard({
     onPoll: pollCheckIns,
   });
 
-  // "Upcoming" keys off end_time, not start_time: a meeting that is currently
-  // running is still upcoming as far as an officer is concerned -- people are
-  // checking into it. Keying off start_time filed in-progress meetings under
-  // "Past" the moment they began, which made a just-created meeting look like
-  // it had failed to save.
-  const meetingEnd = (m: Meeting) =>
-    new Date(m.end_time || m.start_time).getTime();
-
-  const upcomingMeetings = useMemo(
-    () =>
-      meetings
-        .filter((m) => meetingEnd(m) >= now)
-        .sort(
-          (a, b) =>
-            new Date(a.start_time).getTime() - new Date(b.start_time).getTime()
-        ),
-    [meetings, now]
-  );
+  // Upcoming / past / next follow the shared rules in lib/next-meeting, which
+  // the mobile Home screen uses too.
+  const upcomingMeetings = useMemo(() => sortedUpcoming(meetings, now), [meetings, now]);
   const pastMeetings = useMemo(
-    () => meetings.filter((m) => meetingEnd(m) < now),
+    () => meetings.filter((m) => hasEnded(m, now)),
     [meetings, now]
   );
 
@@ -762,18 +752,7 @@ export default function AdminDashboard({
         ? pastMeetings
         : meetings;
 
-  // The overview card answers "what is actually happening next", which is not
-  // the same question the Upcoming FILTER answers. A meeting an officer has
-  // closed is still legitimately listed under Upcoming -- it is on the calendar
-  // and can be reopened -- but it is not what the club does next, and surfacing
-  // it here meant a finished test meeting sat on the dashboard indefinitely,
-  // labelled "Closed" by the very card calling it the next meeting.
-  //
-  // Falls back to the first upcoming meeting when every one of them is closed,
-  // so the card degrades to the old behaviour rather than to an empty state
-  // that would read as "nothing scheduled" when something plainly is.
-  const nextMeeting =
-    upcomingMeetings.find((m) => m.status) ?? upcomingMeetings[0];
+  const nextMeeting = pickNextMeeting(meetings, now);
   const totalCheckIns = meetings.reduce((sum, m) => sum + m.attendance_count, 0);
   const activeMembers = members.filter((m) => m.status === "active");
   const officers = activeMembers.filter(
