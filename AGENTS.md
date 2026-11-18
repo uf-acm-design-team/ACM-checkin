@@ -143,9 +143,10 @@ After a schema change, regenerate the mobile types (`npm run gen:types` in
   to the root `package.json` (or the other way round).
 - Root `npm test` (Vitest) only covers `lib/**/*.test.ts`. Mobile tests run
   only with `npm test` inside `mobile/`.
-- Mobile CI (`.github/workflows/mobile.yml`) runs on changes to `mobile/**`
-  **and `app/globals.css`**, because a mobile test checks the theme tokens
-  against the web CSS. When you change a web color token, update
+- Mobile CI (`.github/workflows/mobile.yml`) runs on changes to `mobile/**`,
+  **`app/globals.css`** (a mobile test checks the theme tokens against the web
+  CSS) and **`supabase/functions/_shared/**`** (mobile imports the shared
+  semester rules from there). When you change a web color token, update
   `mobile/src/theme/tokens.ts` too.
 
 ### Demo and preview routes
