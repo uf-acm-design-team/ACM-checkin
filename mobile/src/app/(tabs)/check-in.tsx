@@ -6,7 +6,8 @@ import { ActivityIndicator, Linking, StyleSheet, Text, View } from 'react-native
 import { Button } from '@/components/button';
 import { Screen } from '@/components/screen';
 import { parseCheckinLink } from '@/lib/checkin-link';
-import { colors, radii, space } from '@/theme';
+import { haptic } from '@/lib/haptics';
+import { colors, lightColors, radii, space } from '@/theme';
 
 /** How long "This isn't a check-in code" stays up before scanning resumes. */
 const WRONG_CODE_MS = 2500;
@@ -57,10 +58,12 @@ function Scanner({ active }: { active: boolean }) {
 
     const orgSlug = parseCheckinLink(data);
     if (orgSlug) {
+      haptic.scan();
       router.push({ pathname: '/checkin/[orgSlug]', params: { orgSlug } });
       return; // stays busy until the user comes back to this tab
     }
 
+    haptic.error();
     setWrongCode(true);
     wrongCodeTimer.current = setTimeout(() => {
       setWrongCode(false);
@@ -147,7 +150,8 @@ const styles = StyleSheet.create({
   },
   cameraScreen: {
     flex: 1,
-    backgroundColor: colors.ink,
+    // Black behind the camera in both themes.
+    backgroundColor: lightColors.ink,
   },
   overlay: {
     flex: 1,
@@ -165,7 +169,7 @@ const styles = StyleSheet.create({
   frame: {
     width: 240,
     height: 240,
-    borderColor: colors.accentInk,
+    borderColor: colors.accent,
     borderWidth: 3,
     borderRadius: radii.panel,
   },

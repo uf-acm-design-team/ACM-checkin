@@ -71,14 +71,16 @@ describe("buildOrgMemberRoster", () => {
     ]);
   });
 
-  it("orgs without a configured threshold never auto-promote pure attendance to active", () => {
+  it("an org with no override promotes attendance at the default threshold, like ACM", () => {
     const attendees = [
       { id: "a1", user_id: null, first_name: "Guest", last_name: "Three", email: "g3@x.com", grad_year: "2028" },
+      { id: "a2", user_id: null, first_name: "Guest", last_name: "Two", email: "g2@x.com", grad_year: "2028" },
     ];
-    const roster = buildOrgMemberRoster(attendees, { a1: 99 }, [], "nope");
-    expect(roster).toEqual([
-      expect.objectContaining({ status: "pending" }),
-    ]);
+    const roster = buildOrgMemberRoster(attendees, { a1: 3, a2: 2 }, [], "nope");
+    expect(roster).toEqual(expect.arrayContaining([
+      expect.objectContaining({ attendee_id: "a1", status: "active" }),
+      expect.objectContaining({ attendee_id: "a2", status: "pending" }),
+    ]));
   });
 
   it("sorts officer -> signed in -> everyone else, alphabetically within each tier", () => {

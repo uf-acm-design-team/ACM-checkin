@@ -6,10 +6,13 @@ import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 
 import { PlaceholderScreen } from '@/components/screen';
+import { applySavedTheme } from '@/lib/theme-preference';
 import { env } from '@/lib/env';
 import { ProfileStatusProvider, useProfileStatus } from '@/lib/profile-status';
 
 SplashScreen.preventAutoHideAsync();
+// Before anything draws, so the app opens in the theme the user picked.
+applySavedTheme();
 
 export default function RootLayout() {
   if (!env.clerkPublishableKey) {
@@ -21,7 +24,7 @@ export default function RootLayout() {
     // signed-in user stays signed in across app restarts.
     <ClerkProvider publishableKey={env.clerkPublishableKey} tokenCache={tokenCache}>
       <ProfileStatusProvider>
-        <StatusBar style="dark" />
+        <StatusBar style="auto" />
         <RootNavigator />
       </ProfileStatusProvider>
     </ClerkProvider>
@@ -52,6 +55,9 @@ function RootNavigator() {
       <Stack.Protected guard={status === 'complete'}>
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="checkin/[orgSlug]" />
+        <Stack.Screen name="org/[orgSlug]" />
+        <Stack.Screen name="profile" />
+        <Stack.Screen name="settings" />
       </Stack.Protected>
       <Stack.Protected guard={status === 'missing'}>
         <Stack.Screen name="onboarding" />

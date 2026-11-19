@@ -1,12 +1,12 @@
 import { describe, it, expect } from "vitest";
-import { membershipThreshold, resolveMembership } from "./membership";
+import { DEFAULT_MEMBERSHIP_THRESHOLD, membershipThreshold, resolveMembership } from "./membership";
 
 describe("membershipThreshold", () => {
   it("returns per-org threshold", () => expect(membershipThreshold("ACM")).toBe(3));
   it("matches the lowercase slug stored in the DB", () =>
     expect(membershipThreshold("acm")).toBe(3));
-  it("returns null (no gate) for an unconfigured org", () =>
-    expect(membershipThreshold("nope")).toBeNull());
+  it("gives an org with no override the default, so a new org works like the rest", () =>
+    expect(membershipThreshold("nope")).toBe(DEFAULT_MEMBERSHIP_THRESHOLD));
 });
 
 describe("resolveMembership", () => {
@@ -23,14 +23,16 @@ describe("resolveMembership", () => {
       .toEqual({ threshold: 3, isMember: false, remaining: 2 });
   });
 
-  describe("org without a configured threshold (null)", () => {
-    it("a bare attendance count never grants membership", () => {
-      expect(resolveMembership(null, null, 99, "nope"))
-        .toEqual({ threshold: null, isMember: false, remaining: 0 });
+  describe("org with no override (the default threshold)", () => {
+    it("counts toward membership like any other org", () => {
+      expect(resolveMembership(null, "pending", 2, "nope"))
+        .toEqual({ threshold: 3, isMember: false, remaining: 1 });
+      expect(resolveMembership(null, "pending", 3, "nope"))
+        .toEqual({ threshold: 3, isMember: true, remaining: 0 });
     });
     it("an explicit active status still grants membership", () => {
       expect(resolveMembership(null, "active", 0, "nope"))
-        .toEqual({ threshold: null, isMember: true, remaining: 0 });
+        .toEqual({ threshold: 3, isMember: true, remaining: 3 });
     });
   });
 });
