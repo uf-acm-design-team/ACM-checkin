@@ -104,8 +104,13 @@ function Day({ cell, selected, onPress }: { cell: CalendarDay; selected: boolean
       accessibilityLabel={cell.isToday ? `Today, ${label}` : label}
       style={styles.dayStack}
     >
-      {/* Rings sit outside a filled day, with a gap, so the org colour still shows. */}
-      <View style={[styles.ring, filled && (cell.isToday ? styles.todayRing : selected && styles.selectedRing)]}>
+      <View>
+        {/* Rings sit outside a filled day, with a gap, so the org colour still
+            shows. Drawn over the day rather than around it, so they don't
+            widen it: a wider day made the grid wrap after six. */}
+        {filled && (cell.isToday || selected) ? (
+          <View pointerEvents="none" style={[styles.ring, cell.isToday ? styles.todayRing : styles.selectedRing]} />
+        ) : null}
         <View
           style={[
             styles.day,
@@ -241,9 +246,12 @@ const styles = StyleSheet.create({
     opacity: 0.4,
   },
   ring: {
-    padding: 2,
+    position: 'absolute',
+    top: -4,
+    left: -4,
+    right: -4,
+    bottom: -4,
     borderWidth: 2,
-    borderColor: 'transparent',
     borderRadius: DAY_SIZE,
   },
   todayRing: {
