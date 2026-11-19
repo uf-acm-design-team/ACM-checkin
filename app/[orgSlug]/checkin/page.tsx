@@ -546,16 +546,16 @@ export default function CheckinPage({
       });
 
       if (result.ok) {
+        if (result.alreadyCheckedIn) {
+          setView({ kind: "already" });
+          return;
+        }
         await succeed(null);
         return;
       }
       if (handleServerGeo(result.geo)) return;
       if (result.error === "NEEDS_PROFILE") {
         setStep("profile");
-        return;
-      }
-      if (/already checked in/i.test(result.error)) {
-        setView({ kind: "already" });
         return;
       }
       if (/password/i.test(result.error)) {
@@ -675,7 +675,6 @@ export default function CheckinPage({
     return (
       <AlreadyCheckedInState
         meetingTitle={activeMeeting?.title ?? "this meeting"}
-        at={fmtTime(new Date().toISOString())}
         onStats={user ? () => router.push(`/${orgSlug}/stats`) : undefined}
       />
     );

@@ -214,3 +214,32 @@ Tell a lead immediately. Don't try to "fix" it with `git push --force` — the s
 - **Schema design questions?** All three leads — coordinate before adding new tables.
 - **Clerk-specific questions?** [Clerk docs](https://clerk.com/docs) are excellent.
 - **Supabase CLI questions?** [Supabase local dev docs](https://supabase.com/docs/guides/local-development).
+
+## 11. Web check-in device limit
+
+Each browser can record one attendee per meeting, across both guest and signed-in
+web check-in. Other browsers on the same campus Wi-Fi have independent limits.
+A retry by the same attendee reports "already checked in"; another attendee on
+that browser receives "This device has already checked in for this meeting."
+The device can check in at other meetings.
+
+The check-in page GET establishes a one-year, HttpOnly, SameSite=Lax cookie
+(also Secure in production). It is an opaque UUID signed using the existing
+server-only SUPABASE_SERVICE_ROLE_KEY; no extra environment variable is needed.
+POSTs never issue identities. Missing or invalid cookies require a page reload.
+The five-attempts-per-minute guest throttle now uses device and email keys,
+rather than a shared IP key. This throttle is still per server instance.
+
+Apply migration 20261117000000_attendance_device_limit.sql before deploying
+the updated actions. Its unique (meeting_id, device_id) index enforces the limit
+across instances and simultaneous submissions. Only successful attendance
+inserts consume the device: profile prompts, wrong passwords, invalid answers,
+location failures and database errors do not. Existing attendance has NULL
+device_id, so it is not retroactively associated with a browser.
+
+This is a browser-level deterrent, not hardware identification. Clearing
+cookies, private browsing, another browser, or rotating the signing key can
+create a new identity. Existing native app, officer and direct database callers
+that do not supply device_id retain their current behavior; this change covers
+the two web server actions. After applying the migration locally, regenerate
+the mobile database types with npm run gen:types in mobile/.
