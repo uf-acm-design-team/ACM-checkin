@@ -1,8 +1,6 @@
 import type { Json } from '@/lib/supabase';
 
-const MEMBERSHIP_THRESHOLDS: Record<string, number> = {
-  acm: 3,
-};
+import { resolveMembership } from '../../../supabase/functions/_shared/membership';
 
 const HEX_COLOR = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
 
@@ -26,10 +24,8 @@ export function membershipProgress(
   attended: number,
   status: string | null,
 ): MembershipProgress {
-  const threshold = slug ? (MEMBERSHIP_THRESHOLDS[slug.toLowerCase()] ?? null) : null;
-  const meetsThreshold = threshold !== null && attended >= threshold;
-  const isMember = status === 'active' || meetsThreshold;
-  const remaining = threshold === null ? 0 : Math.max(threshold - attended, 0);
+  if (!slug) return { threshold: null, attended, remaining: 0, isMember: status === 'active' };
+  const { threshold, remaining, isMember } = resolveMembership(null, status, attended, slug);
   return { threshold, attended, remaining, isMember };
 }
 
