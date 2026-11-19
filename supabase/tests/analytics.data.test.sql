@@ -1,15 +1,9 @@
 BEGIN;
 
-SELECT plan(2);
+SELECT plan(4);
 
 
--- temporarily remove officer check
-CREATE OR REPLACE FUNCTION public.is_org_officer(p_org_id uuid)
-RETURNS boolean
-LANGUAGE sql
-AS $$
-    SELECT true;
-$$;
+
 
 
 -- 1. Create a temporary table to store our generated UUIDs for easy reference
@@ -156,6 +150,35 @@ WHERE m.idx BETWEEN 1 AND 10;
 -- ============================================================================
 -- 6. pgTAP Assertions
 -- ============================================================================
+
+-- Test 1: check role based access works
+SELECT throws_ok(
+  $$ SELECT public.get_org_attendance_by_meeting('00000000-0000-0000-0000-000000000000'::uuid,
+  NULL::timestamptz,
+  NULL::timestamptz) 
+  $$,
+  'P0001',
+  'Unauthorized',
+  'Throws Unauthorized when caller is not an org officer'
+);
+SELECT throws_ok(
+  $$ SELECT public.get_org_retention_by_meeting('00000000-0000-0000-0000-000000000000'::uuid,
+  NULL::timestamptz,
+  NULL::timestamptz) 
+  $$,
+  'P0001',
+  'Unauthorized',
+  'Throws Unauthorized when caller is not an org officer'
+);
+
+-- temporarily remove officer check
+CREATE OR REPLACE FUNCTION public.is_org_officer(p_org_id uuid)
+RETURNS boolean
+LANGUAGE sql
+AS $$
+    SELECT true;
+$$;
+
 
 -- Test 1: Verify get_org_attendance_by_meeting
 SELECT results_eq(
