@@ -1,7 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
 import { Tabs } from 'expo-router';
-import { useEffect, useState, type ComponentProps } from 'react';
+import { useEffect, useMemo, useState, type ComponentProps, type ReactNode } from 'react';
 import {
   Animated,
   Easing,
@@ -13,9 +13,12 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 
+import { usePager } from '@/components/swipe-tabs';
 import { haptic } from '@/lib/haptics';
 import { useReducedMotion } from '@/lib/reduced-motion';
+import { footerToPage } from '@/lib/swipe-tabs';
 import { colors, radii, space } from '@/theme';
 
 type IconName = ComponentProps<typeof Ionicons>['name'];
@@ -91,6 +94,32 @@ export function GlassTabBar({ state, descriptors, navigateToTab, insets }: Botto
     return () => animation.stop();
   }, [focusedIndex, tabWidth, reduced, slide, pop]);
 
+  // The highlight also follows a swipe: dragging the pages one page moves it
+  // one tab the other way. And dragging along the footer itself swipes the
+  // pages, taking priority over the page swipe while your finger is on it.
+  const pager = usePager();
+  const highlightX =
+    pager && tabWidth > 0
+      ? Animated.add(
+          slide,
+          pager.drag.interpolate({
+            inputRange: [-pager.width, 0, pager.width],
+            outputRange: [tabWidth, 0, -tabWidth],
+          }),
+        )
+      : slide;
+  const footerPan = useMemo(() => {
+    if (!pager || tabWidth <= 0) return null;
+    const toPage = (dx: number) => footerToPage(dx, tabWidth, pager.width);
+    return Gesture.Pan()
+      .runOnJS(true)
+      .activeOffsetX([-8, 8])
+      .failOffsetY([-20, 20])
+      .blocksExternalGesture(pager.pagePan)
+      .onUpdate((event) => pager.follow(toPage(event.translationX)))
+      .onEnd((event) => pager.release(toPage(event.translationX), toPage(event.velocityX)));
+  }, [pager, tabWidth]);
+
   // The purple flood: a circle centred on the Check in button, big enough to
   // cover the screen from there.
   const bottom = Math.max(insets.bottom, space[3]);
@@ -159,35 +188,37 @@ export function GlassTabBar({ state, descriptors, navigateToTab, insets }: Botto
         </Pressable>
       ) : (
         <View style={[styles.bar, { bottom }]} accessibilityRole="tablist">
-          <GlassView
-            style={styles.pill}
-            isInteractive
-            onLayout={(event) => setPillWidth(event.nativeEvent.layout.width)}
-          >
-            {tabWidth > 0 && focusedIndex >= 0 ? (
-              <Animated.View
-                style={[styles.highlight, { width: tabWidth, transform: [{ translateX: slide }] }]}
-              />
-            ) : null}
-            {pillTabs.map(({ route, focused, label }) => (
-              <Pressable
-                key={route.key}
-                onPress={() => {
-                  if (!focused) haptic.tick();
-                  navigateToTab(route.key);
-                }}
-                accessibilityRole="tab"
-                accessibilityState={{ selected: focused }}
-                accessibilityLabel={label}
-                style={styles.tab}
-              >
-                <Animated.View style={focused ? { transform: [{ scale: pop }] } : undefined}>
-                  <Ionicons name={ICONS[route.name]} size={22} color={focused ? colors.accent : colors.inkMuted} />
-                </Animated.View>
-                <Text style={[styles.label, focused && styles.labelFocused]}>{label}</Text>
-              </Pressable>
-            ))}
-          </GlassView>
+          <FooterDrag gesture={footerPan}>
+            <GlassView
+              style={styles.pill}
+              isInteractive
+              onLayout={(event) => setPillWidth(event.nativeEvent.layout.width)}
+            >
+              {tabWidth > 0 && focusedIndex >= 0 ? (
+                <Animated.View
+                  style={[styles.highlight, { width: tabWidth, transform: [{ translateX: highlightX }] }]}
+                />
+              ) : null}
+              {pillTabs.map(({ route, focused, label }) => (
+                <Pressable
+                  key={route.key}
+                  onPress={() => {
+                    if (!focused) haptic.tick();
+                    navigateToTab(route.key);
+                  }}
+                  accessibilityRole="tab"
+                  accessibilityState={{ selected: focused }}
+                  accessibilityLabel={label}
+                  style={styles.tab}
+                >
+                  <Animated.View style={focused ? { transform: [{ scale: pop }] } : undefined}>
+                    <Ionicons name={ICONS[route.name]} size={22} color={focused ? colors.accent : colors.inkMuted} />
+                  </Animated.View>
+                  <Text style={[styles.label, focused && styles.labelFocused]}>{label}</Text>
+                </Pressable>
+              ))}
+            </GlassView>
+          </FooterDrag>
           {checkIn ? (
             <Pressable
               onPress={openScanner}
@@ -219,6 +250,11 @@ export function GlassTabBar({ state, descriptors, navigateToTab, insets }: Botto
       />
     </View>
   );
+}
+
+/** Drag along the footer to swipe between tabs. Taps still go to the tabs. */
+function FooterDrag({ gesture, children }: { gesture: ReturnType<typeof Gesture.Pan> | null; children: ReactNode }) {
+  return gesture ? <GestureDetector gesture={gesture}>{children}</GestureDetector> : children;
 }
 
 const styles = StyleSheet.create({

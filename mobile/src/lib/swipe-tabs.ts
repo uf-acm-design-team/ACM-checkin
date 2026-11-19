@@ -19,3 +19,24 @@ export function swipeTarget(current: string, translationX: number, velocityX: nu
   const next = translationX < 0 ? index + 1 : index - 1;
   return SWIPE_TABS[next] ?? null;
 }
+
+/**
+ * How far the pages follow a drag on `current`: only toward a neighbouring
+ * tab, and never more than one page. Anything else (the scanner, an unknown
+ * tab) doesn't move.
+ */
+export function clampDrag(current: string, translationX: number, width: number): number {
+  const index = SWIPE_TABS.findIndex((name) => name === current);
+  if (index < 0) return 0;
+  const min = index < SWIPE_TABS.length - 1 ? -width : 0;
+  const max = index > 0 ? width : 0;
+  return Math.min(Math.max(translationX, min), max);
+}
+
+/**
+ * A drag on the footer, turned into the matching page drag. Moving the
+ * highlight one tab to the right moves the pages one page to the left.
+ */
+export function footerToPage(translationX: number, tabWidth: number, width: number): number {
+  return tabWidth > 0 ? (-translationX * width) / tabWidth : 0;
+}
