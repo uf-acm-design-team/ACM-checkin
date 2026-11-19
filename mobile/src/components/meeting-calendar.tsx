@@ -1,5 +1,5 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useState, type ReactNode } from 'react';
 import { Animated, Easing, Pressable, StyleSheet, Text, useAnimatedValue, View } from 'react-native';
 
 import { haptic } from '@/lib/haptics';
@@ -37,16 +37,38 @@ export function MeetingCalendar({
   selectedDay,
   onSelectDay,
 }: Props) {
+  const reduced = useReducedMotion();
   const cells = monthGrid(month, meetings, now);
-  // Which way the month moved, so the new one slides in from that side:
-  // 1 = later (from the right), -1 = earlier, 0 = first showing (no slide).
+  // Changing month pushes the old one off one side as the new one comes in
+  // from the other, like turning a page: 1 = later (from the right), -1 = earlier.
   const [shown, setShown] = useState(month);
   const [direction, setDirection] = useState(0);
+  const [leaving, setLeaving] = useState<{ key: string; cells: (CalendarDay | null)[] } | null>(null);
   if (shown.year !== month.year || shown.month !== month.month) {
     setDirection(month.year * 12 + month.month > shown.year * 12 + shown.month ? 1 : -1);
+    setLeaving(reduced ? null : { key: `${shown.year}-${shown.month}`, cells: monthGrid(shown, meetings, now) });
     setShown(month);
   }
   const monthKey = `${month.year}-${month.month}`;
+
+  const [width, setWidth] = useState(0);
+  const push = useAnimatedValue(1);
+  // Before paint, so the new month never flashes in its final spot first.
+  useLayoutEffect(() => {
+    if (!leaving || width === 0) return;
+    push.setValue(0);
+    const animation = Animated.timing(push, {
+      toValue: 1,
+      duration: 340,
+      easing: Easing.bezier(0.3, 0.7, 0.2, 1),
+      useNativeDriver: true,
+    });
+    animation.start(({ finished }) => finished && setLeaving(null));
+    return () => animation.stop();
+  }, [leaving, width, push]);
+  const slide = (from: number, to: number) => ({
+    transform: [{ translateX: push.interpolate({ inputRange: [0, 1], outputRange: [from * width, to * width] }) }],
+  });
   // The org colour key, only when more than one org is on the calendar.
   const orgKey = [
     ...new Map(
@@ -71,23 +93,30 @@ export function MeetingCalendar({
           </View>
         ))}
       </View>
-      {/* Keyed by month, so changing month slides the new days in and pops their dots. */}
-      <MonthSlide key={monthKey} direction={direction} distance={28} style={styles.grid}>
-        {cells.map((cell, index) => (
-          <View key={cell ? `day-${cell.day}` : `blank-${index}`} style={styles.cell}>
-            {cell ? (
-              <Day
-                cell={cell}
-                selected={cell.day === selectedDay}
-                onPress={() => {
-                  haptic.tick();
-                  onSelectDay(cell.day);
-                }}
-              />
-            ) : null}
-          </View>
-        ))}
-      </MonthSlide>
+      <View style={styles.viewport} onLayout={(event) => setWidth(event.nativeEvent.layout.width)}>
+        <Animated.View key={monthKey} style={[styles.grid, leaving ? slide(direction, 0) : null]}>
+          <DaysGrid
+            cells={cells}
+            selectedDay={selectedDay}
+            onSelectDay={(day) => {
+              haptic.tick();
+              onSelectDay(day);
+            }}
+          />
+        </Animated.View>
+        {leaving ? (
+          // The month you left, on its way out. Not tappable or read out.
+          <Animated.View
+            key={leaving.key}
+            pointerEvents="none"
+            accessibilityElementsHidden
+            importantForAccessibility="no-hide-descendants"
+            style={[styles.grid, styles.leaving, slide(0, -direction)]}
+          >
+            <DaysGrid cells={leaving.cells} selectedDay={null} />
+          </Animated.View>
+        ) : null}
+      </View>
 
       <View style={styles.legend}>
         <LegendItem dot={{ color: colors.inkMuted, status: 'attended' }} label="Checked in" />
@@ -103,6 +132,24 @@ export function MeetingCalendar({
       ) : null}
     </View>
   );
+}
+
+function DaysGrid({
+  cells,
+  selectedDay,
+  onSelectDay,
+}: {
+  cells: (CalendarDay | null)[];
+  selectedDay: number | null;
+  onSelectDay?: (day: number) => void;
+}) {
+  return cells.map((cell, index) => (
+    <View key={cell ? `day-${cell.day}` : `blank-${index}`} style={styles.cell}>
+      {cell ? (
+        <Day cell={cell} selected={cell.day === selectedDay} onPress={() => onSelectDay?.(cell.day)} />
+      ) : null}
+    </View>
+  ));
 }
 
 /** Slides its children in from `direction`'s side and fades them in, once, on mount. */
@@ -200,27 +247,11 @@ function Day({ cell, selected, onPress }: { cell: CalendarDay; selected: boolean
       </Animated.View>
       <View style={styles.dots}>
         {cell.dots.slice(0, MAX_DOTS).map((dot, index) => (
-          // Dots pop in across the month, a day at a time.
-          <PopIn key={index} delay={Math.min(cell.day * 12 + index * 40, 450)}>
-            <Dot dot={dot} />
-          </PopIn>
+          <Dot key={index} dot={dot} />
         ))}
       </View>
     </Pressable>
   );
-}
-
-/** Grows its child in from nothing, once, on mount. */
-function PopIn({ delay, children }: { delay: number; children: ReactNode }) {
-  const reduced = useReducedMotion();
-  const grow = useAnimatedValue(reduced ? 1 : 0);
-  useEffect(() => {
-    if (reduced) return;
-    const animation = Animated.spring(grow, { toValue: 1, delay, speed: 14, bounciness: 10, useNativeDriver: true });
-    animation.start();
-    return () => animation.stop();
-  }, [reduced, delay, grow]);
-  return <Animated.View style={{ transform: [{ scale: grow }] }}>{children}</Animated.View>;
 }
 
 function Dot({ dot: { color, status } }: { dot: CalendarDot }) {
@@ -309,6 +340,15 @@ const styles = StyleSheet.create({
     color: colors.inkFaint,
     fontSize: 12,
     fontWeight: '600',
+  },
+  viewport: {
+    overflow: 'hidden',
+  },
+  leaving: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
   },
   dayStack: {
     alignItems: 'center',
