@@ -1,7 +1,9 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useState, type ReactNode } from 'react';
+import { Animated, Easing, Pressable, StyleSheet, Text, useAnimatedValue, View } from 'react-native';
 
 import { haptic } from '@/lib/haptics';
+import { useReducedMotion } from '@/lib/reduced-motion';
 import { monthGrid, monthLabel, type CalendarDay, type CalendarDot } from '@/lib/calendar';
 import type { YearMonth } from '@/lib/terms';
 import { colors, radii, space } from '@/theme';
@@ -36,6 +38,15 @@ export function MeetingCalendar({
   onSelectDay,
 }: Props) {
   const cells = monthGrid(month, meetings, now);
+  // Which way the month moved, so the new one slides in from that side:
+  // 1 = later (from the right), -1 = earlier, 0 = first showing (no slide).
+  const [shown, setShown] = useState(month);
+  const [direction, setDirection] = useState(0);
+  if (shown.year !== month.year || shown.month !== month.month) {
+    setDirection(month.year * 12 + month.month > shown.year * 12 + shown.month ? 1 : -1);
+    setShown(month);
+  }
+  const monthKey = `${month.year}-${month.month}`;
   // The org colour key, only when more than one org is on the calendar.
   const orgKey = [
     ...new Map(
@@ -47,7 +58,9 @@ export function MeetingCalendar({
     <View style={styles.card}>
       <View style={styles.monthRow}>
         <MonthArrow icon="chevron-back" label="Previous month" enabled={canGoBack} onPress={() => onMove(-1)} />
-        <Text style={styles.monthLabel}>{monthLabel(month)}</Text>
+        <MonthSlide key={monthKey} direction={direction} distance={12}>
+          <Text style={styles.monthLabel}>{monthLabel(month)}</Text>
+        </MonthSlide>
         <MonthArrow icon="chevron-forward" label="Next month" enabled={canGoForward} onPress={() => onMove(1)} />
       </View>
 
@@ -57,6 +70,9 @@ export function MeetingCalendar({
             <Text style={styles.weekday}>{weekday}</Text>
           </View>
         ))}
+      </View>
+      {/* Keyed by month, so changing month slides the new days in and pops their dots. */}
+      <MonthSlide key={monthKey} direction={direction} distance={28} style={styles.grid}>
         {cells.map((cell, index) => (
           <View key={cell ? `day-${cell.day}` : `blank-${index}`} style={styles.cell}>
             {cell ? (
@@ -71,7 +87,7 @@ export function MeetingCalendar({
             ) : null}
           </View>
         ))}
-      </View>
+      </MonthSlide>
 
       <View style={styles.legend}>
         <LegendItem dot={{ color: colors.inkMuted, status: 'attended' }} label="Checked in" />
@@ -89,7 +105,57 @@ export function MeetingCalendar({
   );
 }
 
+/** Slides its children in from `direction`'s side and fades them in, once, on mount. */
+function MonthSlide({
+  direction,
+  distance,
+  style,
+  children,
+}: {
+  direction: number;
+  distance: number;
+  style?: object;
+  children: ReactNode;
+}) {
+  const reduced = useReducedMotion();
+  const enter = useAnimatedValue(direction === 0 || reduced ? 1 : 0);
+  useEffect(() => {
+    if (direction === 0 || reduced) return;
+    const animation = Animated.timing(enter, {
+      toValue: 1,
+      duration: 260,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    });
+    animation.start();
+    return () => animation.stop();
+  }, [direction, reduced, enter]);
+  return (
+    <Animated.View
+      style={[
+        style,
+        {
+          opacity: enter,
+          transform: [{ translateX: enter.interpolate({ inputRange: [0, 1], outputRange: [direction * distance, 0] }) }],
+        },
+      ]}
+    >
+      {children}
+    </Animated.View>
+  );
+}
+
 function Day({ cell, selected, onPress }: { cell: CalendarDay; selected: boolean; onPress: () => void }) {
+  const reduced = useReducedMotion();
+  // A tapped day dips and springs back.
+  const pop = useAnimatedValue(1);
+  useEffect(() => {
+    if (!selected || reduced) return;
+    pop.setValue(0.82);
+    const animation = Animated.spring(pop, { toValue: 1, speed: 18, bounciness: 12, useNativeDriver: true });
+    animation.start();
+    return () => animation.stop();
+  }, [selected, reduced, pop]);
   const label = cell.status
     ? `${cell.day}: ${cell.titles.join(', ')}, ${STATUS_TEXT[cell.status]}`
     : String(cell.day);
@@ -104,7 +170,7 @@ function Day({ cell, selected, onPress }: { cell: CalendarDay; selected: boolean
       accessibilityLabel={cell.isToday ? `Today, ${label}` : label}
       style={styles.dayStack}
     >
-      <View>
+      <Animated.View style={{ transform: [{ scale: pop }] }}>
         {/* Rings sit outside a filled day, with a gap, so the org colour still
             shows. Drawn over the day rather than around it, so they don't
             widen it: a wider day made the grid wrap after six. */}
@@ -131,14 +197,30 @@ function Day({ cell, selected, onPress }: { cell: CalendarDay; selected: boolean
             {cell.day}
           </Text>
         </View>
-      </View>
+      </Animated.View>
       <View style={styles.dots}>
         {cell.dots.slice(0, MAX_DOTS).map((dot, index) => (
-          <Dot key={index} dot={dot} />
+          // Dots pop in across the month, a day at a time.
+          <PopIn key={index} delay={Math.min(cell.day * 12 + index * 40, 450)}>
+            <Dot dot={dot} />
+          </PopIn>
         ))}
       </View>
     </Pressable>
   );
+}
+
+/** Grows its child in from nothing, once, on mount. */
+function PopIn({ delay, children }: { delay: number; children: ReactNode }) {
+  const reduced = useReducedMotion();
+  const grow = useAnimatedValue(reduced ? 1 : 0);
+  useEffect(() => {
+    if (reduced) return;
+    const animation = Animated.spring(grow, { toValue: 1, delay, speed: 14, bounciness: 10, useNativeDriver: true });
+    animation.start();
+    return () => animation.stop();
+  }, [reduced, delay, grow]);
+  return <Animated.View style={{ transform: [{ scale: grow }] }}>{children}</Animated.View>;
 }
 
 function Dot({ dot: { color, status } }: { dot: CalendarDot }) {
