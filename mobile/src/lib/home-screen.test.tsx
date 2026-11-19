@@ -155,3 +155,16 @@ it('shows the checked-in strip and reads it out', async () => {
   expect(await screen.findByText('Checked in today')).toBeTruthy();
   expect(screen.getByLabelText('ACM, Officer, 2 check-ins, Checked in today, No meetings scheduled')).toBeTruthy();
 });
+
+it('shows card-shaped placeholders while loading, then the cards', async () => {
+  let finish: (orgs: HomeOrg[]) => void = () => {};
+  mockGetMyHomeOrgs.mockReturnValue(new Promise<HomeOrg[]>((resolve) => (finish = resolve)));
+  await render(<HomeScreen />);
+
+  expect(screen.getByLabelText('Loading your orgs')).toBeTruthy();
+  expect(screen.queryByText('ACM')).toBeNull();
+
+  await act(async () => finish([acm]));
+  expect(await screen.findByText('ACM')).toBeTruthy();
+  expect(screen.queryByLabelText('Loading your orgs')).toBeNull();
+});

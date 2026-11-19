@@ -3,7 +3,6 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { router } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
-  ActivityIndicator,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -15,11 +14,13 @@ import {
 import { AnimatedListHeight } from '@/components/animated-list-height';
 import { Avatar } from '@/components/avatar';
 import { Button } from '@/components/button';
+import { FadeIn } from '@/components/fade-in';
 import { FindOrgsSheet } from '@/components/find-orgs-sheet';
 import { ProfileBadge, ProfileBadgeDetails } from '@/components/profile-badge';
 import { ProfileOrgRow } from '@/components/profile-org-row';
 import { Screen } from '@/components/screen';
 import { SemesterPicker } from '@/components/semester-picker';
+import { BadgesSkeleton, RowsSkeleton, Skeleton } from '@/components/skeleton';
 import { orgActivity, semesterProfile } from '@/lib/profile-badges';
 import { getMyProfile, useSupabase, type MyProfile } from '@/lib/supabase';
 import { academicYearTerms, getTerm, type Term } from '@/lib/terms';
@@ -104,10 +105,10 @@ export default function ProfileScreen() {
   let body: ReactNode;
   if (state.status === 'loading') {
     body = (
-      <View style={styles.centered}>
-        <ActivityIndicator color={colors.accent} />
-        <Text style={styles.muted}>Loading your profile…</Text>
-      </View>
+      <Skeleton label="Loading your profile">
+        <BadgesSkeleton />
+        <RowsSkeleton count={3} />
+      </Skeleton>
     );
   } else if (state.status === 'error') {
     body = (
@@ -242,7 +243,8 @@ export default function ProfileScreen() {
           </View>
         </View>
 
-        {body}
+        {/* The loaded profile fades in over the placeholders. */}
+        {state.status === 'ready' ? <FadeIn style={styles.loaded}>{body}</FadeIn> : body}
       </ScrollView>
       <FindOrgsSheet open={findingOrgs} myOrgIds={myOrgIds} onClose={() => setFindingOrgs(false)} />
       <ProfileBadgeDetails
@@ -270,6 +272,7 @@ function TextLink({ expanded, label, onPress }: { expanded: boolean; label: stri
 }
 
 const styles = StyleSheet.create({
+  loaded: { gap: space[6] },
   content: {
     flexGrow: 1,
     gap: space[6],
@@ -297,12 +300,6 @@ const styles = StyleSheet.create({
     color: colors.accent,
     fontSize: 15,
     fontWeight: '600',
-  },
-  centered: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: space[3],
   },
   header: {
     flexDirection: 'row',

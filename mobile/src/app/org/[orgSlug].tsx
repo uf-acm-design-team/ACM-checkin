@@ -1,7 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
+import { FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
 
 import { Button } from '@/components/button';
 import { FadeIn } from '@/components/fade-in';
@@ -12,6 +12,7 @@ import { MembershipProgress } from '@/components/membership-progress';
 import { NextMeeting } from '@/components/next-meeting';
 import { Screen } from '@/components/screen';
 import { SemesterPicker } from '@/components/semester-picker';
+import { RowsSkeleton, Skeleton, Bone } from '@/components/skeleton';
 import { ViewSwitch } from '@/components/view-switch';
 import { addMonths } from '@/lib/calendar';
 import { daysAway, nextMeeting } from '@/lib/meeting-details';
@@ -202,17 +203,6 @@ export default function OrgHistoryScreen() {
     setReloadKey((key) => key + 1);
   }, []);
 
-  if (state.status === 'loading') {
-    return (
-      <Screen>
-        <View style={styles.centered}>
-          <ActivityIndicator color={colors.accent} />
-          <Text style={styles.muted}>Loading your check-ins…</Text>
-        </View>
-      </Screen>
-    );
-  }
-
   const attended =
     state.status === 'ready' ? state.meetings.filter((meeting) => meeting.attended) : [];
   const liveById = new Map(
@@ -246,8 +236,15 @@ export default function OrgHistoryScreen() {
               </Pressable>
               <SemesterPicker terms={terms} selected={term} onSelect={selectTerm} />
             </View>
-            {state.status === 'ready' ? (
-              <>
+            {state.status === 'loading' ? (
+              <Skeleton label="Loading your check-ins">
+                <Bone width="50%" height={24} />
+                <Bone width="40%" height={14} />
+                <Bone height={56} />
+                <Bone height={36} round />
+              </Skeleton>
+            ) : state.status === 'ready' ? (
+              <FadeIn style={styles.loaded}>
                 <Text style={styles.title}>{state.orgName}</Text>
                 <Text style={styles.muted}>
                   {attended.length} {attended.length === 1 ? 'check-in' : 'check-ins'} in {term.label}
@@ -256,7 +253,7 @@ export default function OrgHistoryScreen() {
                   <MembershipProgress progress={state.progress} accent={state.accent} />
                 </View>
                 <ViewSwitch options={VIEWS} value={view} onChange={setView} />
-              </>
+              </FadeIn>
             ) : null}
           </View>
         }
@@ -264,7 +261,11 @@ export default function OrgHistoryScreen() {
           <MeetingRow meeting={item} now={now} live={liveById.has(item.id)} onPress={() => setDetail(item)} />
         )}
         ListEmptyComponent={
-          state.status === 'error' ? (
+          state.status === 'loading' ? (
+            <Skeleton label="Loading meetings">
+              <RowsSkeleton count={3} />
+            </Skeleton>
+          ) : state.status === 'error' ? (
             <View style={[styles.panel, styles.errorPanel]}>
               <Text style={styles.panelTitle}>Couldn&apos;t load your check-ins</Text>
               <Text style={styles.muted}>{state.message}</Text>
@@ -333,16 +334,11 @@ export default function OrgHistoryScreen() {
 }
 
 const styles = StyleSheet.create({
-  centered: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: space[3],
-  },
   list: {
     flexGrow: 1,
     padding: space[4],
   },
+  loaded: { gap: space[1] },
   header: {
     gap: space[1],
     marginBottom: space[4],
