@@ -169,6 +169,11 @@ CREATE TABLE events (
 ```bash
 npx supabase db reset
 ```
+### add your test file under public/supabase/tests
+
+```bash
+npx supabase test db
+```
 
 This wipes your local DB and replays **every** migration from scratch. If your new migration is broken, you'll find out immediately. **Anything not in a migration file will be lost** — never store data in local Supabase you can't recreate.
 
