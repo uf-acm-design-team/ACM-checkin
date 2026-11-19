@@ -30,6 +30,9 @@ import { colors, radii, shadows, space } from '@/theme';
 const BADGES_PER_ROW = 4;
 const VISIBLE_ORGS = 5;
 
+// One after another, but never more than half a second in total.
+const staggerDelay = (index: number) => Math.min(index, 8) * 60;
+
 type ProfileState =
   | { status: 'loading' }
   | { status: 'error'; message: string }
@@ -130,10 +133,16 @@ export default function ProfileScreen() {
   } else {
     const { badges, orgs, ended, summary } = semester;
     const shownOrgs = allOrgs ? orgs : orgs.slice(0, VISIBLE_ORGS);
-    const badgeViews = badges.map((badge) => (
-      <View key={badge.org.id} style={allBadges ? styles.gridCell : null}>
+    // Switching semesters rises the badges, then the org rows, in one by one:
+    // keyed by semester so each switch plays it again.
+    const badgeViews = badges.map((badge, index) => (
+      <FadeIn
+        key={`${term.key}-${badge.org.id}`}
+        delay={staggerDelay(index)}
+        style={allBadges ? styles.gridCell : null}
+      >
         <ProfileBadge badge={badge} inProgress={!ended} onPress={() => setSelectedBadgeOrg(badge.org.id)} />
-      </View>
+      </FadeIn>
     ));
 
     body = (
@@ -171,16 +180,17 @@ export default function ProfileScreen() {
               {shownOrgs.map(({ org, count }, index) => {
                 const membership = state.profile.memberships.find((entry) => entry.org_id === org.id);
                 return membership ? (
-                  <ProfileOrgRow
-                    key={org.id}
-                    membership={membership}
-                    count={count}
-                    activity={orgActivity(state.profile.checkIns, org.id)}
-                    now={now}
-                    expanded={openOrg === org.id}
-                    divider={index > 0}
-                    onToggle={() => setOpenOrg((open) => (open === org.id ? null : org.id))}
-                  />
+                  <FadeIn key={`${term.key}-${org.id}`} delay={staggerDelay(badges.length + index)}>
+                    <ProfileOrgRow
+                      membership={membership}
+                      count={count}
+                      activity={orgActivity(state.profile.checkIns, org.id)}
+                      now={now}
+                      expanded={openOrg === org.id}
+                      divider={index > 0}
+                      onToggle={() => setOpenOrg((open) => (open === org.id ? null : org.id))}
+                    />
+                  </FadeIn>
                 ) : null;
               })}
               <Pressable

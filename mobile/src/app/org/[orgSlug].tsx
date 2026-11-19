@@ -257,8 +257,11 @@ export default function OrgHistoryScreen() {
             ) : null}
           </View>
         }
-        renderItem={({ item }) => (
-          <MeetingRow meeting={item} now={now} live={liveById.has(item.id)} onPress={() => setDetail(item)} />
+        renderItem={({ item, index }) => (
+          // Each semester's rows rise in one after another.
+          <FadeIn key={`${term.key}-${item.id}`} delay={Math.min(index, 8) * 60}>
+            <MeetingRow meeting={item} now={now} live={liveById.has(item.id)} onPress={() => setDetail(item)} />
+          </FadeIn>
         )}
         ListEmptyComponent={
           state.status === 'loading' ? (
