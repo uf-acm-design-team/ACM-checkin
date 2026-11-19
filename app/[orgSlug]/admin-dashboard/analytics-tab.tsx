@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { ChartCard } from "@/components/charts/chart-card";
+import { MembersVsGuestsChart } from "@/components/charts/members-vs-guests-chart";
 import { Button, Notice } from "@/components/ui/primitives";
 import {
   parseAnalyticsRange,
@@ -206,11 +207,7 @@ export default function AnalyticsTab({ orgId }: { orgId: string }) {
           title="New vs. Returning Attendees"
           subtitle="How many attendees are new versus returning at each meeting?"
         />
-        <ChartPlaceholder
-          {...chartProps}
-          title="Members vs. Guests"
-          subtitle="How much attendance comes from members versus guests?"
-        />
+        <MembersVsGuestsChart {...chartProps} />
       </div>
     </div>
   );
