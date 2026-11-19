@@ -4,7 +4,7 @@ import { auth } from "@clerk/nextjs/server";
 
 import { AttendancePerMeetingChart } from "@/components/charts/attendance-per-meeting-chart";
 import type { AnalyticsRange } from "@/components/charts/attendance-per-meeting-chart";
-import { createServiceSupabaseClient } from "@/app/utils/supabase/server";
+import { createAnonSupabaseClient } from "@/app/utils/supabase/server";
 
 export const dynamic = "force-dynamic";
 
@@ -18,7 +18,7 @@ export default async function AnalyticsPage({
 
   if (!userId) redirect("/");
 
-  const supabase = createServiceSupabaseClient();
+  const supabase = createAnonSupabaseClient();
 
   const { data: organization, error } = await supabase
     .from("organizations")
@@ -36,6 +36,8 @@ export default async function AnalyticsPage({
     );
   }
 
+   // TODO (AC-16): Use the shared Analytics tab date selector
+  // instead of calculating a separate 30-day range here.
   const now = new Date();
   const start = new Date(now);
   start.setUTCDate(start.getUTCDate() - 30);
