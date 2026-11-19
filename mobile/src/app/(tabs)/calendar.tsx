@@ -1,7 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { Button } from '@/components/button';
 import { FadeIn } from '@/components/fade-in';
@@ -11,6 +11,7 @@ import { MeetingCalendar } from '@/components/meeting-calendar';
 import { MeetingDetails } from '@/components/meeting-details';
 import { ProfileButton } from '@/components/profile-button';
 import { Screen } from '@/components/screen';
+import { CalendarSkeleton, Skeleton } from '@/components/skeleton';
 import { addMonths } from '@/lib/calendar';
 import { daysAway } from '@/lib/meeting-details';
 import { orgAccent } from '@/lib/org-display';
@@ -139,17 +140,6 @@ export default function AllMeetingsScreen() {
     setReloadKey((key) => key + 1);
   }, []);
 
-  if (state.status === 'loading') {
-    return (
-      <Screen>
-        <View style={styles.centered}>
-          <ActivityIndicator color={colors.accent} />
-          <Text style={styles.muted}>Loading your meetings…</Text>
-        </View>
-      </Screen>
-    );
-  }
-
   const meetings = state.status === 'ready' ? state.meetings : [];
   const liveIds = new Set((state.status === 'ready' ? state.live : []).map((meeting) => meeting.id));
   const dayMeetings =
@@ -178,14 +168,18 @@ export default function AllMeetingsScreen() {
           <ProfileButton />
         </View>
 
-        {state.status === 'error' ? (
+        {state.status === 'loading' ? (
+          <Skeleton label="Loading your meetings">
+            <CalendarSkeleton />
+          </Skeleton>
+        ) : state.status === 'error' ? (
           <View style={[styles.panel, styles.errorPanel]}>
             <Text style={styles.panelTitle}>Couldn&apos;t load your meetings</Text>
             <Text style={styles.muted}>{state.message}</Text>
             <Button label="Try again" variant="secondary" onPress={retry} />
           </View>
         ) : (
-          <>
+          <FadeIn style={styles.loaded}>
             <MeetingCalendar
               month={month}
               meetings={meetings}
@@ -237,7 +231,7 @@ export default function AllMeetingsScreen() {
                 {selectedDay === null ? 'Tap a day to see its meetings' : 'No meetings on this day'}
               </Text>
             )}
-          </>
+          </FadeIn>
         )}
       </ScrollView>
       <MeetingDetails
@@ -252,12 +246,7 @@ export default function AllMeetingsScreen() {
 }
 
 const styles = StyleSheet.create({
-  centered: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: space[3],
-  },
+  loaded: { gap: space[3] },
   content: {
     flexGrow: 1,
     gap: space[3],

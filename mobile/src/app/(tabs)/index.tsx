@@ -1,7 +1,7 @@
 import { useUser } from '@clerk/expo';
 import { useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, FlatList, RefreshControl, StyleSheet, Text, View } from 'react-native';
+import { FlatList, RefreshControl, StyleSheet, Text, View } from 'react-native';
 
 import { Button } from '@/components/button';
 import { FadeIn } from '@/components/fade-in';
@@ -9,6 +9,7 @@ import { GLASS_TAB_BAR_SPACE } from '@/components/glass-tab-bar';
 import { OrgCard } from '@/components/org-card';
 import { ProfileButton } from '@/components/profile-button';
 import { Screen } from '@/components/screen';
+import { OrgCardSkeleton, Skeleton } from '@/components/skeleton';
 import { getLiveMeetings, getMyHomeOrgs, useSupabase, type HomeOrg, type LiveMeeting } from '@/lib/supabase';
 import { colors, radii, space } from '@/theme';
 
@@ -73,17 +74,6 @@ export default function HomeScreen() {
 
   const greeting = user?.firstName ? `Hi, ${user.firstName}` : 'Hi there';
 
-  if (state.status === 'loading') {
-    return (
-      <Screen>
-        <View style={styles.centered}>
-          <ActivityIndicator color={colors.accent} />
-          <Text style={styles.muted}>Loading your orgs…</Text>
-        </View>
-      </Screen>
-    );
-  }
-
   return (
     <Screen>
       <FlatList
@@ -113,7 +103,14 @@ export default function HomeScreen() {
           </View>
         }
         ListEmptyComponent={
-          state.status === 'error' ? (
+          // Card-shaped placeholders while loading; the real cards fade in over them.
+          state.status === 'loading' ? (
+            <Skeleton label="Loading your orgs">
+              <OrgCardSkeleton />
+              <OrgCardSkeleton />
+              <OrgCardSkeleton />
+            </Skeleton>
+          ) : state.status === 'error' ? (
             <View style={[styles.panel, styles.errorPanel]}>
               <Text style={styles.panelTitle}>Couldn&apos;t load your orgs</Text>
               <Text style={styles.muted}>{state.message}</Text>
@@ -134,12 +131,6 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
-  centered: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: space[3],
-  },
   list: {
     flexGrow: 1,
     padding: space[4],
