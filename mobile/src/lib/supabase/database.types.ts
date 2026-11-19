@@ -19,6 +19,7 @@ export type Database = {
           answers: Json | null
           attendee_id: string
           checked_in_at: string
+          device_id: string | null
           id: string
           meeting_id: string
           org_id: string
@@ -28,6 +29,7 @@ export type Database = {
           answers?: Json | null
           attendee_id: string
           checked_in_at?: string
+          device_id?: string | null
           id?: string
           meeting_id: string
           org_id: string
@@ -37,6 +39,7 @@ export type Database = {
           answers?: Json | null
           attendee_id?: string
           checked_in_at?: string
+          device_id?: string | null
           id?: string
           meeting_id?: string
           org_id?: string

@@ -1,6 +1,13 @@
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 
+import {
+  CHECKIN_DEVICE_COOKIE,
+  CHECKIN_DEVICE_MAX_AGE,
+  issueDeviceCookie,
+  verifyDeviceCookie,
+} from "@/lib/checkin-device";
+
 // Routes that don't require authentication
 const isPublicRoute = createRouteMatcher([
   // The landing page is a real entry page, not a redirector. A signed-out
@@ -95,6 +102,31 @@ export default clerkMiddleware(async (auth, request) => {
 
     if (!hasProfile) {
       return NextResponse.redirect(new URL("/onboarding", request.url));
+    }
+  }
+
+  // Establish identity on page load, before any check-in submission. Never
+  // issue one on POST: callers without cookies must reload rather than receive
+  // a fresh identity on every action invocation.
+  if (
+    request.method === "GET" &&
+    /^\/[^/]+\/checkin\/?$/.test(request.nextUrl.pathname)
+  ) {
+    const secret = process.env.SUPABASE_SERVICE_ROLE_KEY ?? "";
+    if (secret) {
+      const current = request.cookies.get(CHECKIN_DEVICE_COOKIE)?.value;
+      const value = verifyDeviceCookie(current, secret)
+        ? current!
+        : issueDeviceCookie(secret);
+      const response = NextResponse.next();
+      response.cookies.set(CHECKIN_DEVICE_COOKIE, value, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        path: "/",
+        maxAge: CHECKIN_DEVICE_MAX_AGE,
+      });
+      return response;
     }
   }
 });
