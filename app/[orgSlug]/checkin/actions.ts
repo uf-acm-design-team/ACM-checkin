@@ -5,6 +5,9 @@ import { auth } from "@clerk/nextjs/server";
 import { createClerkSupabaseClient } from "../../utils/supabase/server";
 import { membershipThreshold } from "@/lib/membership";
 import { parseSchema, validateAnswers } from "@/lib/form-schema";
+import { DEVICE_REQUIRED_MESSAGE } from "@/lib/checkin-device";
+import { recordDeviceCheckIn } from "@/lib/record-device-checkin";
+import { checkInDeviceId } from "../../utils/checkin-device";
 import { isWithinMeetingWindow } from "@/lib/meeting-time";
 import {
   checkGeofence,
@@ -56,6 +59,9 @@ export async function memberCheckIn(input: {
 }): Promise<MemberCheckInResult> {
   const { userId } = await auth();
   if (!userId) return { ok: false, error: "You need to be signed in." };
+
+  const deviceId = await checkInDeviceId();
+  if (!deviceId) return { ok: false, error: DEVICE_REQUIRED_MESSAGE };
 
   const supabase = createClerkSupabaseClient();
 
@@ -145,29 +151,15 @@ export async function memberCheckIn(input: {
     };
   }
 
-  const { error: attendanceError } = await supabase.from("attendance").insert({
+  return recordDeviceCheckIn(supabase, {
     attendee_id: attendee.id,
     org_id: org.id,
     meeting_id: meeting.id,
     source: "authenticated",
-    // NULL rather than {} when the meeting asks nothing, matching how the
-    // migration normalized historical rows.
+    device_id: deviceId,
     answers:
       Object.keys(validated.answers).length > 0 ? validated.answers : null,
   });
-
-  if (attendanceError) {
-    // 23505 = the unique (meeting_id, attendee_id) constraint. The member is
-    // already checked in, which is not a failure from their point of view --
-    // but say so, since unlike a guest they are looking at a button they just
-    // pressed and expect a distinct outcome.
-    if (attendanceError.code === "23505") {
-      return { ok: true, alreadyCheckedIn: true };
-    }
-    return { ok: false, error: attendanceError.message };
-  }
-
-  return { ok: true };
 }
 
 export async function resolveAndUpdateMembershipStatus(
