@@ -113,13 +113,6 @@ function err(msg) {
   console.log(C.dim + "  | " + C.reset + C.red + "[X] " + C.reset + msg);
 }
 
-function log(msg, type = "info") {
-  if (type === "ok") ok(msg);
-  else if (type === "warn") warn(msg);
-  else if (type === "err") err(msg);
-  else step(msg);
-}
-
 async function question(msg) {
   const rl = readline.createInterface({ input, output });
   const userInput = (await rl.question(C.dim + "  | " + C.reset + msg)).trim();

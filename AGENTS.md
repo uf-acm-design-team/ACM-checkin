@@ -211,3 +211,9 @@ Two related behaviours to keep in mind:
 - A geo-locked meeting with no pin (`latitude`/`longitude` NULL) is not
   enforced on either side, because there's nothing to measure against.
 - The reported `accuracy` is passed along but does not widen the radius.
+
+### The meeting editor still writes from the browser
+
+`admin-dashboard/meetings/[meetingId]/page.tsx` saves with the browser client,
+not a server action. It runs `validateMeetingDraft` before the update and RLS
+limits it to officers, but the validation runs client-side only.

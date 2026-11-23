@@ -328,7 +328,8 @@ export default function MeetingEditor({
       return;
     }
 
-    // Checked here only to pick the tab; updateMeeting re-validates as the authority.
+    // Same rules as the create action and the meetings CHECK constraints. Times
+    // come back as instants and the pin is cleared when geolock is off.
     const checked = validateMeetingDraft(settings);
     if (!checked.ok) {
       setActiveTab("settings");
@@ -340,9 +341,13 @@ export default function MeetingEditor({
 
     setSaving(true);
     try {
-      const result = await updateMeeting(orgSlug, meeting.id, settings, schema);
-      if (!result.ok) {
-        setSaveError(result.error);
+      const { error: updateError } = await supabase
+        .from("meetings")
+        .update({ ...checked.value, form_schema: cleanSchema })
+        .eq("id", meeting.id);
+
+      if (updateError) {
+        setSaveError(updateError.message);
         return;
       }
 
