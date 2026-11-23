@@ -161,7 +161,7 @@ export default function OnboardingPage() {
       setTimeout(() => {
         window.location.href = "/dashboard";
       }, 1200);
-    } catch (err) {
+    } catch {
       setError("An unexpected error occurred");
     } finally {
       setLoading(false);
