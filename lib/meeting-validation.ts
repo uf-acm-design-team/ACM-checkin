@@ -1,5 +1,6 @@
 // Meeting form validation, run by the dashboard for feedback and by the server
-// actions as the authority. The DB has no CHECK constraints on these columns.
+// actions as the authority. The range checks mirror CHECK constraints on
+// meetings (20261029000000_meetings_range_checks.sql); change both together.
 
 import { parseCoordinates } from "./geo";
 import { fromDateTimeLocal, toDateTimeLocal } from "./meeting-time";

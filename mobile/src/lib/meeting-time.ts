@@ -2,9 +2,10 @@
  * Whether `now` falls inside a meeting's scheduled [start_time, end_time]. A
  * null bound is unbounded on that side.
  *
- * A copy of isWithinMeetingWindow in web's lib/meeting-time.ts, which the web
- * check-in page and the member-check-in function both filter open meetings
- * with. `meetings.status` is only the officer's on/off switch: a meeting can be
+ * A copy of isWithinMeetingWindow in supabase/functions/_shared/meeting-time.ts
+ * (re-exported by web's lib/meeting-time.ts), which the web check-in page and
+ * the member-check-in function both filter open meetings with.
+ * `meetings.status` is only the officer's on/off switch: a meeting can be
  * opened before it starts, and the auto-close cron can leave a just-ended one
  * open for up to a minute. Filtering the same way keeps the picker from
  * offering a meeting the check-in would then reject. Metro can't load files

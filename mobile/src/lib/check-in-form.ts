@@ -2,11 +2,12 @@
  * The check-in form's logic: reading a meeting's questions, checking answers
  * before they are sent, and building the member-check-in request.
  *
- * parseSchema and validateAnswers are copies of the same functions in web's
- * lib/form-schema.ts, which is the source of truth (the builder writes with it
+ * parseSchema and validateAnswers are copies of the same functions in
+ * supabase/functions/_shared/form-schema.ts (web's lib/form-schema.ts
+ * re-exports it), which is the source of truth (the builder writes with it
  * and member-check-in validates with it again before saving). Metro can't load
  * files outside mobile/, so only the types are imported; check-in-form.test.ts
- * runs both copies on the same inputs, so a change to web's rules fails here.
+ * runs both copies on the same inputs, so a change to the shared rules fails here.
  *
  * Validation here is advisory, for inline errors. The server re-runs it and
  * answers `invalid_answers` with per-question errors if the two ever disagree.
@@ -17,10 +18,10 @@ import type {
   FormSchema,
   QuestionType,
   ScaleConfig,
-} from '../../../lib/form-schema';
+} from '../../../supabase/functions/_shared/form-schema';
 import type { MemberCheckInRequest } from './member-check-in';
 
-export type { AnswerMap, AnswerValue, FormQuestion, FormSchema } from '../../../lib/form-schema';
+export type { AnswerMap, AnswerValue, FormQuestion, FormSchema } from '../../../supabase/functions/_shared/form-schema';
 
 const QUESTION_TYPES: readonly QuestionType[] = [
   'short_text',

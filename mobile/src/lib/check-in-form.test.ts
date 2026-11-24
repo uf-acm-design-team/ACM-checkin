@@ -1,4 +1,4 @@
-import * as web from '../../../lib/form-schema';
+import * as web from '../../../supabase/functions/_shared/form-schema';
 import {
   buildCheckInRequest,
   needsLocation,

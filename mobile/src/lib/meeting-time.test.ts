@@ -1,4 +1,4 @@
-import { isWithinMeetingWindow as webIsWithinMeetingWindow } from '../../../lib/meeting-time';
+import { isWithinMeetingWindow as webIsWithinMeetingWindow } from '../../../supabase/functions/_shared/meeting-time';
 import { isWithinMeetingWindow } from './meeting-time';
 
 const start = '2026-11-03T19:00:00+00:00';

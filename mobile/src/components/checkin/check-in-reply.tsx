@@ -1,7 +1,6 @@
 import { Linking } from 'react-native';
 
 import { Button } from '@/components/button';
-import type { MemberCheckInErrorCode } from '@/lib/member-check-in';
 import type { LocationFailure } from '@/lib/location';
 import type { MemberCheckInResult } from '@/lib/supabase';
 
@@ -15,10 +14,7 @@ export function describeReply({ reply }: MemberCheckInResult): { title: string; 
       ? { title: 'You’re already checked in', tone: 'good' }
       : { title: 'Checked in', tone: 'good' };
   }
-  // Older deployments can still return the stub's not_implemented code.
-  switch (reply.code as MemberCheckInErrorCode | 'not_implemented') {
-    case 'not_implemented':
-      return { title: 'Check-in isn’t available yet', tone: 'warn' };
+  switch (reply.code) {
     case 'unauthenticated':
       return { title: 'Please sign in again', tone: 'bad' };
     case 'no_profile':
@@ -115,9 +111,6 @@ export function CheckInReply({
             </Muted>
           ))
         : null}
-      {(reply.code as string) === 'not_implemented' ? (
-        <Muted>The app reached the check-in service. Checking in arrives next sprint.</Muted>
-      ) : null}
       {reply.code === 'no_active_meeting' || reply.code === 'meeting_closed' ? (
         <Button label="Refresh meetings" variant="secondary" onPress={onRefreshMeetings} />
       ) : null}

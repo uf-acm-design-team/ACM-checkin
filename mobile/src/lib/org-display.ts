@@ -1,7 +1,7 @@
+import { membershipThreshold as sharedThreshold, resolveMembership } from '@shared/membership';
+
 import type { Json } from '@/lib/supabase';
 import { ORG_TIME_ZONE } from '@/lib/terms';
-
-import { membershipThreshold as sharedThreshold } from '../../../supabase/functions/_shared/membership';
 
 const HEX_COLOR = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
 
@@ -38,10 +38,10 @@ export function membershipProgress(
   attended: number,
   status: string | null,
 ): MembershipProgress {
-  const threshold = membershipThreshold(slug);
-  const meetsThreshold = threshold !== null && attended >= threshold;
-  const isMember = status === 'active' || meetsThreshold;
-  const remaining = threshold === null ? 0 : Math.max(threshold - attended, 0);
+  // No slug means no org to look up, so no threshold. The shared rules give
+  // every slug (even an empty one) the default, so check before asking them.
+  if (!slug) return { threshold: null, attended, remaining: 0, isMember: status === 'active' };
+  const { threshold, isMember, remaining } = resolveMembership(null, status, attended, slug);
   return { threshold, attended, remaining, isMember };
 }
 
