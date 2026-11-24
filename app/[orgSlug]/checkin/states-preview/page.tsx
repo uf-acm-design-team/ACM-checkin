@@ -18,6 +18,8 @@ import {
   LoadingState,
   LocationAskState,
   LocationDeniedState,
+  LocationTimeoutState,
+  NeedsProfileState,
   NetworkErrorState,
   LocationCheckingState,
   NoActiveMeetingState,
@@ -47,6 +49,8 @@ const boards: [string, React.ReactNode][] = [
   ["8 · Too far", <TooFarState key="d" metresAway={340} radius={200} where="CSE E121" onRetry={noop} onAskOfficer={noop} />],
   ["7 · Location checking", <LocationCheckingState key="e2" />],
   ["9 · Location denied", <LocationDeniedState key="e" onRetry={noop} onAskOfficer={noop} />],
+  ["Location timed out", <LocationTimeoutState key="e3" onRetry={noop} onAskOfficer={noop} />],
+  ["Signed in, no profile", <NeedsProfileState key="e4" orgName="ACM at UF" onContinue={noop} />],
   ["11 · Already checked in", <AlreadyCheckedInState key="f" meetingTitle="General Body Meeting #5" at="6:58 PM EST" onStats={noop} />],
   ["12 · Network error", <NetworkErrorState key="g" detail="POST /checkin · timeout after 10s" reference="8f2a·19:04:22 EST" onRetry={noop} />],
   [
