@@ -1,4 +1,6 @@
 import type { PostgrestError, QueryData } from "@supabase/supabase-js";
+import { parseSchema, type FormSchema } from "../check-in-form";
+import { isWithinMeetingWindow } from "../meeting-time";
 import type { MobileSupabase, TypedSupabaseClient } from "./client";
 import type { Tables } from "./database.types";
 
@@ -85,6 +87,57 @@ export async function getOrgBySlug(
   const { data, error } = await orgBySlugQuery(supabase.client, slug);
   if (error) throw new DataError("getOrgBySlug", error);
   return data;
+}
+
+// Never `*`: checkin_password is column-revoked from anon and authenticated
+// (20260826000000_meeting_levels_and_password.sql), so selecting it fails, and
+// the app must never hold it anyway. requires_checkin_password is the safe,
+// generated flag that says whether to show the password field.
+const openMeetingColumns =
+  "id, title, description, start_time, end_time, is_geo_locked, latitude, longitude, radius_meters, requires_checkin_password, form_schema";
+
+const openMeetingsQuery = (client: TypedSupabaseClient, orgId: string) =>
+  client
+    .from("meetings")
+    .select(openMeetingColumns)
+    .eq("org_id", orgId)
+    .eq("status", true)
+    .order("start_time", { ascending: true });
+
+export type OpenMeeting = Omit<
+  QueryData<ReturnType<typeof openMeetingsQuery>>[number],
+  "form_schema"
+> & { form_schema: FormSchema };
+
+/**
+ * The org's meetings a member can check into right now, earliest first, with
+ * their questions parsed. Same query as the web check-in page and the
+ * member-check-in function.
+ *
+ * Uses the Clerk client: meetings_member_read hides officer-only meetings from
+ * anyone below officer, so the list is exactly what this user may check into.
+ * The same policy also shows members their org's closed meetings, which is why
+ * the status filter matters. status=true is only the officer's switch, so the
+ * scheduled window is checked here too, like the server does.
+ */
+export async function getOpenMeetings(
+  supabase: MobileSupabase | null,
+  orgId: string,
+  now: Date = new Date(),
+): Promise<OpenMeeting[]> {
+  if (!supabase || !orgId) return [];
+
+  const { data, error } = await openMeetingsQuery(supabase.client, orgId);
+  if (error) throw new DataError("getOpenMeetings", error);
+
+  return (data ?? [])
+    .filter((meeting) =>
+      isWithinMeetingWindow(now, meeting.start_time, meeting.end_time),
+    )
+    .map((meeting) => ({
+      ...meeting,
+      form_schema: parseSchema(meeting.form_schema),
+    }));
 }
 
 export type HomeOrg = {

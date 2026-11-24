@@ -147,13 +147,14 @@ After a schema change, regenerate the mobile types (`npm run gen:types` in
 - `mobile/` has its own `package.json`, `package-lock.json`, ESLint config,
   and Jest setup. Install mobile deps from inside `mobile/` and never add them
   to the root `package.json` (or the other way round).
-- Root `npm test` (Vitest) covers `lib/` and `supabase/functions/_shared/`.
-  Mobile tests run only with `npm test` inside `mobile/`.
-- Mobile CI (`.github/workflows/mobile.yml`) runs on changes to `mobile/**`,
-  `supabase/functions/_shared/**` (mobile imports those rules) **and
-  `app/globals.css`**, because a mobile test checks the theme tokens against
-  the web CSS. When you change a web color token, update
-  `mobile/src/theme/tokens.ts` too.
+- Root `npm test` (Vitest) only covers `lib/**/*.test.ts`. Mobile tests run
+  only with `npm test` inside `mobile/`.
+- Mobile CI (`.github/workflows/mobile.yml`) runs on changes to `mobile/**`
+  **and the web files mobile depends on**: `app/globals.css` (a mobile test
+  checks the theme tokens against it), `lib/checkin-link.ts` (the QR parser
+  round-trips it), and `supabase/functions/member-check-in/contract.ts` plus
+  the types it uses from `supabase/functions/_shared/` and `lib/geo.ts` (the
+  check-in screen is typed against them). When you change a web color token, update `mobile/src/theme/tokens.ts` too.
 
 ### Demo and preview routes
 
