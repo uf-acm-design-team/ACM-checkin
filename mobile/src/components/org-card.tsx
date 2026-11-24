@@ -1,11 +1,13 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { router } from 'expo-router';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { membershipProgress, orgAccent, roleLabel } from '@/lib/org-display';
 import type { HomeOrg } from '@/lib/supabase';
 import { colors, radii, shadows, space } from '@/theme';
 
 export function OrgCard({ org, role, status, attended }: HomeOrg) {
-  const name = org.name ?? org.slug ?? 'Organization';
+  const slug = org.slug;
+  const name = org.name ?? slug ?? 'Organization';
   const accent = orgAccent(org.branding) ?? colors.accent;
   const progress = membershipProgress(org.slug, attended, status);
   const showProgress = progress.isMember || progress.threshold !== null;
@@ -13,7 +15,13 @@ export function OrgCard({ org, role, status, attended }: HomeOrg) {
   const checkIns = `${attended} ${attended === 1 ? 'check-in' : 'check-ins'}`;
 
   return (
-    <View style={styles.card} accessibilityLabel={`${name}, ${roleLabel(role)}, ${checkIns}`}>
+    <Pressable
+      onPress={slug ? () => router.push({ pathname: '/org/[orgSlug]', params: { orgSlug: slug } }) : undefined}
+      accessibilityRole="button"
+      accessibilityLabel={`${name}, ${roleLabel(role)}, ${checkIns}`}
+      accessibilityHint="Opens your attendance history"
+      style={({ pressed }) => [styles.card, pressed && styles.pressed]}
+    >
       <View style={styles.header}>
         <View style={[styles.crest, { backgroundColor: accent }]}>
           <Text style={styles.crestLetter}>{name.charAt(0).toUpperCase()}</Text>
@@ -49,11 +57,14 @@ export function OrgCard({ org, role, status, attended }: HomeOrg) {
           </Text>
         </View>
       ) : null}
-    </View>
+    </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
+  pressed: {
+    opacity: 0.85,
+  },
   card: {
     gap: space[3],
     padding: space[4],

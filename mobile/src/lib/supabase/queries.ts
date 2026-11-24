@@ -2,7 +2,7 @@ import type { PostgrestError, QueryData } from "@supabase/supabase-js";
 import { parseSchema, type FormSchema } from "../check-in-form";
 import { isWithinMeetingWindow } from "../meeting-time";
 import type { MobileSupabase, TypedSupabaseClient } from "./client";
-import type { Tables } from "./database.types";
+import type { Database, Tables } from "./database.types";
 
 export type Attendee = Tables<"attendees">;
 
@@ -188,4 +188,116 @@ export async function getMyHomeOrgs(
     memberships,
     (data ?? []).map((row) => row.org_id),
   );
+}
+
+
+export type MeetingQuestion = { id: string; label: string };
+
+export type OrgMeeting = {
+  id: string;
+  title: string;
+  startTime: string;
+  attended: boolean;
+  description: string | null;
+  // The meeting's check-in questions, for labelling your answers.
+  questions: MeetingQuestion[];
+};
+
+// form_schema is jsonb, so read it defensively: keep entries with an id and a label.
+function meetingQuestions(schema: unknown): MeetingQuestion[] {
+  if (!Array.isArray(schema)) return [];
+  return schema.flatMap((entry) => {
+    const { id, label } = (entry ?? {}) as { id?: unknown; label?: unknown };
+    return typeof id === "string" && typeof label === "string" ? [{ id, label }] : [];
+  });
+}
+
+const MEETINGS_PAGE_SIZE = 100;
+
+type MeetingPageRow =
+  Database["public"]["Functions"]["get_member_meetings_page"]["Returns"][number];
+
+export async function getMyOrgMeetings(
+  supabase: MobileSupabase | null,
+  orgId: string,
+  window: { start: string; end: string },
+): Promise<{ meetings: OrgMeeting[]; total: number }> {
+  if (!supabase) return { meetings: [], total: 0 };
+  const attendee = await getMyAttendee(supabase);
+  if (!attendee) return { meetings: [], total: 0 };
+
+  // The list and the calendar both need every meeting in the window, so page
+  // through the RPC until we have them all instead of stopping at one page.
+  const rows: MeetingPageRow[] = [];
+  let total = 0;
+  do {
+    const { data, error } = await supabase.client.rpc("get_member_meetings_page", {
+      p_org_id: orgId,
+      p_attendee_id: attendee.id,
+      p_start: window.start,
+      p_end: window.end,
+      p_view: "all",
+      p_limit: MEETINGS_PAGE_SIZE,
+      p_offset: rows.length,
+    });
+    if (error) throw new DataError("getMyOrgMeetings", error);
+    const page = data ?? [];
+    if (page.length === 0) break;
+    rows.push(...page);
+    // total_count is the same on every row.
+    total = Number(page[0].total_count);
+  } while (rows.length < total);
+
+  return {
+    meetings: rows.map((row) => ({
+      id: row.id,
+      title: row.title,
+      startTime: row.start_time,
+      attended: row.attended,
+      description: row.description || null,
+      questions: meetingQuestions(row.form_schema),
+    })),
+    total,
+  };
+}
+
+export type MeetingCheckIn = {
+  endTime: string | null;
+  // Null when you didn't check in to this meeting.
+  checkedInAt: string | null;
+  answers: Record<string, unknown>;
+};
+
+// What the meeting details sheet adds to a list row: when the meeting ends,
+// and your own check-in to it (RLS only returns your attendance row).
+export async function getMyMeetingCheckIn(
+  supabase: MobileSupabase | null,
+  meetingId: string,
+): Promise<MeetingCheckIn> {
+  const none = { endTime: null, checkedInAt: null, answers: {} };
+  if (!supabase) return none;
+  const attendee = await getMyAttendee(supabase);
+  if (!attendee) return none;
+
+  const [meeting, attendance] = await Promise.all([
+    supabase.client.from("meetings").select("end_time").eq("id", meetingId).maybeSingle(),
+    supabase.client
+      .from("attendance")
+      .select("checked_in_at, answers")
+      .eq("meeting_id", meetingId)
+      .eq("attendee_id", attendee.id)
+      .maybeSingle(),
+  ]);
+  if (meeting.error) throw new DataError("getMyMeetingCheckIn", meeting.error);
+  if (attendance.error) throw new DataError("getMyMeetingCheckIn", attendance.error);
+
+  const answers = attendance.data?.answers;
+  return {
+    endTime: meeting.data?.end_time ?? null,
+    checkedInAt: attendance.data?.checked_in_at ?? null,
+    answers:
+      answers && typeof answers === "object" && !Array.isArray(answers)
+        ? (answers as Record<string, unknown>)
+        : {},
+  };
 }
