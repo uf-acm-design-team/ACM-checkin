@@ -1,7 +1,7 @@
 import { createHmac, randomUUID } from "node:crypto";
 import { fetch as nodeFetch } from "undici";
 import { createSupabase, type MobileSupabase } from "./client";
-import { DataError, getMyAttendee, getMyMemberships, getOrgBySlug } from "./queries";
+import { DataError, getMyAttendee, getMyHomeOrgs, getMyMemberships, getOrgBySlug } from "./queries";
 
 const url = process.env.SUPABASE_URL ?? process.env.API_URL;
 const anonKey = process.env.SUPABASE_ANON_KEY ?? process.env.ANON_KEY;
@@ -116,6 +116,14 @@ async function signedInUser(label: string): Promise<TestUser> {
     expect((await getMyAttendee(supabase))?.user_id).toBe(memberA.clerkId);
     current = memberB.token;
     expect((await getMyAttendee(supabase))?.user_id).toBe(memberB.clerkId);
+  });
+
+  it("loads Home: each org with its next meeting and today's check-in", async () => {
+    const orgs = await getMyHomeOrgs(memberA.supabase);
+    expect(orgs.map((o) => o.org.slug)).toEqual([orgSlug]);
+    const [home] = orgs;
+    expect(home.checkedInToday).toBe(false);
+    if (home.nextMeeting) expect(Date.parse(home.nextMeeting.startTime)).not.toBeNaN();
   });
 
   it("looks up an org by slug", async () => {
