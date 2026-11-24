@@ -1,10 +1,9 @@
 "use client";
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { useUser } from "@clerk/nextjs";
+import { useAuth, useUser } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
 import { createClient } from "../../utils/supabase/client";
-import { memberCheckIn, resolveAndUpdateMembershipStatus } from "./actions";
 import { guestCheckIn } from "./guest-actions";
 import { verifyGeoLock, type GeoFailure } from "./geolock";
 import {
@@ -13,7 +12,9 @@ import {
   validateEmail,
 } from "@/lib/email-validation";
 import { DEFAULT_RADIUS_METERS, type Coordinates, type GeofenceFailure } from "@/lib/geo";
-import { membershipThreshold } from "@/lib/membership";
+import { callEdgeFunction } from "@/lib/edge-functions";
+import { checkInOutcome } from "@/lib/member-check-in-outcome";
+import type { MemberCheckInResponse } from "../../../supabase/functions/member-check-in/contract";
 import { isWithinMeetingWindow } from "@/lib/meeting-time";
 import { escapeLikePattern, hasUnescapableWildcard } from "@/lib/email-match";
 import { withTimeout } from "@/lib/timeout";
@@ -157,6 +158,7 @@ export default function CheckinPage({
 }) {
   const { orgSlug } = React.use(params);
   const { user, isLoaded } = useUser();
+  const { getToken } = useAuth();
   const router = useRouter();
   const supabase = createClient();
 
@@ -461,20 +463,7 @@ export default function CheckinPage({
     return true;
   };
 
-  const succeed = async (attendeeId: string | null) => {
-    let membership: { attended: number; threshold: number } | undefined;
-    const threshold = membershipThreshold(orgSlug);
-    if (attendeeId && organization && threshold !== null) {
-      try {
-        const r = await withTimeout(
-          resolveAndUpdateMembershipStatus(attendeeId, organization.id, orgSlug),
-          SUBMIT_TIMEOUT_MS,
-        );
-        membership = { attended: r.attendanceCount, threshold };
-      } catch {
-        // Membership is a nicety on this screen; the check-in itself landed.
-      }
-    }
+  const succeed = (membership?: { attended: number; threshold: number }) => {
     setView({
       kind: "success",
       firstName: userAttendee?.first_name ?? (firstName || undefined),
@@ -505,41 +494,48 @@ export default function CheckinPage({
     setCheckInError(null);
     setPasswordError(null);
     try {
-      const result = await withTimeout(
-        memberCheckIn({
+      const result = await callEdgeFunction<MemberCheckInResponse>(
+        "member-check-in",
+        {
           orgSlug,
-          answers: validated,
+          meetingId: activeMeeting.id,
           password: checkinPassword,
-          // Named explicitly so the server records the meeting the attendee
-          // actually chose, rather than re-deriving "the earliest open one".
-          meetingId: activeMeeting?.id,
-          location: gate.location,
-        }),
-        SUBMIT_TIMEOUT_MS,
+          answers: validated,
+          ...(gate.location && {
+            latitude: gate.location.latitude,
+            longitude: gate.location.longitude,
+          }),
+        },
+        getToken,
       );
 
-      if (!result.ok) {
-        if (handleServerGeo(result.geo)) return;
-        if (/password/i.test(result.error)) {
+      // checkInOutcome decides the screen; this only applies it.
+      const outcome = checkInOutcome(result);
+      switch (outcome.kind) {
+        case "success":
+          succeed(outcome.membership);
+          return;
+        case "already":
+          setView({ kind: "already" });
+          return;
+        case "network_error":
+          setView({ kind: "network_error", detail: outcome.detail, ref: errorRef() });
+          return;
+        case "too_far":
+          setView({ kind: "too_far", metresAway: outcome.metresAway, radius: outcome.radius });
+          return;
+        case "password_error":
           setPasswordAttempts((n) => n + 1);
-          setPasswordError(result.error);
-        } else {
-          setCheckInError(result.error);
-        }
-        if (result.answerErrors) setAnswerErrors(result.answerErrors);
-        return;
+          setPasswordError(outcome.message);
+          return;
+        case "answer_errors":
+          setCheckInError(outcome.message);
+          setAnswerErrors(outcome.answerErrors);
+          return;
+        case "inline_error":
+          setCheckInError(outcome.message);
+          return;
       }
-      if (result.alreadyCheckedIn) {
-        setView({ kind: "already" });
-        return;
-      }
-      await succeed(userAttendee.id);
-    } catch (err) {
-      setView({
-        kind: "network_error",
-        detail: `POST checkin · ${err instanceof Error ? err.message : "failed"}`,
-        ref: errorRef(),
-      });
     } finally {
       setCheckingIn(false);
     }
@@ -578,10 +574,11 @@ export default function CheckinPage({
       );
 
       if (result.ok) {
-        // A repeat scan comes back ok with alreadyCheckedIn set (the 23505
-        // path), not as an error -- route it to the same screen members get.
-        if (result.alreadyCheckedIn) setView({ kind: "already" });
-        else await succeed(null);
+        if (result.alreadyCheckedIn) {
+          setView({ kind: "already" });
+          return;
+        }
+        succeed();
         return;
       }
       if (handleServerGeo(result.geo)) return;

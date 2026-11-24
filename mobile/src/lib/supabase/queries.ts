@@ -126,17 +126,6 @@ export type OpenMeeting = Omit<
   "form_schema"
 > & { form_schema: FormSchema };
 
-/**
- * The org's meetings a member can check into right now, earliest first, with
- * their questions parsed. Same query as the web check-in page and the
- * member-check-in function.
- *
- * Uses the Clerk client: meetings_member_read hides officer-only meetings from
- * anyone below officer, so the list is exactly what this user may check into.
- * The same policy also shows members their org's closed meetings, which is why
- * the status filter matters. status=true is only the officer's switch, so the
- * scheduled window is checked here too, like the server does.
- */
 export async function getOpenMeetings(
   supabase: MobileSupabase | null,
   orgId: string,

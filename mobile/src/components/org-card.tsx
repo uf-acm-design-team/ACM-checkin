@@ -1,5 +1,5 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { router } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { LivePill } from '@/components/live-pill';
@@ -10,6 +10,7 @@ import { colors, radii, shadows, space } from '@/theme';
 // `live` is the org's meeting that is open for check-in right now, if any. The
 // Live pill marks it; Up next still names the next meeting.
 export function OrgCard({ org, role, status, attended, nextMeeting, checkedInToday, live }: HomeOrg & { live?: LiveMeeting }) {
+  const router = useRouter();
   const slug = org.slug;
   const name = org.name ?? slug ?? 'Organization';
   const accent = orgAccent(org.branding) ?? colors.accent;
