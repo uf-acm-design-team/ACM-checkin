@@ -12,5 +12,12 @@ export {
     DataError, getMyAttendee, getMyHomeOrgs, getMyMemberships, getOrgBySlug
 } from "./queries";
 export type { Attendee, HomeOrg, MyMembership, Organization } from "./queries";
+export {
+    callOnboardAttendee, ONBOARD_ATTENDEE_FUNCTION, OnboardingNetworkError
+} from "./onboard-attendee";
+export type {
+    OnboardAttendeeError, OnboardAttendeeRequest, OnboardAttendeeResponse,
+    OnboardAttendeeResult, OnboardAttendeeSuccess
+} from "./onboard-attendee";
 export { useSupabase } from "./useSupabase";
 
