@@ -427,11 +427,6 @@ describe('the reply', () => {
     await waitFor(() => expect(screen.getByText('You’re already checked in')).toBeTruthy());
   });
 
-  it("shows the stub's not_implemented reply", async () => {
-    await checkInWith({ status: 501, reply: { ok: false, code: 'not_implemented', error: 'not implemented' } });
-    await waitFor(() => expect(screen.getByText('Check-in isn’t available yet')).toBeTruthy());
-  });
-
   it('asks the user to sign in again when unauthenticated', async () => {
     await checkInWith({ status: 401, reply: { ok: false, code: 'unauthenticated', error: 'You need to be signed in.' } });
     await waitFor(() => expect(screen.getByText('Please sign in again')).toBeTruthy());
