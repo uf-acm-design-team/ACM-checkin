@@ -15,24 +15,8 @@ import {
 
 import { ChartCard } from "./chart-card";
 import type { RetentionRecord } from "@/lib/analytics-data";
+import type { AnalyticsChartProps } from "@/lib/analytics-range";
 import { ORG_TIME_ZONE } from "@/lib/meeting-time";
-
-// Temporary copy of the shared range contract from #70 (lib/analytics-range.ts).
-// Import from there once it merges.
-export type AnalyticsRange = {
-  preset: "30d" | "90d" | "custom";
-  from: string;
-  to: string;
-  /** ISO instant passed straight through as p_start_time. */
-  start: string;
-  /** ISO instant passed straight through as p_end_time. */
-  end: string;
-};
-
-export type AnalyticsChartProps = {
-  orgId: string;
-  range: AnalyticsRange;
-};
 
 type ChartState = "normal" | "loading" | "empty" | "error";
 

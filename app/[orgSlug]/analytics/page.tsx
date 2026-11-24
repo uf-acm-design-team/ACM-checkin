@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@clerk/nextjs/server";
 
 import { AttendancePerMeetingChart } from "@/components/charts/attendance-per-meeting-chart";
-import type { AnalyticsRange } from "@/components/charts/attendance-per-meeting-chart";
+import type { AnalyticsRange } from "@/lib/analytics-range";
 import { createAnonSupabaseClient } from "@/app/utils/supabase/server";
 
 export const dynamic = "force-dynamic";

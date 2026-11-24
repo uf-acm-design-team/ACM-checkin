@@ -13,6 +13,7 @@ import {
 } from "recharts";
 
 import { ChartCard } from "./chart-card";
+import type { AnalyticsChartProps } from "@/lib/analytics-range";
 import { ORG_TIME_ZONE } from "@/lib/meeting-time";
 
 export type AttendanceByMeeting = {
@@ -22,21 +23,6 @@ export type AttendanceByMeeting = {
   total: number;
   members: number;
   guests: number;
-};
-
-// Temporary copy of Lethenial's shared types.
-// Import from lib/analytics-range.ts once his PR merges.
-export type AnalyticsRange = {
-  preset: "30d" | "90d" | "custom";
-  from: string;
-  to: string;
-  start: string;
-  end: string;
-};
-
-export type AnalyticsChartProps = {
-  orgId: string;
-  range: AnalyticsRange;
 };
 
 type ChartState = "normal" | "loading" | "empty" | "error";

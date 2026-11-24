@@ -16,8 +16,9 @@ const isPublicRoute = createRouteMatcher([
   // Dev-only sandbox for the New vs. Returning chart; also 404s outside
   // development.
   "/new-vs-returning-demo",
-  // Checks auth() itself and answers 401/403 as JSON the chart can show;
-  // auth.protect() would redirect the fetch to the sign-in page instead.
+  // These check auth() themselves and answer 401/403 as JSON the charts can
+  // show; auth.protect() would redirect the fetch to the sign-in page instead.
+  "/api/analytics/attendance",
   "/api/analytics/retention",
 ]);
 
@@ -26,8 +27,9 @@ const isPublicRoute = createRouteMatcher([
 const isOnboardingExempt = createRouteMatcher([
   "/",
   "/onboarding(.*)",
-  // A JSON endpoint: redirecting it to the /onboarding page would hand the
-  // chart HTML instead of an error it can show.
+  // JSON endpoints: redirecting them to the /onboarding page would hand the
+  // charts HTML instead of an error they can show.
+  "/api/analytics/attendance",
   "/api/analytics/retention",
   "/sign-in(.*)",
   "/sign-up(.*)",
@@ -100,8 +102,9 @@ export default clerkMiddleware(async (auth, request) => {
 export const config = {
   matcher: [
     "/((?!_next/static|_next/image|favicon.ico|api|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
-    // API routes are excluded above, but this one calls auth(), which needs
-    // the Clerk middleware to have run.
+    // API routes are excluded above, but these call auth(), which needs the
+    // Clerk middleware to have run.
+    "/api/analytics/attendance",
     "/api/analytics/retention",
   ],
 };
