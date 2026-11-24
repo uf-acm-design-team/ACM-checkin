@@ -7,6 +7,7 @@
   },
   "scripts": {
     "setup": "node scripts/setup-dev.mjs",
+    "setup:env": "node scripts/setup-dev.mjs --env-only",
     "dev": "next dev",
     "supabase:start": "supabase start",
     "supabase:stop": "supabase stop",
