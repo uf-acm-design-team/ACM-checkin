@@ -8,7 +8,7 @@
 // so Metro never has to resolve a file outside mobile/.
 
 import type { AnswerMap, AnswerValue } from "../_shared/form-schema.ts";
-import type { GeofenceFailure } from "../../../lib/geo.ts";
+import type { GeofenceFailure } from "../_shared/geo.ts";
 
 export type { AnswerMap, AnswerValue, GeofenceFailure };
 
@@ -43,6 +43,9 @@ export type MemberCheckInSuccess = {
   // The meeting the attendance was recorded against.
   meetingId: string;
   alreadyCheckedIn: boolean;
+  // Progress toward membership after this check-in. Only on a new check-in
+  // (not alreadyCheckedIn), and only for orgs with an attendance threshold.
+  membership?: { attended: number; threshold: number };
 };
 
 // Failures. Codes can vary depending on the type.
@@ -66,8 +69,7 @@ export type MemberCheckInError =
   | Failure<"no_active_meeting"> // 409
   | Failure<"meeting_closed"> // 409
   | Failure<"invalid_answers", { answerErrors: Record<string, string> }> // 422
-  | Failure<"server_error"> // 500
-  | Failure<"not_implemented">; // 501
+  | Failure<"server_error">; // 500
 
 export type MemberCheckInErrorCode = MemberCheckInError["code"];
 

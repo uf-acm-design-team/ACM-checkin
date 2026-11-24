@@ -1,8 +1,6 @@
-import type { Json } from '@/lib/supabase';
+import { resolveMembership } from '@shared/membership';
 
-const MEMBERSHIP_THRESHOLDS: Record<string, number> = {
-  acm: 3,
-};
+import type { Json } from '@/lib/supabase';
 
 const HEX_COLOR = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
 
@@ -26,10 +24,8 @@ export function membershipProgress(
   attended: number,
   status: string | null,
 ): MembershipProgress {
-  const threshold = slug ? (MEMBERSHIP_THRESHOLDS[slug.toLowerCase()] ?? null) : null;
-  const meetsThreshold = threshold !== null && attended >= threshold;
-  const isMember = status === 'active' || meetsThreshold;
-  const remaining = threshold === null ? 0 : Math.max(threshold - attended, 0);
+  // No slug means no configured org, which the shared rules treat as "no threshold".
+  const { threshold, isMember, remaining } = resolveMembership(null, status, attended, slug ?? '');
   return { threshold, attended, remaining, isMember };
 }
 

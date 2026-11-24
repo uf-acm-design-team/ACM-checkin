@@ -169,6 +169,11 @@ CREATE TABLE events (
 ```bash
 npx supabase db reset
 ```
+### add your test file under public/supabase/tests
+
+```bash
+npx supabase test db
+```
 
 This wipes your local DB and replays **every** migration from scratch. If your new migration is broken, you'll find out immediately. **Anything not in a migration file will be lost** — never store data in local Supabase you can't recreate.
 
@@ -198,6 +203,9 @@ First-time Docker image pulls can be slow on a weak connection. Re-run `npm run 
 
 **Sign-up works but the app errors out after**
 Your Clerk keys in `.env.local` are missing or wrong. Re-check step 3 and re-run `npm run setup`. Restart `npm run dev` after updating `.env.local`.
+
+**Onboarding fails with "Clerk server configuration is missing"**
+`supabase/functions/.env` has no `CLERK_SECRET_KEY`. Re-running `npm run setup` used to leave it empty. With Supabase running, run `npm run setup:env`: it rewrites both env files from `.env.local` without resetting your database. Then restart `npm run dev:functions`.
 
 **Port 54321 / 54322 / 54323 already in use**
 Another Supabase project is running. Run `npx supabase stop` in that other project's directory, or stop all Supabase containers: `docker ps` then `docker stop <id>`.

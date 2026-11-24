@@ -13,6 +13,12 @@ const isPublicRoute = createRouteMatcher([
   // Dev-only visual harness for the check-in states; the page itself 404s
   // outside development.
   "/(.*)/checkin/states-preview",
+  // Dev-only sandbox for the New vs. Returning chart; also 404s outside
+  // development.
+  "/new-vs-returning-demo",
+  // Checks auth() itself and answers 401/403 as JSON the chart can show;
+  // auth.protect() would redirect the fetch to the sign-in page instead.
+  "/api/analytics/retention",
 ]);
 
 // Routes a signed-in user may visit before completing their attendee profile.
@@ -20,6 +26,9 @@ const isPublicRoute = createRouteMatcher([
 const isOnboardingExempt = createRouteMatcher([
   "/",
   "/onboarding(.*)",
+  // A JSON endpoint: redirecting it to the /onboarding page would hand the
+  // chart HTML instead of an error it can show.
+  "/api/analytics/retention",
   "/sign-in(.*)",
   "/sign-up(.*)",
   "/(.*)/checkin",
@@ -90,18 +99,9 @@ export default clerkMiddleware(async (auth, request) => {
 
 export const config = {
   matcher: [
-    /*
-     * Match all request paths except for the ones starting with:
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     * - api routes (these handle auth separately)
-     * Feel free to modify this pattern to include more paths.
-     *
-     * An empty matcher array means this proxy never runs, so auth.protect()
-     * above is dead code and every route is publicly reachable. Keep at least
-     * one pattern here.
-     */
     "/((?!_next/static|_next/image|favicon.ico|api|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    // API routes are excluded above, but this one calls auth(), which needs
+    // the Clerk middleware to have run.
+    "/api/analytics/retention",
   ],
 };

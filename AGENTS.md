@@ -17,7 +17,7 @@ admin dashboard. Signed-out guests can check in too.
 | Mobile   | Expo / React Native in `mobile/`, Expo Router, Jest            |
 | Auth     | Clerk, on both web and mobile                                  |
 | Data     | Supabase Postgres with RLS, Storage (`org-logos`), Edge Functions (Deno) |
-| Tests    | Vitest (web, `lib/**/*.test.ts`), Jest (mobile)                |
+| Tests    | Vitest (web, `lib/` + `supabase/functions/_shared/`), Jest (mobile) |
 
 ## Graphify: read the graph first
 
@@ -62,14 +62,17 @@ app/                      Next.js routes
   dashboard/ settings/    signed-in home and account settings
   developer/              global-admin tools (create org, audit log)
   utils/supabase/         client.ts (browser) and server.ts (Clerk / anon / service-role)
-  chart-demo/, analytics-design-demo/, [orgSlug]/checkin/states-preview/
+  chart-demo/, analytics-design-demo/, new-vs-returning-demo/,
+  [orgSlug]/checkin/states-preview/
                           design sandboxes, not product pages (see below)
 components/               shared UI (charts, check-in states, forms, stats, primitives)
-lib/                      pure logic + its *.test.ts (geo, roles, membership, branding, forms, CSV…)
+lib/                      web-only pure logic + its *.test.ts (roles, branding, CSV, stats…)
 proxy.ts                  Clerk middleware: public routes + onboarding redirect gate
 supabase/
   migrations/             the ONLY way the schema changes
   functions/              create-org, onboard-attendee, update-org-branding (Deno)
+    _shared/              rules shared by web, mobile and edge functions (membership,
+                          geo, forms, meeting time, branding defaults) + their tests
 mobile/                   Expo app: its own package.json, lockfile, tests, CI
 scripts/                  setup-dev, db backup/restore
 docs/                     analytics dashboard design + sprint tickets
@@ -81,6 +84,7 @@ Web (repo root):
 
 ```bash
 npm run setup               # first-time: Docker, Supabase, migrations, .env files
+npm run setup:env           # rewrite .env files only (no db reset), Supabase must be running
 npm run supabase:start      # local Supabase (Docker)
 npm run dev                 # Next.js on :3000
 npm run dev:functions       # Edge Functions locally
@@ -126,8 +130,10 @@ npm run gen:types           # regenerate database.types.ts from the local DB
 - `lib/org-roles.ts` only mirrors the permission matrix so the UI can hide
   controls. The SECURITY DEFINER RPCs in migrations enforce it, so a role rule
   change goes in both places.
-- Edge Functions can't import from `lib/`. `create-org` keeps its own copy of
-  `DEFAULT_BRANDING`, so change it alongside `lib/branding.ts`.
+- Edge Functions can't import from `lib/`. Logic that web, mobile and edge
+  functions all need goes in `supabase/functions/_shared/`, with no imports of
+  its own. Edge functions import it with the `.ts` extension
+  (`../_shared/branding.ts`); mobile imports it as `@shared/*`.
 
 ### Schema changes
 
@@ -152,17 +158,17 @@ After a schema change, regenerate the mobile types (`npm run gen:types` in
 
 ### Demo and preview routes
 
-`app/chart-demo`, `app/analytics-design-demo` and
+`app/chart-demo`, `app/analytics-design-demo`, `app/new-vs-returning-demo` and
 `app/[orgSlug]/checkin/states-preview` are design sandboxes with hard-coded
 data. Don't link to them from product UI, don't treat them as real features,
-and don't "fix" their data to come from Supabase. `states-preview` returns a
-404 in production. The other two have no guard.
+and don't "fix" their data to come from Supabase. `states-preview` and
+`new-vs-returning-demo` return a 404 in production. The other two have no guard.
 
 ## Client vs server
 
 Reads and simple writes use the browser Supabase client. Writes that need
 server-side validation or a server-derived identity go through server actions,
-such as meeting create, open/close, and delete in
+such as meeting create, update, open/close, and delete in
 `app/[orgSlug]/admin-dashboard/actions.ts`.
 
 Every exported server action is a public endpoint, callable from any page with
@@ -190,7 +196,7 @@ second exposes the password again.
 ### Geolock trusts client-supplied coordinates
 
 The check-in geolock is enforced in two places, using the same math in
-`lib/geo.ts`:
+`supabase/functions/_shared/geo.ts`:
 
 - **Client** (`app/[orgSlug]/checkin/geolock.ts`): the fast UX path. It reads the
   browser's GPS fix and shows the "too far" / "location denied" screens without
@@ -216,13 +222,6 @@ Two related behaviours to keep in mind:
 
 ### The meeting editor still writes from the browser
 
-`admin-dashboard/meetings/[meetingId]/page.tsx` saves with the browser client
-and its own validation, not `lib/meeting-validation.ts`. RLS still limits it to
-officers, but it accepts values the dashboard rejects, such as a latitude of
-200 or a radius under 10 m.
-
-### The database doesn't range-check meetings
-
-There are no CHECK constraints on `latitude`, `longitude`, `radius_meters`, or
-end time after start time. Only the server action checks them, so the editor,
-the SQL editor, or a direct API call can still store bad values.
+`admin-dashboard/meetings/[meetingId]/page.tsx` saves with the browser client,
+not a server action. It runs `validateMeetingDraft` before the update and RLS
+limits it to officers, but the validation runs client-side only.

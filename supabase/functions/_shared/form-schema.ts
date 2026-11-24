@@ -525,6 +525,29 @@ export function canEditStructurally(responseCount: number): boolean {
   return responseCount === 0;
 }
 
+export const STRUCTURAL_CHANGE_ERROR =
+  "This meeting has responses. Questions can't be deleted or change type, and options can't be removed.";
+
+/**
+ * Server-side twin of the builder's lock: the error for a save that deletes a
+ * question, changes its type, or leaves a choice question with fewer options.
+ * Renaming labels and options is allowed. Pass both schemas normalized.
+ */
+export function structuralChangeError(
+  saved: FormSchema,
+  next: FormSchema,
+): string | null {
+  const byId = new Map(next.map((question) => [question.id, question]));
+  for (const before of saved) {
+    const after = byId.get(before.id);
+    if (!after || after.type !== before.type) return STRUCTURAL_CHANGE_ERROR;
+    if ((after.options ?? []).length < (before.options ?? []).length) {
+      return STRUCTURAL_CHANGE_ERROR;
+    }
+  }
+  return null;
+}
+
 /** Render a stored answer as a single display/CSV string. */
 export function formatAnswer(value: AnswerValue | undefined): string {
   if (value === undefined || value === null) return "";

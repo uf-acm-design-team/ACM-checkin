@@ -11,7 +11,7 @@ import {
   geofenceErrorMessage,
   type Coordinates,
   type GeofenceFailure,
-} from "@/lib/geo";
+} from "@/supabase/functions/_shared/geo";
 
 export type MemberCheckInResult =
   | { ok: true; alreadyCheckedIn?: boolean }
