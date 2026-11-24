@@ -6,7 +6,7 @@ one.
 
 | Function | What it does | Called by |
 | --- | --- | --- |
-| [`onboard-attendee`](#onboard-attendee) | Creates or links the caller's attendee profile | Mobile onboarding |
+| [`onboard-attendee`](#onboard-attendee) | Creates or links the caller's attendee profile | `app/onboarding/page.tsx`, mobile onboarding |
 | [`member-check-in`](#member-check-in) | Checks a signed-in member into an open meeting | Not called yet (in progress) |
 | [`create-org`](#create-org) | Creates an organization and assigns its owner | `app/developer/page.tsx` |
 | [`update-org-branding`](#update-org-branding) | Edits an organization's colors and logos | `app/[orgSlug]/admin-dashboard/branding-tab.tsx` |
@@ -21,6 +21,15 @@ Authorization: Bearer <Clerk session token>
 
 - **Locally**, `SUPABASE_URL` is `http://127.0.0.1:54321`. Run
   `npm run dev:functions` first.
+- **From the web app**, call functions from the browser with
+  `callEdgeFunction()` in `lib/edge-functions.ts`, not through a server action.
+  Each function checks the token and its own input, so a server hop would add
+  latency without adding protection. The helper gets a fresh Clerk token on
+  each call, times out after 15 seconds, and turns network failures and
+  non-JSON replies (an undeployed function, a gateway error) into a
+  `server_error`, so pages branch on `code` alone. Move a call to the server
+  only when it needs a secret the browser can't hold, or feeds server
+  rendering or caching.
 - **Auth.** Every function has `verify_jwt = false` in `supabase/config.toml`,
   because the Supabase gateway can't verify Clerk tokens. Each function checks
   the token itself instead, by calling the `current_clerk_id()` RPC as the
