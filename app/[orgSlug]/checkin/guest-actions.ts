@@ -1,11 +1,13 @@
 "use server";
 
-import { headers } from "next/headers";
 import { createClient } from "@supabase/supabase-js";
 
 import { escapeLikePattern, sameEmail } from "@/lib/email-match";
 import { INVALID_EMAIL_MESSAGE, validateEmail } from "@/lib/email-validation";
 import { parseSchema, validateAnswers } from "@/lib/form-schema";
+import { DEVICE_REQUIRED_MESSAGE } from "@/lib/checkin-device";
+import { recordDeviceCheckIn } from "@/lib/record-device-checkin";
+import { checkInDeviceId } from "../../utils/checkin-device";
 import { isWithinMeetingWindow } from "@/lib/meeting-time";
 import {
   checkGeofence,
@@ -41,15 +43,8 @@ import {
 
 const RATE_LIMIT_WINDOW_MS = 60_000;
 const RATE_LIMIT_MAX = 5;
-// Per address, much looser: a room on campus wifi or carrier NAT shares one
-// public IP, and a new guest spends two submits (email, then profile). At 5 the
-// sixth person to scan the QR in a minute was told "Too many attempts".
-const RATE_LIMIT_MAX_PER_IP = 60;
-
-// In-memory, per-server-instance. Good enough to stop a naive script hammering
-// the endpoint from one address; it does NOT survive a redeploy and is not
-// shared across serverless instances. For real protection put a durable store
-// (Upstash/Redis) or an edge rate limiter in front of this.
+// Best-effort attempt throttle per device/email, per server instance.
+// This is separate from the durable one-device-per-meeting attendance limit.
 const attempts = new Map<string, number[]>();
 
 function rateLimit(key: string, max = RATE_LIMIT_MAX): boolean {
@@ -119,13 +114,10 @@ export async function guestCheckIn(input: {
   if (!validatedEmail.ok) return { ok: false, error: INVALID_EMAIL_MESSAGE };
   const email = validatedEmail.value;
 
-  const hdrs = await headers();
-  const ip =
-    hdrs.get("x-forwarded-for")?.split(",")[0]?.trim() ||
-    hdrs.get("x-real-ip") ||
-    "unknown";
+  const deviceId = await checkInDeviceId();
+  if (!deviceId) return { ok: false, error: DEVICE_REQUIRED_MESSAGE };
 
-  if (!rateLimit(`ip:${ip}`, RATE_LIMIT_MAX_PER_IP) || !rateLimit(`email:${email}`)) {
+  if (!rateLimit(`device:${deviceId}`) || !rateLimit(`email:${email}`)) {
     return {
       ok: false,
       error: "Too many attempts. Wait a minute and try again.",
@@ -260,26 +252,13 @@ export async function guestCheckIn(input: {
     attendeeId = created.id;
   }
 
-  const { error: attendanceError } = await supabase.from("attendance").insert({
-    attendee_id: attendeeId,
+  return recordDeviceCheckIn(supabase, {
+    attendee_id: attendeeId!,
     org_id: org.id,
     meeting_id: meeting.id,
     source: "guest",
-    // NULL rather than {} when the meeting asks nothing, matching how the
-    // migration normalized historical rows.
+    device_id: deviceId,
     answers:
       Object.keys(validated.answers).length > 0 ? validated.answers : null,
   });
-
-  if (attendanceError) {
-    // 23505 = the unique (meeting_id, attendee_id) constraint from
-    // 20260813000000. Reaching it means a duplicate check-in, which is a
-    // success from the guest's point of view, not an error.
-    if (attendanceError.code === "23505") {
-      return { ok: true, alreadyCheckedIn: true };
-    }
-    return { ok: false, error: attendanceError.message };
-  }
-
-  return { ok: true };
 }
