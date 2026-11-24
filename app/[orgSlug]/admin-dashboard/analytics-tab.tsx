@@ -2,7 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { ChartCard } from "@/components/charts/chart-card";
+import { AttendancePerMeetingChart } from "@/components/charts/attendance-per-meeting-chart";
+import { MembersVsGuestsChart } from "@/components/charts/members-vs-guests-chart";
+import { NewVsReturningChart } from "@/components/charts/new-vs-returning-chart";
 import { Button, Notice } from "@/components/ui/primitives";
 import {
   parseAnalyticsRange,
@@ -140,15 +142,6 @@ function RangeSelector({
   );
 }
 
-// Stands in for a chart until it lands. Takes the same props as a real chart,
-// so swapping one in only changes the component name.
-function ChartPlaceholder({
-  title,
-  subtitle,
-}: AnalyticsChartProps & { title: string; subtitle: string }) {
-  return <ChartCard title={title} subtitle={subtitle} state="loading" />;
-}
-
 // Layout from docs/ANALYTICS-DASHBOARD-DESIGN.md section 2.
 export default function AnalyticsTab({ orgId }: { orgId: string }) {
   const searchParams = useSearchParams();
@@ -194,23 +187,11 @@ export default function AnalyticsTab({ orgId }: { orgId: string }) {
         </Notice>
       )}
 
-      <ChartPlaceholder
-        {...chartProps}
-        title="Attendance per Meeting"
-        subtitle="Is meeting attendance increasing or decreasing over time?"
-      />
+      <AttendancePerMeetingChart {...chartProps} />
 
       <div className="grid gap-6 lg:grid-cols-2">
-        <ChartPlaceholder
-          {...chartProps}
-          title="New vs. Returning Attendees"
-          subtitle="How many attendees are new versus returning at each meeting?"
-        />
-        <ChartPlaceholder
-          {...chartProps}
-          title="Members vs. Guests"
-          subtitle="How much attendance comes from members versus guests?"
-        />
+        <NewVsReturningChart {...chartProps} />
+        <MembersVsGuestsChart {...chartProps} />
       </div>
     </div>
   );

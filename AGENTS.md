@@ -62,7 +62,8 @@ app/                      Next.js routes
   dashboard/ settings/    signed-in home and account settings
   developer/              global-admin tools (create org, audit log)
   utils/supabase/         client.ts (browser) and server.ts (Clerk / anon / service-role)
-  chart-demo/, analytics-design-demo/, new-vs-returning-demo/,
+  chart-demo/, analytics-design-demo/, attendance-chart-demo/,
+  members-guests-demo/, new-vs-returning-demo/,
   [orgSlug]/checkin/states-preview/
                           design sandboxes, not product pages (see below)
 components/               shared UI (charts, check-in states, forms, stats, primitives)
@@ -163,11 +164,15 @@ After a schema change, regenerate the mobile types (`npm run gen:types` in
 
 ### Demo and preview routes
 
-`app/chart-demo`, `app/analytics-design-demo`, `app/new-vs-returning-demo` and
+`app/chart-demo`, `app/analytics-design-demo`, `app/attendance-chart-demo`,
+`app/members-guests-demo`, `app/new-vs-returning-demo` and
 `app/[orgSlug]/checkin/states-preview` are design sandboxes with hard-coded
 data. Don't link to them from product UI, don't treat them as real features,
-and don't "fix" their data to come from Supabase. `states-preview` and
-`new-vs-returning-demo` return a 404 in production. The other two have no guard.
+and don't "fix" their data to come from Supabase.
+
+`attendance-chart-demo` and `members-guests-demo` return a 404 outside
+development; `new-vs-returning-demo` and `states-preview` return a 404 in
+production. `chart-demo` and `analytics-design-demo` have no guard.
 
 ## Client vs server
 
