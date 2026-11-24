@@ -359,23 +359,17 @@ export default function AdminDashboard({
         form_schema: parseSchema(meeting.form_schema),
       }));
 
-      // One request for every meeting's check-ins, tallied here -- this used to
-      // fire a separate head-count query per meeting (N+1), which meant ~30
-      // round trips for a semester of meetings before the tab could render.
       const meetingIds = normalizedMeetings.map((m) => m.id);
       const countsByMeeting: Record<string, number> = {};
       if (meetingIds.length > 0) {
-        const { data: attendanceRows, error: countError } = await supabase
-          .from("attendance")
-          .select("meeting_id")
-          .in("meeting_id", meetingIds);
+        const { data: counts, error: countError } = await supabase
+          .rpc("attendance_counts_by_meeting", { p_meeting_ids: meetingIds });
 
         if (countError) {
           console.error("Error counting attendance:", countError);
         }
-        for (const row of attendanceRows || []) {
-          countsByMeeting[row.meeting_id] =
-            (countsByMeeting[row.meeting_id] || 0) + 1;
+        for (const row of counts || []) {
+          countsByMeeting[row.meeting_id] = Number(row.attendance_count);
         }
       }
 
@@ -627,18 +621,30 @@ export default function AdminDashboard({
 
     setExportingCsv(true);
     try {
-      const { data, error } = await supabase
-        .from("attendance")
-        .select(
-          "checked_in_at, answers, attendee:attendee_id(first_name, last_name, email, grad_year)",
-        )
-        .eq("meeting_id", meeting.id)
-        .order("checked_in_at", { ascending: true });
+      const EXPORT_PAGE = 500;
+      const allExportRows: Pick<FeedRow, "checked_in_at" | "answers" | "attendee">[] = [];
+      let from = 0;
+      for (;;) {
+        const { data, error } = await supabase
+          .from("attendance")
+          .select(
+            "checked_in_at, answers, attendee:attendee_id(first_name, last_name, email, grad_year)",
+          )
+          .eq("meeting_id", meeting.id)
+          .order("checked_in_at", { ascending: true })
+          .range(from, from + EXPORT_PAGE - 1);
 
-      if (error || !data) return;
+        if (error || !data || data.length === 0) break;
+        allExportRows.push(
+          ...(data as Pick<FeedRow, "checked_in_at" | "answers" | "attendee">[]),
+        );
+        if (data.length < EXPORT_PAGE) break;
+        from += EXPORT_PAGE;
+      }
 
-      const exportRows = data as Pick<FeedRow, "checked_in_at" | "answers" | "attendee">[];
-      const rows: CheckIn[] = exportRows.map((row) => {
+      if (allExportRows.length === 0) return;
+
+      const rows: CheckIn[] = allExportRows.map((row) => {
         const attendee = Array.isArray(row.attendee) ? row.attendee[0] : row.attendee;
         return {
           first_name: attendee?.first_name ?? "",
