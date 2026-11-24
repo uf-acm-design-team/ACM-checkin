@@ -25,7 +25,6 @@ export function membershipProgress(
   attended: number,
   status: string | null,
 ): MembershipProgress {
-  // No slug means no configured org, which the shared rules treat as "no threshold".
   const { threshold, isMember, remaining } = resolveMembership(null, status, attended, slug ?? '');
   return { threshold, attended, remaining, isMember };
 }
