@@ -213,19 +213,6 @@ export default function MeetingEditor({
   const fetchResponses = useCallback(async () => {
     setRowsLoading(true);
     try {
-      const { data, error: rowsError } = await supabase
-        .from("attendance")
-        .select(
-          "checked_in_at, answers, attendee:attendee_id(first_name, last_name, email, grad_year)",
-        )
-        .eq("meeting_id", meetingId)
-        .order("checked_in_at", { ascending: true });
-
-      if (rowsError) {
-        setSaveError(rowsError.message);
-        return;
-      }
-
       type Row = {
         checked_in_at: string;
         answers: unknown;
@@ -237,8 +224,31 @@ export default function MeetingEditor({
         } | null;
       };
 
+      const PAGE = 500;
+      const allRows: Row[] = [];
+      let from = 0;
+      for (;;) {
+        const { data, error: rowsError } = await supabase
+          .from("attendance")
+          .select(
+            "checked_in_at, answers, attendee:attendee_id(first_name, last_name, email, grad_year)",
+          )
+          .eq("meeting_id", meetingId)
+          .order("checked_in_at", { ascending: true })
+          .range(from, from + PAGE - 1);
+
+        if (rowsError) {
+          setSaveError(rowsError.message);
+          return;
+        }
+        if (!data || data.length === 0) break;
+        allRows.push(...(data as unknown as Row[]));
+        if (data.length < PAGE) break;
+        from += PAGE;
+      }
+
       setRows(
-        ((data ?? []) as unknown as Row[]).map((row) => ({
+        allRows.map((row) => ({
           first_name: row.attendee?.first_name ?? "",
           last_name: row.attendee?.last_name ?? "",
           email: row.attendee?.email ?? "",
