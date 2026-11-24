@@ -156,11 +156,15 @@ After a schema change, regenerate the mobile types (`npm run gen:types` in
 
 ### Demo and preview routes
 
-`app/chart-demo`, `app/analytics-design-demo` and
+`app/chart-demo`, `app/analytics-design-demo`,
+`app/attendance-chart-demo`, `app/members-guests-demo`, and
 `app/[orgSlug]/checkin/states-preview` are design sandboxes with hard-coded
 data. Don't link to them from product UI, don't treat them as real features,
-and don't "fix" their data to come from Supabase. `states-preview` returns a
-404 in production. The other two have no guard.
+and don't "fix" their data to come from Supabase.
+
+`attendance-chart-demo` and `states-preview` return a 404 in production.
+`members-guests-demo` must also have a production guard before release.
+`chart-demo` and `analytics-design-demo` currently have no guard.
 
 ## Client vs server
 
