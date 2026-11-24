@@ -160,7 +160,7 @@ and don't "fix" their data to come from Supabase. `states-preview` returns a
 
 Reads and simple writes use the browser Supabase client. Writes that need
 server-side validation or a server-derived identity go through server actions,
-such as meeting create, open/close, and delete in
+such as meeting create, update, open/close, and delete in
 `app/[orgSlug]/admin-dashboard/actions.ts`.
 
 Every exported server action is a public endpoint, callable from any page with

@@ -10,6 +10,8 @@ import {
   formatAnswer,
   hasQuestions,
   canEditStructurally,
+  structuralChangeError,
+  STRUCTURAL_CHANGE_ERROR,
   MAX_QUESTIONS,
   MAX_SHORT_TEXT_LENGTH,
   type FormQuestion,
@@ -328,6 +330,42 @@ describe("canEditStructurally", () => {
   it("locks structural edits once responses exist", () => {
     expect(canEditStructurally(0)).toBe(true);
     expect(canEditStructurally(1)).toBe(false);
+  });
+});
+
+describe("structuralChangeError", () => {
+  const choice = q({ id: "q_c", type: "dropdown", options: ["A", "B"] });
+  const saved: FormSchema = [q(), choice];
+
+  it("allows an unchanged schema", () => {
+    expect(structuralChangeError(saved, saved)).toBeNull();
+  });
+
+  it("allows relabeling, renaming options, reordering, and additions", () => {
+    const next: FormSchema = [
+      { ...choice, label: "Renamed", options: ["A2", "B", "C"] },
+      q({ label: "Fixed typo", required: true }),
+      q({ id: "q_new" }),
+    ];
+    expect(structuralChangeError(saved, next)).toBeNull();
+  });
+
+  it("rejects deleting a question", () => {
+    expect(structuralChangeError(saved, [choice])).toBe(STRUCTURAL_CHANGE_ERROR);
+  });
+
+  it("rejects changing a question's type", () => {
+    const next: FormSchema = [q({ type: "long_text" }), choice];
+    expect(structuralChangeError(saved, next)).toBe(STRUCTURAL_CHANGE_ERROR);
+  });
+
+  it("rejects removing an option, including one cleared to empty", () => {
+    const cleared = normalizeSchema([q(), { ...choice, options: ["A", " "] }]);
+    expect(structuralChangeError(saved, cleared)).toBe(STRUCTURAL_CHANGE_ERROR);
+  });
+
+  it("allows anything when nothing was saved before", () => {
+    expect(structuralChangeError([], [q({ type: "checkboxes", options: ["x"] })])).toBeNull();
   });
 });
 
