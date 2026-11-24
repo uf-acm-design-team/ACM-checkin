@@ -81,6 +81,20 @@ export async function getMyMemberships(
   return data ?? [];
 }
 
+/** Every org, A to Z, for finding clubs you're not in yet. Orgs are public. */
+export async function getAllOrgs(
+  supabase: MobileSupabase | null,
+): Promise<Organization[]> {
+  if (!supabase) return [];
+
+  const { data, error } = await supabase.client
+    .from("organizations")
+    .select(orgColumns)
+    .order("name", { ascending: true });
+  if (error) throw new DataError("getAllOrgs", error);
+  return data ?? [];
+}
+
 export async function getOrgBySlug(
   supabase: MobileSupabase | null,
   slug: string,
@@ -129,6 +143,45 @@ export async function getOpenMeetings(
     .map((meeting) => ({
       ...meeting,
       form_schema: parseSchema(meeting.form_schema),
+    }));
+}
+
+export type LiveMeeting = {
+  id: string;
+  orgId: string;
+  title: string;
+  endTime: string | null;
+};
+
+/**
+ * The meetings in these orgs that are open for check-in right now: the
+ * officer's switch is on and the scheduled window includes `now`, the same
+ * rule as getOpenMeetings. One query for all the orgs on Home.
+ */
+export async function getLiveMeetings(
+  supabase: MobileSupabase | null,
+  orgIds: string[],
+  now: Date = new Date(),
+): Promise<LiveMeeting[]> {
+  if (!supabase || orgIds.length === 0) return [];
+
+  const { data, error } = await supabase.client
+    .from("meetings")
+    .select("id, org_id, title, start_time, end_time")
+    .in("org_id", orgIds)
+    .eq("status", true)
+    .order("start_time", { ascending: true });
+  if (error) throw new DataError("getLiveMeetings", error);
+
+  return (data ?? [])
+    .filter((meeting) =>
+      isWithinMeetingWindow(now, meeting.start_time, meeting.end_time),
+    )
+    .map((meeting) => ({
+      id: meeting.id,
+      orgId: meeting.org_id,
+      title: meeting.title,
+      endTime: meeting.end_time,
     }));
 }
 
@@ -236,6 +289,43 @@ export async function getMyHomeOrgs(
     m.start_time ? [{ ...m, start_time: m.start_time }] : [],
   );
   return buildHomeOrgs(memberships, attendance.data ?? [], scheduled, now);
+}
+
+// One of your check-ins: which org, when that meeting started, and its title.
+export type MyCheckIn = { orgId: string; startTime: string; title?: string | null };
+
+export type MyProfile = {
+  attendee: Attendee | null;
+  memberships: MyMembership[];
+  checkIns: MyCheckIn[];
+};
+
+// Everything the profile tab needs. meetings only grants listed columns, so
+// the join names start_time rather than selecting *.
+export async function getMyProfile(
+  supabase: MobileSupabase | null,
+): Promise<MyProfile> {
+  const empty: MyProfile = { attendee: null, memberships: [], checkIns: [] };
+  if (!supabase) return empty;
+
+  const [memberships, attendee] = await Promise.all([
+    getMyMemberships(supabase),
+    getMyAttendee(supabase),
+  ]);
+  if (!attendee) return { ...empty, memberships };
+
+  const { data, error } = await supabase.client
+    .from("attendance")
+    .select("org_id, meeting:meetings(start_time, title)")
+    .eq("attendee_id", attendee.id);
+  if (error) throw new DataError("getMyProfile", error);
+
+  const checkIns = (data ?? []).flatMap((row) =>
+    row.meeting?.start_time
+      ? [{ orgId: row.org_id, startTime: row.meeting.start_time, title: row.meeting.title }]
+      : [],
+  );
+  return { attendee, memberships, checkIns };
 }
 
 export type MeetingQuestion = { id: string; label: string };

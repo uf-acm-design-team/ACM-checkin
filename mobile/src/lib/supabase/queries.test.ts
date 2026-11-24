@@ -4,9 +4,9 @@ import {
   DataError,
   getMyAttendee,
   getMyMemberships,
+  getOpenMeetings,
   getMyMeetingCheckIn,
   getMyOrgMeetings,
-  getOpenMeetings,
   getOrgBySlug,
 } from "./queries";
 import { anonKey, fakeJwt, jsonResponse, recordingFetch } from "./test-helpers";
@@ -273,7 +273,6 @@ describe("getOpenMeetings", () => {
     await expect(getOpenMeetings(supabase, "org-1")).rejects.toBeInstanceOf(DataError);
   });
 });
-
 describe("getMyOrgMeetings", () => {
   it("returns every meeting with whether you attended it", async () => {
     const { fetchImpl, requests } = recordingFetch((u) =>

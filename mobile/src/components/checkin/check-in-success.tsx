@@ -5,7 +5,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Circle, Path } from 'react-native-svg';
 
 import { Button } from '@/components/button';
-import { colors, radii, space } from '@/theme';
+import { haptic } from '@/lib/haptics';
+import { useReducedMotion } from '@/lib/reduced-motion';
+import { colors, lightColors, radii, space } from '@/theme';
 
 const timeFormat = new Intl.DateTimeFormat(undefined, { weekday: 'short', hour: 'numeric', minute: '2-digit' });
 
@@ -66,7 +68,17 @@ export function CheckInSuccess({
   const check = useAnimatedValue(0);
   const words = useAnimatedValue(0);
 
+  // With Reduce Motion on, show the finished screen straight away.
+  const reduced = useReducedMotion();
+
   useEffect(() => {
+    if (reduced) {
+      for (const value of [flood, ring, check, words]) value.setValue(1);
+      haptic.success();
+      return;
+    }
+    // The success buzz lands as the check mark finishes drawing.
+    const buzz = setTimeout(haptic.success, 450 + 450 + 250);
     const ease = Easing.out(Easing.cubic);
     const animation = Animated.sequence([
       Animated.timing(flood, { toValue: 1, duration: 450, easing: ease, useNativeDriver: true }),
@@ -76,8 +88,11 @@ export function CheckInSuccess({
       Animated.timing(words, { toValue: 1, duration: 300, easing: ease, useNativeDriver: true }),
     ]);
     animation.start();
-    return () => animation.stop();
-  }, [flood, ring, check, words]);
+    return () => {
+      clearTimeout(buzz);
+      animation.stop();
+    };
+  }, [reduced, flood, ring, check, words]);
 
   const wordsStyle = {
     opacity: words,
@@ -198,7 +213,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   detail: {
-    color: colors.accentSoft,
+    color: lightColors.accentSoft,
     fontSize: 14,
     lineHeight: 20,
     textAlign: 'center',
@@ -227,7 +242,7 @@ const styles = StyleSheet.create({
     borderRadius: radii.pill,
   },
   progressLine: {
-    color: colors.accentSoft,
+    color: lightColors.accentSoft,
     fontSize: 13,
   },
   spacer: { flex: 1 },

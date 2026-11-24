@@ -1,4 +1,4 @@
-import { resolveMembership } from '@shared/membership';
+import { membershipThreshold as sharedThreshold, resolveMembership } from '@shared/membership';
 
 import type { Json } from '@/lib/supabase';
 import { ORG_TIME_ZONE } from '@/lib/terms';
@@ -13,6 +13,19 @@ export function orgAccent(branding: Json | null): string | null {
   return typeof accent === 'string' && HEX_COLOR.test(accent) ? accent : null;
 }
 
+// `hex` at `opacity` (0-1), as #rrggbbaa. For soft fills in an org's own colour.
+export function tint(hex: string, opacity: number): string {
+  const full = hex.length === 4 ? `#${hex[1]}${hex[1]}${hex[2]}${hex[2]}${hex[3]}${hex[3]}` : hex;
+  const alpha = Math.round(Math.min(Math.max(opacity, 0), 1) * 255).toString(16).padStart(2, '0');
+  return `${full}${alpha}`;
+}
+
+// The check-ins an org asks for before you count as a member. Every org has
+// one (the shared rule); null only when there's no slug to look up.
+export function membershipThreshold(slug: string | null): number | null {
+  return slug ? sharedThreshold(slug) : null;
+}
+
 export type MembershipProgress = {
   threshold: number | null;
   attended: number;
@@ -25,7 +38,10 @@ export function membershipProgress(
   attended: number,
   status: string | null,
 ): MembershipProgress {
-  const { threshold, isMember, remaining } = resolveMembership(null, status, attended, slug ?? '');
+  // No slug means no org to look up, so no threshold. The shared rules give
+  // every slug (even an empty one) the default, so check before asking them.
+  if (!slug) return { threshold: null, attended, remaining: 0, isMember: status === 'active' };
+  const { threshold, isMember, remaining } = resolveMembership(null, status, attended, slug);
   return { threshold, attended, remaining, isMember };
 }
 

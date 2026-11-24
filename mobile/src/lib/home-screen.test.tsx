@@ -1,9 +1,10 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 
 import HomeScreen from '@/app/(tabs)/index';
-import type { HomeOrg } from '@/lib/supabase';
+import type { HomeOrg, LiveMeeting } from '@/lib/supabase';
 
 const mockGetMyHomeOrgs = jest.fn<Promise<HomeOrg[]>, []>();
+const mockGetLiveMeetings = jest.fn<Promise<LiveMeeting[]>, []>();
 const mockSupabase = {};
 const mockPush = jest.fn();
 
@@ -14,6 +15,7 @@ let mockFocus: () => void = () => {};
 jest.mock('expo-router', () => {
   const { useEffect } = jest.requireActual<typeof import('react')>('react');
   return {
+    router: { push: (...args: unknown[]) => mockPush(...args) },
     useRouter: () => ({ push: (...args: unknown[]) => mockPush(...args) }),
     useFocusEffect: (onFocus: () => void) => {
       mockFocus = onFocus;
@@ -27,6 +29,7 @@ jest.mock('react-native-safe-area-context', () => ({
 jest.mock('@/lib/supabase', () => ({
   useSupabase: () => mockSupabase,
   getMyHomeOrgs: () => mockGetMyHomeOrgs(),
+  getLiveMeetings: () => mockGetLiveMeetings(),
 }));
 
 const acm: HomeOrg = {
@@ -38,7 +41,10 @@ const acm: HomeOrg = {
   checkedInToday: false,
 };
 
-beforeEach(() => mockGetMyHomeOrgs.mockReset());
+beforeEach(() => {
+  mockGetMyHomeOrgs.mockReset();
+  mockGetLiveMeetings.mockReset().mockResolvedValue([]);
+});
 
 it('lists your orgs with check-ins and progress', async () => {
   mockGetMyHomeOrgs.mockResolvedValue([acm]);
@@ -49,6 +55,32 @@ it('lists your orgs with check-ins and progress', async () => {
   expect(screen.getByText('2 check-ins')).toBeTruthy();
   expect(screen.getByText('Officer')).toBeTruthy();
   expect(screen.getByText('1 more check-in to become a member')).toBeTruthy();
+});
+
+it('marks an org whose meeting is open for check-in as live', async () => {
+  mockGetMyHomeOrgs.mockResolvedValue([
+    { ...acm, nextMeeting: { id: 'm1', title: 'General body meeting', startTime: '2026-11-25T23:00:00Z', endTime: null } },
+  ]);
+  mockGetLiveMeetings.mockResolvedValue([{ id: 'm1', orgId: 'org-acm', title: 'General body meeting', endTime: null }]);
+  await render(<HomeScreen />);
+
+  expect(await screen.findByText('Live')).toBeTruthy();
+  // The pill says it's live; Up next still names the meeting.
+  expect(screen.getByText('Up next')).toBeTruthy();
+  expect(screen.getByText('General body meeting')).toBeTruthy();
+  expect(screen.queryByText('Happening now')).toBeNull();
+  expect(
+    screen.getByLabelText('ACM, Officer, Live now, 2 check-ins, Up next: General body meeting, Wed, Nov 25 · 6:00 PM'),
+  ).toBeTruthy();
+});
+
+it('still lists your orgs when the live check fails', async () => {
+  mockGetMyHomeOrgs.mockResolvedValue([acm]);
+  mockGetLiveMeetings.mockRejectedValue(new Error('offline'));
+  await render(<HomeScreen />);
+
+  expect(await screen.findByText('ACM')).toBeTruthy();
+  expect(screen.queryByText('Live')).toBeNull();
 });
 
 it('opens the attendance history when you tap an org', async () => {
@@ -123,4 +155,17 @@ it('shows the checked-in strip and reads it out', async () => {
 
   expect(await screen.findByText('Checked in today')).toBeTruthy();
   expect(screen.getByLabelText('ACM, Officer, 2 check-ins, Checked in today, No meetings scheduled')).toBeTruthy();
+});
+
+it('shows card-shaped placeholders while loading, then the cards', async () => {
+  let finish: (orgs: HomeOrg[]) => void = () => {};
+  mockGetMyHomeOrgs.mockReturnValue(new Promise<HomeOrg[]>((resolve) => (finish = resolve)));
+  await render(<HomeScreen />);
+
+  expect(screen.getByLabelText('Loading your orgs')).toBeTruthy();
+  expect(screen.queryByText('ACM')).toBeNull();
+
+  await act(async () => finish([acm]));
+  expect(await screen.findByText('ACM')).toBeTruthy();
+  expect(screen.queryByLabelText('Loading your orgs')).toBeNull();
 });

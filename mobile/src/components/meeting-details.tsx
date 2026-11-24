@@ -1,7 +1,9 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useEffect, useState, type ReactNode } from 'react';
-import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
+import { BottomSheet } from '@/components/bottom-sheet';
+import { LivePill } from '@/components/live-pill';
 import { daysAway, formatAnswer } from '@/lib/meeting-details';
 import { getMyMeetingCheckIn, useSupabase, type MeetingCheckIn, type OrgMeeting } from '@/lib/supabase';
 import { getTerm, ORG_TIME_ZONE } from '@/lib/terms';
@@ -12,6 +14,8 @@ type Props = {
   meeting: OrgMeeting | null;
   orgName: string;
   now: string;
+  // Whether that meeting is open for check-in right now.
+  live?: boolean;
   onClose: () => void;
 };
 
@@ -34,21 +38,18 @@ const longDate = (iso: string) =>
 
 // A bottom sheet with one meeting's details. The row already has the title,
 // date and description; the end time and your own check-in load when it opens.
-export function MeetingDetails({ meeting, orgName, now, onClose }: Props) {
+export function MeetingDetails({ meeting, orgName, now, live, onClose }: Props) {
   return (
-    <Modal visible={meeting !== null} transparent animationType="slide" onRequestClose={onClose}>
-      <View style={styles.fill}>
-        <Pressable style={styles.shade} onPress={onClose} accessibilityLabel="Close meeting details" />
-        {meeting ? (
-          // Keyed so a different meeting starts from "loading", not the last one's details.
-          <Sheet key={meeting.id} meeting={meeting} orgName={orgName} now={now} onClose={onClose} />
-        ) : null}
-      </View>
-    </Modal>
+    <BottomSheet onClose={onClose} backdropLabel="Close meeting details" style={styles.sheet}>
+      {meeting ? (dismiss) => (
+        // Keyed so a different meeting starts from "loading", not the last one's details.
+        <Sheet key={meeting.id} meeting={meeting} orgName={orgName} now={now} live={live} onClose={dismiss} />
+      ) : null}
+    </BottomSheet>
   );
 }
 
-function Sheet({ meeting, orgName, now, onClose }: Props & { meeting: OrgMeeting }) {
+function Sheet({ meeting, orgName, now, live, onClose }: Props & { meeting: OrgMeeting }) {
   const supabase = useSupabase();
   const [extra, setExtra] = useState<Extra>({ status: 'loading' });
 
@@ -78,7 +79,7 @@ function Sheet({ meeting, orgName, now, onClose }: Props & { meeting: OrgMeeting
     .filter((question) => question.answer);
 
   return (
-    <View style={styles.sheet} accessibilityViewIsModal>
+    <>
       <View style={styles.grabber} />
       <View style={styles.titleRow}>
         <View style={styles.titleBlock}>
@@ -94,6 +95,10 @@ function Sheet({ meeting, orgName, now, onClose }: Props & { meeting: OrgMeeting
         <Pill icon="checkmark" tone="good">
           {checkIn?.checkedInAt ? `Checked in at ${time(checkIn.checkedInAt)}` : 'Checked in'}
         </Pill>
+      ) : live ? (
+        <View style={styles.live}>
+          <LivePill />
+        </View>
       ) : upcoming ? (
         <Pill icon="time-outline" tone="accent">
           {daysAway(meeting.startTime, now)}
@@ -130,7 +135,7 @@ function Sheet({ meeting, orgName, now, onClose }: Props & { meeting: OrgMeeting
           </Detail>
         ) : null}
 
-        {upcoming ? (
+        {upcoming || (live && !meeting.attended) ? (
           <Detail icon="qr-code-outline">
             <Text style={styles.muted}>
               Scan the QR code at the meeting to check in. It counts toward {getTerm(meeting.startTime).label}.
@@ -143,7 +148,7 @@ function Sheet({ meeting, orgName, now, onClose }: Props & { meeting: OrgMeeting
           <Text style={[styles.muted, styles.loading]}>Couldn&apos;t load the rest of this meeting&apos;s details.</Text>
         ) : null}
       </ScrollView>
-    </View>
+    </>
   );
 }
 
@@ -181,19 +186,6 @@ function Detail({ icon, children }: { icon: keyof typeof Ionicons.glyphMap; chil
 }
 
 const styles = StyleSheet.create({
-  fill: {
-    flex: 1,
-    justifyContent: 'flex-end',
-  },
-  shade: {
-    position: 'absolute',
-    top: 0,
-    right: 0,
-    bottom: 0,
-    left: 0,
-    backgroundColor: colors.ink,
-    opacity: 0.4,
-  },
   sheet: {
     maxHeight: '78%',
     paddingHorizontal: space[4],
@@ -242,6 +234,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: space[2] + 2,
     paddingVertical: 3,
     borderRadius: radii.pill,
+  },
+  live: {
+    alignSelf: 'flex-start',
+    marginVertical: space[3],
   },
   pillText: {
     fontSize: 12,

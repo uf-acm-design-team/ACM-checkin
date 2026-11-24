@@ -1,6 +1,7 @@
-import { colors } from '@/theme';
+// Plain hex strings to stand in for an org's branding; the adaptive colours aren't strings on iOS.
+import { lightColors as colors } from '@/theme';
 
-import { membershipProgress, orgAccent, roleLabel } from './org-display';
+import { membershipProgress, orgAccent, roleLabel, tint } from './org-display';
 
 describe('orgAccent', () => {
   it('reads the accent colour from branding', () => {
@@ -31,12 +32,13 @@ describe('membershipProgress', () => {
     expect(membershipProgress('acm', 1, 'active')).toMatchObject({ threshold: 3, isMember: true });
   });
 
-  it('treats an active member of an org without a threshold as a member', () => {
-    expect(membershipProgress('colorstack', 0, 'active')).toMatchObject({ threshold: null, isMember: true });
+  it('gives every org the same threshold, so a new org gets progress and badges too', () => {
+    expect(membershipProgress('colorstack', 2, 'pending')).toMatchObject({ threshold: 3, remaining: 1, isMember: false });
+    expect(membershipProgress('colorstack', 3, 'pending')).toMatchObject({ threshold: 3, isMember: true });
+    expect(membershipProgress('colorstack', 0, 'active')).toMatchObject({ threshold: 3, isMember: true });
   });
 
-  it('never makes you a member from check-ins alone when the org has no threshold', () => {
-    expect(membershipProgress('colorstack', 5, 'pending')).toMatchObject({ threshold: null, isMember: false });
+  it('has no threshold without a slug', () => {
     expect(membershipProgress(null, 5, null)).toMatchObject({ threshold: null, isMember: false });
   });
 });
@@ -45,5 +47,13 @@ describe('roleLabel', () => {
   it('capitalises roles', () => {
     expect(roleLabel('officer')).toBe('Officer');
     expect(roleLabel('co-owner')).toBe('Co-Owner');
+  });
+});
+
+describe('tint', () => {
+  it('adds an alpha byte to the colour', () => {
+    expect(tint(colors.accent, 0.14)).toBe(`${colors.accent}24`);
+    expect(tint(colors.accent, 1)).toBe(`${colors.accent}ff`);
+    expect(tint(colors.accent, 0)).toBe(`${colors.accent}00`);
   });
 });

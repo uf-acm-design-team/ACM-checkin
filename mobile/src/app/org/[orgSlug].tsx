@@ -1,19 +1,31 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
+import { FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
 
 import { Button } from '@/components/button';
+import { FadeIn } from '@/components/fade-in';
+import { LivePill } from '@/components/live-pill';
 import { MeetingCalendar } from '@/components/meeting-calendar';
 import { MeetingDetails } from '@/components/meeting-details';
 import { MembershipProgress } from '@/components/membership-progress';
+import { NextMeeting } from '@/components/next-meeting';
 import { Screen } from '@/components/screen';
 import { SemesterPicker } from '@/components/semester-picker';
+import { RowsSkeleton, Skeleton, Bone } from '@/components/skeleton';
 import { ViewSwitch } from '@/components/view-switch';
 import { addMonths } from '@/lib/calendar';
-import { daysAway } from '@/lib/meeting-details';
+import { daysAway, nextMeeting } from '@/lib/meeting-details';
 import { membershipProgress, orgAccent, type MembershipProgress as Progress } from '@/lib/org-display';
-import { getMyHomeOrgs, getMyOrgMeetings, getOrgBySlug, useSupabase, type OrgMeeting } from '@/lib/supabase';
+import {
+  getLiveMeetings,
+  getMyHomeOrgs,
+  getMyOrgMeetings,
+  getOrgBySlug,
+  useSupabase,
+  type LiveMeeting,
+  type OrgMeeting,
+} from '@/lib/supabase';
 import {
   academicYearTerms,
   firstMonth,
@@ -44,6 +56,8 @@ type HistoryState =
       progress: Progress;
       // Every meeting in the semester, attended or not, past or upcoming.
       meetings: OrgMeeting[];
+      // The org's meetings that are open for check-in right now.
+      live: LiveMeeting[];
     };
 
 // The month the calendar opens on for a semester: this month if it's the
@@ -64,7 +78,17 @@ function formatDate(iso: string) {
 }
 
 // One meeting in the list or under the calendar. Tapping it opens its details.
-function MeetingRow({ meeting, now, onPress }: { meeting: OrgMeeting; now: string; onPress: () => void }) {
+function MeetingRow({
+  meeting,
+  now,
+  live,
+  onPress,
+}: {
+  meeting: OrgMeeting;
+  now: string;
+  live: boolean;
+  onPress: () => void;
+}) {
   const upcoming = !meeting.attended && new Date(meeting.startTime).getTime() > new Date(now).getTime();
   return (
     <Pressable
@@ -79,9 +103,10 @@ function MeetingRow({ meeting, now, onPress }: { meeting: OrgMeeting; now: strin
         </Text>
         <Text style={styles.muted}>{formatDate(meeting.startTime)}</Text>
       </View>
+      {live ? <LivePill /> : null}
       {meeting.attended ? (
         <Ionicons name="checkmark" size={18} color={colors.good} accessibilityLabel="Checked in" />
-      ) : upcoming ? (
+      ) : live ? null : upcoming ? (
         <Text style={styles.badge}>{daysAway(meeting.startTime, now)}</Text>
       ) : null}
     </Pressable>
@@ -136,9 +161,11 @@ export default function OrgHistoryScreen() {
       try {
         const org = await getOrgBySlug(supabase, orgSlug);
         if (!org) throw new Error('This org no longer exists.');
-        const [{ meetings }, homeOrgs] = await Promise.all([
+        const [{ meetings }, homeOrgs, live] = await Promise.all([
           getMyOrgMeetings(supabase, org.id, termBounds(term)),
           getMyHomeOrgs(supabase),
+          // The Live pill is an extra: if this fails, still show the history.
+          getLiveMeetings(supabase, [org.id]).catch(() => []),
         ]);
         // Membership counts every check-in, not just this semester's -- the
         // same numbers as the org's card on Home.
@@ -149,6 +176,7 @@ export default function OrgHistoryScreen() {
           accent: orgAccent(org.branding) ?? colors.accent,
           progress: membershipProgress(org.slug, home?.attended ?? 0, home?.status ?? null),
           meetings,
+          live,
         };
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Something went wrong.';
@@ -175,19 +203,13 @@ export default function OrgHistoryScreen() {
     setReloadKey((key) => key + 1);
   }, []);
 
-  if (state.status === 'loading') {
-    return (
-      <Screen>
-        <View style={styles.centered}>
-          <ActivityIndicator color={colors.accent} />
-          <Text style={styles.muted}>Loading your check-ins…</Text>
-        </View>
-      </Screen>
-    );
-  }
-
   const attended =
     state.status === 'ready' ? state.meetings.filter((meeting) => meeting.attended) : [];
+  const liveById = new Map(
+    (state.status === 'ready' ? state.live : []).map((meeting) => [meeting.id, meeting]),
+  );
+  const next =
+    state.status === 'ready' ? nextMeeting(state.meetings, new Set(liveById.keys()), now) : null;
   const dayMeetings =
     state.status === 'ready' && selectedDay !== null
       ? state.meetings.filter((meeting) => {
@@ -214,8 +236,15 @@ export default function OrgHistoryScreen() {
               </Pressable>
               <SemesterPicker terms={terms} selected={term} onSelect={selectTerm} />
             </View>
-            {state.status === 'ready' ? (
-              <>
+            {state.status === 'loading' ? (
+              <Skeleton label="Loading your check-ins">
+                <Bone width="50%" height={24} />
+                <Bone width="40%" height={14} />
+                <Bone height={56} />
+                <Bone height={36} round />
+              </Skeleton>
+            ) : state.status === 'ready' ? (
+              <FadeIn style={styles.loaded}>
                 <Text style={styles.title}>{state.orgName}</Text>
                 <Text style={styles.muted}>
                   {attended.length} {attended.length === 1 ? 'check-in' : 'check-ins'} in {term.label}
@@ -224,13 +253,22 @@ export default function OrgHistoryScreen() {
                   <MembershipProgress progress={state.progress} accent={state.accent} />
                 </View>
                 <ViewSwitch options={VIEWS} value={view} onChange={setView} />
-              </>
+              </FadeIn>
             ) : null}
           </View>
         }
-        renderItem={({ item }) => <MeetingRow meeting={item} now={now} onPress={() => setDetail(item)} />}
+        renderItem={({ item, index }) => (
+          // Each semester's rows rise in one after another.
+          <FadeIn key={`${term.key}-${item.id}`} delay={Math.min(index, 8) * 60}>
+            <MeetingRow meeting={item} now={now} live={liveById.has(item.id)} onPress={() => setDetail(item)} />
+          </FadeIn>
+        )}
         ListEmptyComponent={
-          state.status === 'error' ? (
+          state.status === 'loading' ? (
+            <Skeleton label="Loading meetings">
+              <RowsSkeleton count={3} />
+            </Skeleton>
+          ) : state.status === 'error' ? (
             <View style={[styles.panel, styles.errorPanel]}>
               <Text style={styles.panelTitle}>Couldn&apos;t load your check-ins</Text>
               <Text style={styles.muted}>{state.message}</Text>
@@ -238,9 +276,19 @@ export default function OrgHistoryScreen() {
             </View>
           ) : view === 'calendar' && state.status === 'ready' ? (
             <View style={styles.calendar}>
+              {next ? (
+                <FadeIn>
+                  <NextMeeting
+                    meeting={next}
+                    live={liveById.get(next.id) ?? null}
+                    now={now}
+                    onPress={() => setDetail(next)}
+                  />
+                </FadeIn>
+              ) : null}
               <MeetingCalendar
                 month={month}
-                meetings={state.meetings}
+                meetings={state.meetings.map((meeting) => ({ ...meeting, accent: state.accent }))}
                 now={now}
                 canGoBack={canMove(-1)}
                 canGoForward={canMove(1)}
@@ -249,9 +297,18 @@ export default function OrgHistoryScreen() {
                 onSelectDay={(day) => setSelectedDay(day === selectedDay ? null : day)}
               />
               {dayMeetings.length > 0 ? (
-                dayMeetings.map((meeting) => (
-                  <MeetingRow key={meeting.id} meeting={meeting} now={now} onPress={() => setDetail(meeting)} />
-                ))
+                // Keyed by day so picking another day fades its rows in.
+                <FadeIn key={`${month.year}-${month.month}-${selectedDay}`} style={styles.calendar}>
+                  {dayMeetings.map((meeting) => (
+                    <MeetingRow
+                      key={meeting.id}
+                      meeting={meeting}
+                      now={now}
+                      live={liveById.has(meeting.id)}
+                      onPress={() => setDetail(meeting)}
+                    />
+                  ))}
+                </FadeIn>
               ) : (
                 <Text style={styles.muted}>Tap a day to see its meetings</Text>
               )}
@@ -267,23 +324,24 @@ export default function OrgHistoryScreen() {
         }
       />
       {state.status === 'ready' ? (
-        <MeetingDetails meeting={detail} orgName={state.orgName} now={now} onClose={() => setDetail(null)} />
+        <MeetingDetails
+          meeting={detail}
+          orgName={state.orgName}
+          now={now}
+          live={detail ? liveById.has(detail.id) : false}
+          onClose={() => setDetail(null)}
+        />
       ) : null}
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  centered: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: space[3],
-  },
   list: {
     flexGrow: 1,
     padding: space[4],
   },
+  loaded: { gap: space[1] },
   header: {
     gap: space[1],
     marginBottom: space[4],

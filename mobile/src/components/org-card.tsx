@@ -2,11 +2,14 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { useRouter } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { LivePill } from '@/components/live-pill';
 import { meetingWhen, membershipProgress, orgAccent, roleLabel } from '@/lib/org-display';
-import type { HomeOrg } from '@/lib/supabase';
+import type { HomeOrg, LiveMeeting } from '@/lib/supabase';
 import { colors, radii, shadows, space } from '@/theme';
 
-export function OrgCard({ org, role, status, attended, nextMeeting, checkedInToday }: HomeOrg) {
+// `live` is the org's meeting that is open for check-in right now, if any. The
+// Live pill marks it; Up next still names the next meeting.
+export function OrgCard({ org, role, status, attended, nextMeeting, checkedInToday, live }: HomeOrg & { live?: LiveMeeting }) {
   const router = useRouter();
   const slug = org.slug;
   const name = org.name ?? slug ?? 'Organization';
@@ -18,7 +21,7 @@ export function OrgCard({ org, role, status, attended, nextMeeting, checkedInTod
   const next = nextMeeting
     ? `Up next: ${nextMeeting.title}, ${meetingWhen(nextMeeting.startTime)}`
     : 'No meetings scheduled';
-  const spoken = [name, roleLabel(role), checkIns, checkedInToday ? 'Checked in today' : null, next]
+  const spoken = [name, roleLabel(role), live ? 'Live now' : null, checkIns, checkedInToday ? 'Checked in today' : null, next]
     .filter(Boolean)
     .join(', ');
 
@@ -40,6 +43,7 @@ export function OrgCard({ org, role, status, attended, nextMeeting, checkedInTod
           </Text>
           <Text style={styles.count}>{checkIns}</Text>
         </View>
+        {live ? <LivePill /> : null}
         <View style={styles.chip}>
           <Text style={styles.chipText}>{roleLabel(role)}</Text>
         </View>

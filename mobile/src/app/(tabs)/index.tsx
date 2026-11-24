@@ -1,18 +1,22 @@
 import { useUser } from '@clerk/expo';
 import { useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, FlatList, RefreshControl, StyleSheet, Text, View } from 'react-native';
+import { FlatList, RefreshControl, StyleSheet, Text, View } from 'react-native';
 
 import { Button } from '@/components/button';
+import { FadeIn } from '@/components/fade-in';
+import { GLASS_TAB_BAR_SPACE } from '@/components/glass-tab-bar';
 import { OrgCard } from '@/components/org-card';
+import { ProfileButton } from '@/components/profile-button';
 import { Screen } from '@/components/screen';
-import { getMyHomeOrgs, useSupabase, type HomeOrg } from '@/lib/supabase';
+import { OrgCardSkeleton, Skeleton } from '@/components/skeleton';
+import { getLiveMeetings, getMyHomeOrgs, useSupabase, type HomeOrg, type LiveMeeting } from '@/lib/supabase';
 import { colors, radii, space } from '@/theme';
 
 type HomeState =
   | { status: 'loading' }
   | { status: 'error'; message: string }
-  | { status: 'ready'; orgs: HomeOrg[] };
+  | { status: 'ready'; orgs: HomeOrg[]; live: LiveMeeting[] };
 
 export default function HomeScreen() {
   const { user } = useUser();
@@ -28,7 +32,10 @@ export default function HomeScreen() {
     (async () => {
       let next: HomeState;
       try {
-        next = { status: 'ready', orgs: await getMyHomeOrgs(supabase) };
+        const orgs = await getMyHomeOrgs(supabase);
+        // The Live pill is an extra: if this fails, still show the orgs.
+        const live = await getLiveMeetings(supabase, orgs.map((entry) => entry.org.id)).catch(() => []);
+        next = { status: 'ready', orgs, live };
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Something went wrong.';
         next = { status: 'error', message };
@@ -67,23 +74,20 @@ export default function HomeScreen() {
 
   const greeting = user?.firstName ? `Hi, ${user.firstName}` : 'Hi there';
 
-  if (state.status === 'loading') {
-    return (
-      <Screen>
-        <View style={styles.centered}>
-          <ActivityIndicator color={colors.accent} />
-          <Text style={styles.muted}>Loading your orgs…</Text>
-        </View>
-      </Screen>
-    );
-  }
-
   return (
     <Screen>
       <FlatList
         data={state.status === 'ready' ? state.orgs : []}
         keyExtractor={(item) => item.org.id}
-        renderItem={({ item }) => <OrgCard {...item} />}
+        renderItem={({ item, index }) => (
+          // Cards rise in one after another the first time Home loads.
+          <FadeIn delay={Math.min(index, 6) * 60}>
+            <OrgCard
+              {...item}
+              live={state.status === 'ready' ? state.live.find((meeting) => meeting.orgId === item.org.id) : undefined}
+            />
+          </FadeIn>
+        )}
         contentContainerStyle={styles.list}
         ItemSeparatorComponent={() => <View style={styles.separator} />}
         refreshControl={
@@ -91,12 +95,22 @@ export default function HomeScreen() {
         }
         ListHeaderComponent={
           <View style={styles.header}>
-            <Text style={styles.greeting}>{greeting}</Text>
-            <Text style={styles.title}>Your orgs</Text>
+            <View style={styles.headerText}>
+              <Text style={styles.greeting}>{greeting}</Text>
+              <Text style={styles.title}>Your orgs</Text>
+            </View>
+            <ProfileButton />
           </View>
         }
         ListEmptyComponent={
-          state.status === 'error' ? (
+          // Card-shaped placeholders while loading; the real cards fade in over them.
+          state.status === 'loading' ? (
+            <Skeleton label="Loading your orgs">
+              <OrgCardSkeleton />
+              <OrgCardSkeleton />
+              <OrgCardSkeleton />
+            </Skeleton>
+          ) : state.status === 'error' ? (
             <View style={[styles.panel, styles.errorPanel]}>
               <Text style={styles.panelTitle}>Couldn&apos;t load your orgs</Text>
               <Text style={styles.muted}>{state.message}</Text>
@@ -117,19 +131,20 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
-  centered: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: space[3],
-  },
   list: {
     flexGrow: 1,
     padding: space[4],
+    paddingBottom: space[4] + GLASS_TAB_BAR_SPACE,
   },
   header: {
-    gap: space[1],
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space[3],
     marginBottom: space[4],
+  },
+  headerText: {
+    flex: 1,
+    gap: space[1],
   },
   greeting: {
     color: colors.inkMuted,

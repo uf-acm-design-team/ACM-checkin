@@ -20,3 +20,20 @@ export function formatAnswer(value: unknown): string {
   if (typeof value === 'string' || typeof value === 'number') return String(value).trim();
   return '';
 }
+
+/**
+ * The meeting the "Next meeting" box shows: one that is live now if there is
+ * one, otherwise the soonest that hasn't started. Null when nothing is ahead.
+ */
+export function nextMeeting<T extends { id: string; startTime: string }>(
+  meetings: T[],
+  liveIds: ReadonlySet<string>,
+  nowIso: string,
+): T | null {
+  const byStart = [...meetings].sort((a, b) => a.startTime.localeCompare(b.startTime));
+  return (
+    byStart.find((meeting) => liveIds.has(meeting.id)) ??
+    byStart.find((meeting) => new Date(meeting.startTime).getTime() > new Date(nowIso).getTime()) ??
+    null
+  );
+}

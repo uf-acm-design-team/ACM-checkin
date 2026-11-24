@@ -21,6 +21,30 @@ describe('monthGrid', () => {
     expect(cells.filter(Boolean)).toHaveLength(30);
   });
 
+  it('colours a checked-in day by its org and dots every meeting in its org colour', () => {
+    const grid = monthGrid(
+      { year: 2026, month: 11 },
+      [
+        { title: 'GBM', startTime: '2026-11-03T23:00:00Z', attended: false, accent: 'red' },
+        { title: 'Workshop', startTime: '2026-11-03T20:00:00Z', attended: true, accent: 'purple' },
+        { title: 'Social', startTime: '2026-11-04T23:00:00Z', attended: false, accent: 'orange' },
+        { title: 'Panel', startTime: '2026-11-20T23:00:00Z', attended: false, accent: 'red' },
+      ],
+      NOW,
+    );
+    const at = (n: number) => grid.find((cell) => cell?.day === n);
+    expect(at(3)?.checkedInColor).toBe('purple');
+    // Checked in first, even though GBM started later.
+    expect(at(3)?.dots).toEqual([
+      { color: 'purple', status: 'attended' },
+      { color: 'red', status: 'missed' },
+    ]);
+    expect(at(4)?.checkedInColor).toBeNull();
+    expect(at(4)?.dots).toEqual([{ color: 'orange', status: 'missed' }]);
+    expect(at(20)?.dots).toEqual([{ color: 'red', status: 'upcoming' }]);
+    expect(at(5)?.dots).toEqual([]);
+  });
+
   it('marks attended, missed and upcoming days', () => {
     expect(day(3)?.status).toBe('attended');
     expect(day(5)?.status).toBe('missed');

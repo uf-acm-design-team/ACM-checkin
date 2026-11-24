@@ -16,7 +16,7 @@ type Anchor = { top: number; right: number };
 // The semester pill at the top of the history screen. Tapping it drops a menu
 // of this academic year's semesters down from the pill.
 export function SemesterPicker({ terms, selected, onSelect }: Props) {
-  const pill = useRef<ComponentRef<typeof View>>(null);
+  const pill = useRef<ComponentRef<typeof Pressable>>(null);
   const { width: windowWidth } = useWindowDimensions();
   const [anchor, setAnchor] = useState<Anchor | null>(null);
 
