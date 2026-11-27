@@ -178,6 +178,15 @@ describe("one web check-in per browser per meeting", () => {
     expect(await guest()).toEqual({ ok: true });
   });
 
+  it("accepts the meeting password regardless of case and stray spaces", async () => {
+    state.meetings[0].checkin_password = "ACM2026";
+    expect(await guest("one@ufl.edu", { password: "wrong" })).toEqual({
+      ok: false, error: "Incorrect meeting password.",
+    });
+    expect(await guest("one@ufl.edu", { password: " acm2026 " })).toEqual({ ok: true });
+    expect(state.attendance).toHaveLength(1);
+  });
+
   it("retains a five-attempt device throttle even when the email changes", async () => {
     state.meetings[0].checkin_password = "secret";
     for (let i = 0; i < 5; i++) {
