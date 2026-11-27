@@ -2,6 +2,7 @@
 
 import { createClient } from "@supabase/supabase-js";
 
+import { checkinPasswordMatches } from "@/lib/checkin-password";
 import { escapeLikePattern, sameEmail } from "@/lib/email-match";
 import { INVALID_EMAIL_MESSAGE, validateEmail } from "@/lib/email-validation";
 import { parseSchema, validateAnswers } from "@/lib/form-schema";
@@ -187,7 +188,8 @@ export async function guestCheckIn(input: {
     return { ok: false, error: geofenceErrorMessage(geo.failure), geo: geo.failure };
   }
 
-  if (meeting.checkin_password && meeting.checkin_password !== (input.password ?? "")) {
+  // Ignores case and stray spaces; the member path's SQL check uses the same rule.
+  if (!checkinPasswordMatches(meeting.checkin_password, input.password)) {
     return { ok: false, error: "Incorrect meeting password." };
   }
 

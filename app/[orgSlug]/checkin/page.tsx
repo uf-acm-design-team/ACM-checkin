@@ -768,9 +768,10 @@ export default function CheckinPage({
       badge={<Chip>Conditional</Chip>}
       error={
         passwordError
-          ? // Both server checks compare exactly, so don't promise otherwise,
-            // and there is no attempt cap to count down to.
-            `That's not the password for this meeting. It's on the slide at the front of the room — check capital letters.${
+          ? // Both server checks ignore case and stray spaces, so there's
+            // nothing to tell people about capitals. There's also no attempt
+            // cap to count down to.
+            `That's not the password for this meeting. It's on the slide at the front of the room.${
               passwordAttempts > 1 ? ` Attempt ${passwordAttempts}.` : ""
             }`
           : null
